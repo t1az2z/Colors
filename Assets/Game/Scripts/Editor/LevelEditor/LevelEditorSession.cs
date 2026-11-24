@@ -39,6 +39,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         public bool Dirty { get; private set; }
 
         public readonly List<(string id, string name, Color color)> Palette = new List<(string, string, Color)>();
+        /// <summary>Типы врагов из Enemies.json (id, имя, цвет) — для выбора врага у объекта EnemySpawn.</summary>
+        public readonly List<(string id, string name, string color)> Enemies = new List<(string, string, string)>();
         public readonly List<MovementProfile> Profiles = new List<MovementProfile>();
         public NavGraph Graph { get; private set; }
 
@@ -60,6 +62,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             Level.MarkupChanged += () => Dirty = true;
             LoadPalette();
             LoadProfiles();
+            LoadEnemies();
             EnsureView();
         }
 
@@ -113,6 +116,24 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             {
                 Debug.LogException(e);
             }
+        }
+
+        public void LoadEnemies()
+        {
+            Enemies.Clear();
+            try
+            {
+                foreach (var kv in configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies))
+                    Enemies.Add((kv.Key, string.IsNullOrEmpty(kv.Value.Name) ? kv.Key : kv.Value.Name, kv.Value.Color));
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("Enemies.json: " + e.Message);
+            }
+
+            // Манекен — не тип из Enemies.json, но его тоже можно поставить точкой врага.
+            if (!Enemies.Any(e => e.id == "dummy"))
+                Enemies.Add(("dummy", "Манекен", null));
         }
 
         private void LoadProfiles()

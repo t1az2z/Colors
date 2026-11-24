@@ -147,7 +147,9 @@ let PALETTE = {
   teal:   { name: 'Сине-зелёный', hex: '#18B5A8' },
 };
 let ITEMS = ['sword', 'shield', 'fists'];
-let ENEMIES = ['club_cube', 'dummy'];
+// Типы врагов из Enemies.json: id → имя и цвет. Манекен — отдельный тип прототипа.
+let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, dummy: { name: 'Манекен', color: null } };
+let ENEMIES = Object.keys(ENEMY_INFO);
 const HINTS = ['interact', 'jump', 'roll', 'inventory', 'attack', 'block', 'run'];
 const WORLD_COLOR = '#e4e5e9';
 
@@ -461,7 +463,14 @@ async function loadSiteData() {
   const colors = await tryJson('configs/Colors.json');
   if (colors) { const p = {}; for (const [k, v] of Object.entries(colors)) if (k !== 'none') p[k] = v; PALETTE = p; }
   const items = await tryJson('configs/Items.json'); if (items) ITEMS = Object.keys(items);
-  const enemies = await tryJson('configs/Enemies.json'); if (enemies) ENEMIES = [...Object.keys(enemies), 'dummy'];
+  const enemies = await tryJson('configs/Enemies.json');
+  if (enemies) {
+    const info = {};
+    for (const [k, v] of Object.entries(enemies)) info[k] = { name: v.name || k, color: v.color || null };
+    if (!info.dummy) info.dummy = { name: 'Манекен', color: null };
+    ENEMY_INFO = info; ENEMIES = Object.keys(info);
+    if (!info[st.objEnemy]) st.objEnemy = ENEMIES[0];
+  }
   const idx = await tryJson('levels/index.json'); if (Array.isArray(idx)) siteLevels = idx;
   needMesh = true; requestRender(); renderPanel();
 }
@@ -480,7 +489,7 @@ const st = {
   height: 1, top: '', rot: 0, color: null, brush: 1, slab: false,
   blockShape: 'F', blockMode: 'add',
   paintColumn: false,
-  objKind: 'WeaponPedestal', objItem: 'sword', objColor: 'red', barrier: 'Wall', barrierHeight: 2,
+  objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
 };
@@ -627,6 +636,7 @@ function objectPanel() {
     row('Вид', selectInput(st.barrier, Object.entries(BARRIERS), v => st.barrier = v)),
     row('Высота, кубов', stepper(st.barrierHeight, v => st.barrierHeight = v, 1, 12)));
   if (st.objKind === 'WeaponPedestal') out.push(row('Оружие', textInput(st.objItem, v => st.objItem = v, ITEMS)));
+  if (st.objKind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(st.objEnemy, v => { st.objEnemy = v; renderPanel(); }));
   if (o) {
     out.push(H3('Выбран: ' + o.id));
     const edit = fn => { touchMarkup(); fn(); commit(); renderPanel(); };
@@ -641,8 +651,9 @@ function objectPanel() {
       out.push(row('Вид', selectInput(o.barrier || 'Wall', Object.entries(BARRIERS), v => edit(() => o.barrier = v))));
       out.push(row('Высота', stepper(o.height ?? 2, v => edit(() => o.height = v), 1, 12)));
     }
-    const itemList = o.kind === 'WeaponPedestal' ? ITEMS : o.kind === 'EnemySpawn' ? ENEMIES : o.kind === 'Hint' ? HINTS : null;
-    if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire')
+    const itemList = o.kind === 'WeaponPedestal' ? ITEMS : o.kind === 'Hint' ? HINTS : null;
+    if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })));
+    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire')
       out.push(row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
     out.push(h('div', { class: 'chips', style: 'margin-top:8px' },
       h('button', { class: 'danger', on: { click: () => { touchMarkup(); L.objects = L.objects.filter(x => x !== o); sel.obj = null; commit(); renderPanel(); } } }, 'Удалить объект'),
@@ -651,8 +662,18 @@ function objectPanel() {
   out.push(H3('Объекты уровня (' + L.objects.length + ')'), h('div', { class: 'list' }, L.objects.map(x =>
     h('button', { class: sel.obj === x.id ? 'on' : '', on: { click: () => { sel.obj = x.id; sel.point = null; focusCell(x.cell); renderPanel(); } } },
       h('span', { class: 'mk', style: `background:${objColor(x)}` }, OBJECT_KINDS[x.kind]?.mk || '?'),
-      x.id + (x.item ? ' · ' + x.item : '')))));
+      x.id + (x.kind === 'EnemySpawn' ? ' · ' + enemyName(x.item) : x.item ? ' · ' + x.item : '')))));
   return out;
+}
+function enemyHex(id) { const c = ENEMY_INFO[id]?.color; return PALETTE[c]?.hex || OBJECT_KINDS.EnemySpawn.col; }
+function enemyName(id) { return ENEMY_INFO[id]?.name || id || '?'; }
+/** Список типов врагов кнопками; неизвестный тип из файла тоже показывается, чтобы его не потерять. */
+function enemyList(cur, set) {
+  const ids = [...ENEMIES]; if (cur && !ids.includes(cur)) ids.push(cur);
+  return h('div', { class: 'list' }, ids.map(id =>
+    h('button', { class: cur === id ? 'on' : '', on: { click: () => set(id) } },
+      h('span', { class: 'mk', style: `background:${enemyHex(id)}` }, OBJECT_KINDS.EnemySpawn.mk),
+      enemyName(id) + (ENEMY_INFO[id] ? '' : ' (нет в Enemies.json)'), h('small', { style: 'color:var(--faint);margin-left:auto' }, id))));
 }
 function norm180(a) { a = ((a + 180) % 360 + 360) % 360 - 180; return a; }
 function renameRefs(oldId, newIdv, kind) {
@@ -1005,7 +1026,11 @@ function project(x, y, z) {
   return [(v.x + 1) / 2 * glCanvas.clientWidth, (1 - v.y) / 2 * glCanvas.clientHeight];
 }
 function pxPerUnit() { return glCanvas.clientHeight / (2 * cam.zoom); }
-function objColor(o) { return o.kind === 'Barrier' && PALETTE[o.color] ? PALETTE[o.color].hex : OBJECT_KINDS[o.kind]?.col || '#555'; }
+function objColor(o) {
+  if (o.kind === 'Barrier' && PALETTE[o.color]) return PALETTE[o.color].hex;
+  if (o.kind === 'EnemySpawn') return enemyHex(o.item);
+  return OBJECT_KINDS[o.kind]?.col || '#555';
+}
 function fmtH(v) { const r = Math.round(v * 100) / 100; return Number.isInteger(r) ? String(r) : String(r).replace(/^0\./, '.'); }
 
 function drawOverlay() {
@@ -1049,7 +1074,7 @@ function drawOverlay() {
   // объекты и точки
   const r = Math.max(9, Math.min(17, ppu * 0.36));
   const markers = [];
-  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' ? null : o.yaw || 0, label: o.kind === 'Barrier' ? '' : o.item, kind: 'obj' });
+  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' ? null : o.yaw || 0, label: o.kind === 'Barrier' ? '' : o.kind === 'EnemySpawn' ? enemyName(o.item) : o.item, kind: 'obj' });
   for (const p of L.points) markers.push({ id: p.id, cell: p.cell, col: '#8a5cf0', mk: '◆', sel: sel.point === p.id, diamond: true, label: ACTIONS[p.action]?.name, kind: 'pt' });
   for (const m of markers) {
     const fi = floorIndexOf(m.cell[1]);
@@ -1232,7 +1257,7 @@ function objectTap(px, py) {
     id: kind === 'PlayerSpawn' && !L.objects.some(o => o.id === 'spawn') ? 'spawn' : newId(kind.toLowerCase() + '_', L.objects),
     kind, cell, yaw: 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
     height: kind === 'Barrier' ? st.barrierHeight : 2,
-    item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? ENEMIES[0] : kind === 'Hint' ? 'interact' : null,
+    item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : null,
   };
   if (kind === 'PlayerSpawn') { L.objects = L.objects.filter(x => x.kind !== 'PlayerSpawn'); o.id = 'spawn'; }
   L.objects.push(o); commit();

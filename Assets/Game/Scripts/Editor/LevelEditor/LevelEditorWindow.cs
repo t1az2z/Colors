@@ -357,9 +357,15 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                         barrierHeight = EditorGUILayout.IntSlider("Высота (клеток)", barrierHeight, 1, 6);
                     }
 
-                    if (HasColor(objectKind))
-                        DrawColorPicker(ref objectColor, false);
-                    objectItem = EditorGUILayout.TextField(ItemLabel(objectKind), objectItem);
+                    if (objectKind == LevelObjectKind.EnemySpawn)
+                        objectItem = DrawEnemyPopup(objectItem);
+                    else
+                    {
+                        if (HasColor(objectKind))
+                            DrawColorPicker(ref objectColor, false);
+                        objectItem = EditorGUILayout.TextField(ItemLabel(objectKind), objectItem);
+                    }
+
                     EditorGUILayout.HelpBox("ЛКМ по блоку — поставить объект сверху. ЛКМ по объекту — выбрать.", MessageType.None);
                     break;
                 case Tool.Points:
@@ -375,7 +381,33 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         }
 
         private static bool HasColor(LevelObjectKind kind) =>
-            kind == LevelObjectKind.Barrier || kind == LevelObjectKind.EnemySpawn || kind == LevelObjectKind.WeaponPedestal;
+            kind == LevelObjectKind.Barrier || kind == LevelObjectKind.WeaponPedestal;
+
+        /// <summary>Выбор типа врага из Enemies.json. Неизвестный id сохраняется и помечается.</summary>
+        private string DrawEnemyPopup(string current)
+        {
+            var enemies = session.Enemies;
+            if (enemies.Count == 0)
+                return EditorGUILayout.TextField("Враг (тип)", current ?? "");
+            var ids = enemies.Select(e => e.id).ToList();
+            var labels = enemies.Select(e => $"{e.name} ({e.id})").ToList();
+            var index = string.IsNullOrEmpty(current) ? 0 : ids.IndexOf(current);
+            if (index < 0)
+            {
+                ids.Add(current);
+                labels.Add(current + " — нет в Enemies.json");
+                index = ids.Count - 1;
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                index = EditorGUILayout.Popup("Враг (тип)", index, labels.ToArray());
+                if (GUILayout.Button("↻", GUILayout.Width(24)))
+                    session.LoadEnemies();
+            }
+
+            return ids[Mathf.Clamp(index, 0, ids.Count - 1)];
+        }
 
         private static string ItemLabel(LevelObjectKind kind)
         {
@@ -445,11 +477,20 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 after.Height = EditorGUILayout.IntSlider("Высота", obj.Height, 1, 6);
             }
 
-            var c = obj.Color;
-            DrawColorPicker(ref c, true);
-            after.Color = c;
-            var item = EditorGUILayout.DelayedTextField(ItemLabel(after.Kind), obj.Item ?? "");
-            after.Item = string.IsNullOrEmpty(item) ? null : item;
+            if (after.Kind == LevelObjectKind.EnemySpawn)
+            {
+                // Цвет врага задаёт его тип в Enemies.json.
+                after.Item = DrawEnemyPopup(obj.Item);
+                after.Color = null;
+            }
+            else
+            {
+                var c = obj.Color;
+                DrawColorPicker(ref c, true);
+                after.Color = c;
+                var item = EditorGUILayout.DelayedTextField(ItemLabel(after.Kind), obj.Item ?? "");
+                after.Item = string.IsNullOrEmpty(item) ? null : item;
+            }
             if (EditorGUI.EndChangeCheck())
                 session.Execute(MarkupCommand.PutObject(obj, after));
             if (GUILayout.Button("Удалить объект"))
