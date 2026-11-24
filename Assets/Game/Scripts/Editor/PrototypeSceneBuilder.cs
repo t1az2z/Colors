@@ -44,6 +44,7 @@ namespace ColorsAction.Unity.Editor
             var dummyRed = Lit("DummyBody", Hex("#E8413C"), 0.3f, null, true);
             var dummyBase = Lit("DummyBase", Hex("#5A5A60"), 0.2f);
             EnsureTrailMaterial();
+            EnsurePlayerSilhouette();
 
             // Префабы
             CreateItemPrefab("Sword", new[] { colored, handle });
@@ -293,6 +294,55 @@ namespace ColorsAction.Unity.Editor
             mat.enableInstancing = true;
             EditorUtility.SetDirty(mat);
             return mat;
+        }
+
+        /// <summary>
+        /// Силуэт игрока за блоками: фича RenderObjects в рендерерах URP рисует слой Player материалом
+        /// ColorsAction/Silhouette только там, где куб закрыт геометрией. Повторный вызов ничего не дублирует.
+        /// </summary>
+        [MenuItem("ColorsAction/Setup Player Silhouette")]
+        public static void EnsurePlayerSilhouette()
+        {
+            const string matPath = Materials + "/PlayerSilhouette.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+            if (mat == null)
+            {
+                mat = new Material(Shader.Find("ColorsAction/Silhouette")) { name = "PlayerSilhouette" };
+                AssetDatabase.CreateAsset(mat, matPath);
+            }
+
+            var playerLayer = EnsureLayer(PlayerLayer);
+            foreach (var guid in AssetDatabase.FindAssets("t:UniversalRendererData", new[] { "Assets" }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
+                if (data == null || data.rendererFeatures.Exists(f => f != null && f.name == "PlayerSilhouette"))
+                    continue;
+
+                var feature = ScriptableObject.CreateInstance<RenderObjects>();
+                feature.name = "PlayerSilhouette";
+                feature.settings.Event = RenderPassEvent.AfterRenderingTransparents;
+                feature.settings.filterSettings.RenderQueueType = RenderQueueType.Opaque;
+                feature.settings.filterSettings.LayerMask = 1 << playerLayer;
+                feature.settings.overrideMode = RenderObjects.RenderObjectsSettings.OverrideMaterialMode.Material;
+                feature.settings.overrideMaterial = mat;
+                feature.settings.overrideMaterialPassIndex = 0;
+                AssetDatabase.AddObjectToAsset(feature, data);
+
+                var so = new SerializedObject(data);
+                var features = so.FindProperty("m_RendererFeatures");
+                var map = so.FindProperty("m_RendererFeatureMap");
+                features.arraySize++;
+                features.GetArrayElementAtIndex(features.arraySize - 1).objectReferenceValue = feature;
+                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out _, out long localId);
+                map.arraySize++;
+                map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
+                so.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(data);
+                Debug.Log("ColorsAction: player silhouette added to " + path);
+            }
+
+            AssetDatabase.SaveAssets();
         }
 
         /// <summary>Материал следа оружия (Resources/Materials/WeaponTrail), шейдер ColorsAction/WeaponTrail.</summary>

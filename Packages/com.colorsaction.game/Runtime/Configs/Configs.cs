@@ -368,6 +368,12 @@ namespace ColorsAction.Configs
         /// <summary>Поворот модели в руке вокруг оси клинка, градусы (меч — рубящей кромкой вниз).</summary>
         public float GripRoll { get; set; }
 
+        /// <summary>
+        /// Дальность эффекта атаки (след клинка) от центра куба, метры. 0 — как дальность поражения удара (range),
+        /// чтобы след не был длиннее зоны, где засчитывается урон.
+        /// </summary>
+        public float TrailRange { get; set; }
+
         public List<AttackStepConfig> Combo { get; set; } = new List<AttackStepConfig>();
 
         /// <summary>Щит: угол перед игроком, в котором блок гасит удар.</summary>
@@ -395,8 +401,8 @@ namespace ColorsAction.Configs
         /// <summary>Множитель урона по врагу того же цвета, что и оружие.</summary>
         public float SameColorMultiplier { get; set; } = 1.5f;
 
-        /// <summary>Предмет для пустой руки (кулаки).</summary>
-        public string UnarmedItem { get; set; } = "fists";
+        /// <summary>Предмет для пустой руки (например "fists"). Пусто — без оружия рука не атакует.</summary>
+        public string UnarmedItem { get; set; } = "";
 
         /// <summary>Фриз-кадры при попадании, секунды (0 — выключено). Умножается на отбрасывание удара.</summary>
         public float HitStop { get; set; } = 0.07f;
@@ -407,11 +413,14 @@ namespace ColorsAction.Configs
         /// <summary>Свечение цвета оружия в руках (доля эмиссии), чтобы оружие читалось издалека.</summary>
         public float HeldWeaponGlow { get; set; } = 0.25f;
 
-        /// <summary>Сколько врагов может атаковать игрока одновременно (оркестратор).</summary>
-        public int MaxAttackers { get; set; } = 1;
+        /// <summary>
+        /// Сколько врагов одновременно в атаке (замах/удар). Удары при этом не совпадают никогда: следующий в очереди
+        /// замахивается заранее и бьёт сразу после текущего.
+        /// </summary>
+        public int MaxAttackers { get; set; } = 3;
 
-        /// <summary>Пауза между атаками разных врагов, секунды.</summary>
-        public float AttackerGap { get; set; } = 0.4f;
+        /// <summary>Пауза между концом удара одного врага и ударом следующего, секунды.</summary>
+        public float AttackerGap { get; set; } = 0.25f;
     }
 
     /// <summary>Configs/Dummy.json — тренировочный манекен.</summary>

@@ -39,6 +39,9 @@ namespace ColorsAction.Unity
         private Vector3 lastTip;
 
         public float Lifetime { get; set; } = 0.2f;
+
+        /// <summary>След не дальше этого расстояния от центра куба (дальность эффекта), метры. 0 — без ограничения.</summary>
+        public float MaxRadius { get; set; }
         public bool Emitting { get; set; }
 
         /// <summary>Добавить след к модели оружия. Клинок — вдоль локальной +Y модели.</summary>
@@ -85,6 +88,18 @@ namespace ColorsAction.Unity
             {
                 var b = blade.TransformPoint(baseLocal);
                 var t = blade.TransformPoint(tipLocal);
+                if (MaxRadius > 0f && pivot != null)
+                {
+                    // Обрезаем след по дальности эффекта: остриё дальше радиуса подтягивается к нему.
+                    var c = pivot.position;
+                    var reach = Vector3.Distance(c, t);
+                    if (reach > MaxRadius)
+                    {
+                        var along = (t - b).magnitude;
+                        var cut = Mathf.Clamp01((reach - MaxRadius) / Mathf.Max(0.001f, along));
+                        t = Vector3.Lerp(t, b, cut);
+                    }
+                }
                 if (hasLast)
                     AddArc(lastBase, lastTip, b, t, now);
                 else

@@ -72,40 +72,80 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void Director_LetsOnlyOneEnemyAttackAtATime()
+        public void Director_StrikesNeverOverlap_NextStrikesRightAfterCurrent()
         {
             var config = Club();
             config.OnConfigLoaded();
-            var director = Director();
+            var director = new CombatDirector(new CombatConfig { MaxAttackers = 3, AttackerGap = 0.25f });
             var a = new EnemyBrain(1, config, director, 1);
             var b = new EnemyBrain(2, config, director, 2);
-            for (float t = 0; t < 2.3f; t += 0.02f)
+            var c = new EnemyBrain(3, config, director, 3);
+            var brains = new[] { a, b, c };
+            var overlap = false;
+            var strikeEnds = new List<float>();
+            var strikeStarts = new List<float>();
+            var maxStriking = 0;
+            var sawQueue = false;
+            var time = 0f;
+            var wasStriking = new bool[3];
+            for (; time < 12f; time += 0.02f)
             {
                 director.Tick(0.02f);
-                a.Tick(0.02f, 1.2f);
-                b.Tick(0.02f, 1.2f);
+                var striking = 0;
+                for (int i = 0; i < brains.Length; i++)
+                {
+                    brains[i].Tick(0.02f, 1.2f);
+                    var s = brains[i].State == EnemyState.Strike;
+                    if (s)
+                        striking++;
+                    if (s && !wasStriking[i])
+                        strikeStarts.Add(time);
+                    if (!s && wasStriking[i])
+                        strikeEnds.Add(time);
+                    wasStriking[i] = s;
+                }
+
+                maxStriking = System.Math.Max(maxStriking, striking);
+                overlap |= striking > 1;
+                sawQueue |= director.Queue.Count > 0;
             }
 
-            var attacking = (a.IsAttacking ? 1 : 0) + (b.IsAttacking ? 1 : 0);
-            Assert.That(attacking, Is.EqualTo(1));
-            Assert.That(director.Attackers.Count, Is.EqualTo(1));
-            var waiting = a.IsAttacking ? b : a;
-            Assert.That(waiting.State, Is.EqualTo(EnemyState.Waiting));
-
-            // Пока первый не закончил, второй не нападает; потом — его очередь.
-            var sawBoth = false;
-            var secondAttacked = false;
-            for (float t = 0; t < 6f; t += 0.02f)
+            Assert.That(overlap, Is.False, "two strikes never land at the same time");
+            Assert.That(sawQueue, Is.True, "waiting enemies stand in a queue");
+            Assert.That(strikeStarts.Count, Is.GreaterThanOrEqualTo(3), "everyone gets a turn");
+            // Следующий бьёт сразу после текущего: зазор между концом одного удара и началом следующего мал.
+            var gaps = new List<float>();
+            foreach (var start in strikeStarts)
             {
-                director.Tick(0.02f);
-                a.Tick(0.02f, 1.2f);
-                b.Tick(0.02f, 1.2f);
-                sawBoth |= a.IsAttacking && b.IsAttacking;
-                secondAttacked |= waiting.IsAttacking;
+                var before = strikeEnds.FindLast(e => e <= start + 0.001f);
+                if (before > 0f)
+                    gaps.Add(start - before);
             }
 
-            Assert.That(sawBoth, Is.False, "two enemies never attack at the same time");
-            Assert.That(secondAttacked, Is.True, "the waiting enemy gets its turn");
+            // Первая волна: трое бьют друг за другом, каждый сразу после предыдущего.
+            Assert.That(gaps.Count, Is.GreaterThanOrEqualTo(2));
+            Assert.That(gaps[0] >= 0.2f && gaps[0] < 0.6f && gaps[1] >= 0.2f && gaps[1] < 0.6f, Is.True,
+                "next strike follows the previous one closely: " + string.Join(", ", gaps));
+        }
+
+        [Test]
+        public void ParryWindow_AroundStrikeStart()
+        {
+            var config = Club();
+            config.Attacks.ForEach(a => { a.ParryFrom = -0.2f; a.ParryTo = 0.05f; });
+            config.OnConfigLoaded();
+            var brain = new EnemyBrain(1, config, Director(), 1);
+            Run(brain, 2.1f, 1.2f);
+            Assert.That(brain.State, Is.EqualTo(EnemyState.Windup));
+            Assert.That(brain.InParryWindow, Is.False, "early wind-up is not the parry window");
+            var opened = false;
+            for (float t = 0; t < 1.6f; t += 0.02f)
+            {
+                brain.Tick(0.02f, 1.2f);
+                opened |= brain.InParryWindow;
+            }
+
+            Assert.That(opened, Is.True, "parry window opens right before the strike");
         }
 
         [Test]
@@ -171,8 +211,8 @@ namespace ColorsAction.Tests
             Assert.That(club.Attacks.Count, Is.EqualTo(2));
             var sweep = club.Attacks.Find(a => a.Motion == EnemyAttackMotion.Sweep);
             var overhead = club.Attacks.Find(a => a.Motion == EnemyAttackMotion.Overhead);
-            Assert.That(sweep.Windup, Is.EqualTo(1.5f).Within(0.3f), "readable wind-up");
-            Assert.That(sweep.Strike, Is.LessThan(0.2f), "sharp strike");
+            Assert.That(sweep.Windup, Is.GreaterThanOrEqualTo(0.8f), "readable wind-up");
+            Assert.That(sweep.Strike, Is.LessThan(sweep.Windup / 3f), "sharp strike");
             Assert.That(overhead.Range, Is.GreaterThan(sweep.Range), "overhead reaches further");
             Assert.That(overhead.Arc, Is.LessThan(sweep.Arc), "but is narrower");
         }

@@ -38,6 +38,8 @@ namespace ColorsAction.Unity
         private Text schemeLabel;
         private float toastTimer;
         private readonly WeaponCircle[] weapons = new WeaponCircle[2];
+        private RectTransform quickCross;
+        private readonly QuickSlotView[] quick = new QuickSlotView[4];
         private readonly List<FloatingNumber> numbers = new List<FloatingNumber>();
         private float staminaShown = 1f;
         private float healthShown = 1f;
@@ -81,6 +83,12 @@ namespace ColorsAction.Unity
             // Оружие (справа вверху): правая рука — основное, крупнее; левая — дополнительное.
             weapons[(int)Hand.Right] = WeaponCircle.Create(root, new Vector2(-36, -32), 104f, "Primary");
             weapons[(int)Hand.Left] = WeaponCircle.Create(root, new Vector2(-36 - 104 - 18, -44), 80f, "Secondary");
+
+            // Предметы на крестовине (1–4 / D-pad): слева внизу крестом, видны, только когда есть предметы.
+            quickCross = UiFactory.Rect(root, "QuickItems", new Vector2(0, 0), new Vector2(0.5f, 0.5f), new Vector2(130, 130), new Vector2(220, 220));
+            var offsets = new[] { new Vector2(0, 70), new Vector2(70, 0), new Vector2(0, -70), new Vector2(-70, 0) };
+            for (int i = 0; i < quick.Length; i++)
+                quick[i] = QuickSlotView.Create(quickCross, offsets[i], i);
 
             prompt = UiFactory.Text(root, "Prompt", "", 28, TextAnchor.MiddleCenter, UiFactory.TextColor);
             prompt.rectTransform.anchorMin = prompt.rectTransform.anchorMax = new Vector2(0.5f, 0);
@@ -137,6 +145,7 @@ namespace ColorsAction.Unity
 
         private void RefreshHands()
         {
+            RefreshQuick();
             for (int i = 0; i < 2; i++)
             {
                 var item = session.Inventory.InHand((Hand)i);
@@ -226,6 +235,56 @@ namespace ColorsAction.Unity
             }
         }
 
+        private void RefreshQuick()
+        {
+            if (quickCross == null)
+                return;
+            var inv = session.Inventory;
+            var any = false;
+            for (int i = 0; i < quick.Length; i++)
+            {
+                var item = i < inv.QuickCount ? inv.Get(SlotRef.Quick(i)) : null;
+                any |= item != null;
+                quick[i].Set(item, item != null ? palette.Get(item.Config.Color) : Color.clear);
+            }
+
+            quickCross.gameObject.SetActive(any);
+        }
+
+        /// <summary>Ячейка крестовины предметов: плашка, иконка, номер клавиши.</summary>
+        private sealed class QuickSlotView
+        {
+            private RectTransform rect;
+            private RectTransform icon;
+            private Image back;
+
+            public static QuickSlotView Create(Transform parent, Vector2 pos, int index)
+            {
+                var v = new QuickSlotView();
+                v.back = UiFactory.Image(parent, "Quick" + (index + 1), new Color(0, 0, 0, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(64, 64));
+                UiSprites.Apply(v.back, UiSprites.Rounded, true);
+                v.back.raycastTarget = false;
+                v.rect = v.back.rectTransform;
+                var label = UiFactory.Text(v.rect, "Key", (index + 1).ToString(), 16, TextAnchor.LowerRight, UiFactory.MutedText);
+                UiFactory.Stretch(label.rectTransform, 4);
+                UiFactory.Outline(label);
+                return v;
+            }
+
+            public void Set(Item item, Color color)
+            {
+                if (icon != null)
+                    UnityEngine.Object.Destroy(icon.gameObject);
+                icon = null;
+                back.color = item != null ? new Color(0, 0, 0, 0.55f) : new Color(0, 0, 0, 0.25f);
+                if (item == null)
+                    return;
+                icon = SlotView.CreateIcon(rect, item, color, 52f);
+                icon.anchorMin = icon.anchorMax = new Vector2(0.5f, 0.5f);
+                icon.anchoredPosition = Vector2.zero;
+            }
+        }
+
         /// <summary>Кружок оружия: тёмный фон, кольцо цвета оружия, иконка, клавиша под ним.</summary>
         private sealed class WeaponCircle
         {
@@ -258,6 +317,8 @@ namespace ColorsAction.Unity
                 if (icon != null)
                     UnityEngine.Object.Destroy(icon.gameObject);
                 icon = null;
+                // Без оружия кружок не показываем.
+                rootRect.gameObject.SetActive(item != null);
                 ring.color = item != null ? color : new Color(1f, 1f, 1f, 0.25f);
                 if (item == null)
                     return;

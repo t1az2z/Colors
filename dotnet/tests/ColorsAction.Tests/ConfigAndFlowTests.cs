@@ -43,10 +43,10 @@ namespace ColorsAction.Tests
         {
             using var host = CreateHost();
             var player = host.Container.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player);
-            Assert.That(player.JumpHeight, Is.EqualTo(1.5f).Within(0.001f));
-            Assert.That(player.RollDistance, Is.EqualTo(4f).Within(0.001f));
-            Assert.That(player.RunMultiplier, Is.EqualTo(2f).Within(0.001f));
-            Assert.That(player.WalkSpeed, Is.EqualTo(6.4f).Within(0.001f));
+            // Числа крутит пользователь в редакторе конфигов, тест проверяет только соотношения.
+            Assert.That(player.JumpHeight, Is.GreaterThan(1f).And.LessThan(2f), "1.0 ledge jumpable, 2.0 not");
+            Assert.That(player.RollDistance, Is.GreaterThan(1f));
+            Assert.That(player.RunMultiplier, Is.GreaterThan(1f));
             Assert.That(player.RollInvulnerableTo, Is.GreaterThan(player.RollInvulnerableFrom));
             // 0.25 — шагом, 0.5 — уже нет.
             Assert.That(player.StepHeight, Is.GreaterThan(0.25f).And.LessThan(0.5f));

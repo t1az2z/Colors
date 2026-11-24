@@ -182,8 +182,9 @@ namespace ColorsAction.Unity
             var intent = brain.Tick(dt, distance, available);
             var dir = distance > 0.001f ? toPlayer / distance : transform.forward;
 
-            // Движение: к игроку / от игрока + мягкое расталкивание с соседями + отбрасывание от ударов.
-            var desired = dir * intent.MoveSpeed + Separation();
+            // Движение: к игроку / от игрока, а в очереди — к точке за спиной игрока;
+            // плюс мягкое расталкивание с соседями и отбрасывание от ударов.
+            var desired = (intent.Flank ? FlankVelocity(intent, toPlayer, distance) : dir * intent.MoveSpeed) + Separation();
             velocity = Vector3.MoveTowards(velocity, desired, 30f * dt);
             push = Vector3.MoveTowards(push, Vector3.zero, 6f * dt);
             var lunge = Lunge(dir);
@@ -210,6 +211,7 @@ namespace ColorsAction.Unity
 
             if (brain.State == EnemyState.Strike)
                 TryHitPlayer(distance, dir);
+            UpdateParryWindow();
 
             if (flash > 0f)
             {
@@ -219,6 +221,56 @@ namespace ColorsAction.Unity
 
             UpdateDeformation(dt);
         }
+
+        /// <summary>
+        /// Ждущий в очереди обходит игрока по дуге к точке за его спиной (свои места для каждого в очереди),
+        /// следующий по очереди подходит на дистанцию удара.
+        /// </summary>
+        private Vector3 FlankVelocity(EnemyIntent intent, Vector3 toPlayer, float distance)
+        {
+            var playerForward = player != null ? player.Forward : Vector3.forward;
+            var behind = -playerForward;
+            // Места: 0 — точно сзади, дальше — по очереди слева и справа от спины.
+            var index = Mathf.Max(0, intent.QueueIndex);
+            var side = index == 0 ? 0f : (index % 2 == 1 ? 1f : -1f) * (40f * ((index + 1) / 2));
+            var fromPlayer = distance > 0.001f ? -toPlayer / distance : behind;
+            var wanted = Vector3.Slerp(fromPlayer, Quaternion.Euler(0, side, 0) * behind, Mathf.Clamp01(config.FlankBias)).normalized;
+            var target = player.transform.position + wanted * intent.FlankDistance;
+            var to = target - transform.position;
+            to.y = 0f;
+            var d = to.magnitude;
+            if (d < 0.25f)
+                return Vector3.zero;
+
+            // Обходим по дуге: не проходим сквозь игрока, а огибаем его на дистанции ожидания.
+            var radial = -fromPlayer;
+            var tangent = Vector3.Cross(Vector3.up, radial);
+            if (Vector3.Dot(tangent, to) < 0f)
+                tangent = -tangent;
+            var dirTo = to / d;
+            if (Vector3.Dot(dirTo, radial) > 0.3f && distance < intent.FlankDistance + 1f)
+                dirTo = Vector3.Slerp(dirTo, tangent, 0.7f).normalized;
+            return dirTo * Mathf.Min(intent.MoveSpeed, d * 4f);
+        }
+
+        /// <summary>Открылось окно парирования текущей атаки — сюда цепляются звук и VFX.</summary>
+        public event System.Action<EnemyController> ParryWindowOpened;
+
+        private bool parryWindowWasOpen;
+
+        private void UpdateParryWindow()
+        {
+            var open = brain.InParryWindow;
+            if (open && !parryWindowWasOpen)
+            {
+                ParryWindowOpened?.Invoke(this);
+                parryGlint = 0.12f; // временная подсказка: блик на оружии
+            }
+
+            parryWindowWasOpen = open;
+        }
+
+        private float parryGlint;
 
         private Vector3 Separation()
         {
@@ -364,6 +416,9 @@ namespace ColorsAction.Unity
             var k = brain.IsAttacking ? 1f : 1f - Mathf.Exp(-Time.deltaTime * 14f);
             handPose = k >= 1f ? pose : PlayerCombat.AroundBody(handPose, pose, k);
             hand.localPosition = deformer.DeformPoint(handPose.position);
+            if (parryGlint > 0f)
+                parryGlint -= Time.deltaTime;
+            hand.localScale = Vector3.one * (1f + Mathf.Clamp01(parryGlint / 0.12f) * 0.25f);
             hand.localRotation = deformer.DeformRotation(handPose.position) * handPose.rotation;
         }
 

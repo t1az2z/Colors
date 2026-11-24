@@ -49,6 +49,13 @@ namespace ColorsAction.Configs
         /// <summary>Вес при случайном выборе атаки.</summary>
         public float Weight { get; set; } = 1f;
 
+        /// <summary>
+        /// Окно парирования щитом, секунды относительно начала удара (минус — до удара, в конце замаха).
+        /// Блок, поставленный в это окно, — парирование. К открытию окна цепляются звук и VFX-подсказка.
+        /// </summary>
+        public float ParryFrom { get; set; } = -0.18f;
+        public float ParryTo { get; set; } = 0.06f;
+
         public float Total => Windup + Strike + Hold + Recovery;
     }
 
@@ -82,8 +89,11 @@ namespace ColorsAction.Configs
         public float MoveSpeed { get; set; } = 4.5f;
         public float TurnSpeed { get; set; } = 540f;
 
-        /// <summary>Пока атакует другой враг, этот держится на такой дистанции от игрока.</summary>
+        /// <summary>Пока атакует другой враг, этот держится на такой дистанции от игрока (заходя за спину).</summary>
         public float WaitDistance { get; set; } = 3.2f;
+
+        /// <summary>Насколько стремится зайти игроку за спину, пока ждёт очереди: 0 — где стоит, 1 — точно сзади.</summary>
+        public float FlankBias { get; set; } = 1f;
 
         /// <summary>Пауза после своей атаки, прежде чем снова попросить право атаковать.</summary>
         public float AttackCooldown { get; set; } = 0.8f;

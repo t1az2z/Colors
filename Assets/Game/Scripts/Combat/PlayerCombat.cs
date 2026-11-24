@@ -124,7 +124,12 @@ namespace ColorsAction.Unity
         private ItemConfig ItemFor(Hand hand)
         {
             var item = session.Inventory.InHand(hand);
-            return item != null ? item.Config : items.Get(combatConfig.UnarmedItem);
+            if (item != null)
+                return item.Config;
+            // Кулаки — не оружие по умолчанию: без предмета рука не атакует (UnarmedItem пустой).
+            return string.IsNullOrEmpty(combatConfig.UnarmedItem) || !items.Exists(combatConfig.UnarmedItem)
+                ? null
+                : items.Get(combatConfig.UnarmedItem);
         }
 
         private void RebuildVisuals()
@@ -165,6 +170,9 @@ namespace ColorsAction.Unity
             }
 
             var go = Instantiate(prefab, socket, false);
+            // Оружие на слое игрока: его тоже видно силуэтом за блоками.
+            foreach (var t in go.GetComponentsInChildren<Transform>(true))
+                t.gameObject.layer = gameObject.layer;
             // Хват: поворот модели вокруг оси клинка (например, рубящей кромкой вниз).
             go.transform.localRotation = Quaternion.Euler(0f, config.GripRoll, 0f);
             if (go.TryGetComponent<ItemVisual>(out var visual))
@@ -194,7 +202,7 @@ namespace ColorsAction.Unity
 
             var wasBlocking = Blocking;
             Blocking = control && attacking == null &&
-                       ((right.Item.Kind == ItemKind.Shield && right.Holding) || (left.Item.Kind == ItemKind.Shield && left.Holding));
+                       ((right.Item?.Kind == ItemKind.Shield && right.Holding) || (left.Item?.Kind == ItemKind.Shield && left.Holding));
             session.Stamina.Blocking = Blocking;
             if (Blocking && !wasBlocking && !session.Stamina.TrySpend(playerConfig.Stamina.BlockStartCost))
                 Blocking = false;
@@ -207,7 +215,7 @@ namespace ColorsAction.Unity
         private void UpdateHand(HandState hand, bool control, bool pressed, bool held)
         {
             hand.Holding = control && held;
-            if (!control || !pressed || hand.Item.Kind == ItemKind.Shield || hand.Item.Combo.Count == 0)
+            if (!control || !pressed || hand.Item == null || hand.Item.Kind == ItemKind.Shield || hand.Item.Combo.Count == 0)
                 return;
 
             // Двуручное: обе кнопки управляют правой рукой.
@@ -506,7 +514,7 @@ namespace ColorsAction.Unity
                 Pose pose;
                 if (attacking == hand)
                     pose = AttackPose(hand, StepT);
-                else if (Blocking && hand.Item.Kind == ItemKind.Shield && hand.Holding)
+                else if (Blocking && hand.Item?.Kind == ItemKind.Shield && hand.Holding)
                     pose = BlockPose(hand);
                 else
                     pose = RestPose(hand);
@@ -526,6 +534,8 @@ namespace ColorsAction.Unity
                 {
                     var t = attacking == hand ? StepT : -1f;
                     hand.Trail.Emitting = t >= step?.ActiveFrom - 0.1f && t <= step?.ActiveTo + 0.12f;
+                    if (step != null && hand.Item != null)
+                        hand.Trail.MaxRadius = hand.Item.TrailRange > 0f ? hand.Item.TrailRange : step.Range;
                 }
             }
         }
@@ -533,6 +543,8 @@ namespace ColorsAction.Unity
         private Pose RestPose(HandState hand)
         {
             var s = hand.Side;
+            if (hand.Item == null)
+                return new Pose(new Vector3(0.64f * s, 0.38f, 0.12f), Quaternion.identity);
             switch (hand.Item.Kind)
             {
                 case ItemKind.Shield:

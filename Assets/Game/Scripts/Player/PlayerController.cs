@@ -38,6 +38,7 @@ namespace ColorsAction.Unity
         private float rollTime;
         private float rollCooldown;
         private float rollBufferTimer;
+        private bool rollBackward;
         private Vector3 rollDirection;
         private int rollHalvesLanded;
 
@@ -350,8 +351,12 @@ namespace ColorsAction.Unity
             if (!session.Stamina.TrySpend(config.Stamina.RollCost))
                 return false;
 
-            rollDirection = move.sqrMagnitude > 0.01f ? move.normalized : Forward;
-            yaw = Mathf.Atan2(rollDirection.x, rollDirection.z) * Mathf.Rad2Deg;
+            // Без направления движения — кувырок назад (отскок), лицом к прежнему направлению.
+            var backward = move.sqrMagnitude <= 0.01f;
+            rollDirection = backward ? -Forward : move.normalized;
+            rollBackward = backward;
+            if (!backward)
+                yaw = Mathf.Atan2(rollDirection.x, rollDirection.z) * Mathf.Rad2Deg;
             rolling = true;
             rollTime = 0f;
             rollHalvesLanded = 0;
@@ -408,11 +413,12 @@ namespace ColorsAction.Unity
             {
                 angle = (phase == 2 ? 180f : 0f) + EaseInOut(u) * 180f;
                 hop = Mathf.Sin(u * Mathf.PI) * config.RollHopHeight;
-                deformer.BendTarget = new Vector2(0f, Mathf.Sin(u * Mathf.PI) * d.RollBend);
+                deformer.BendTarget = new Vector2(0f, Mathf.Sin(u * Mathf.PI) * d.RollBend * (rollBackward ? -1f : 1f));
                 deformer.SquashTarget = 0f;
             }
 
-            rollPivot.localRotation = Quaternion.Euler(angle, 0, 0);
+            // Кувырок назад — вращение в обратную сторону, куб остаётся лицом вперёд.
+            rollPivot.localRotation = Quaternion.Euler(rollBackward ? -angle : angle, 0, 0);
             rollPivot.localPosition = new Vector3(0, config.ColliderHeight * 0.5f + hop, 0);
 
             // Удары о землю: приземление на "голову", толчок во второй прыжок, приземление на "ноги".

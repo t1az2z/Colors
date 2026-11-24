@@ -29,10 +29,21 @@ namespace ColorsAction.Combat
         /// <summary>Поворачиваться к игроку.</summary>
         public readonly bool FacePlayer;
 
-        public EnemyIntent(float moveSpeed, bool facePlayer)
+        /// <summary>
+        /// Ждёт очереди: идти к точке за спиной игрока на расстоянии <see cref="FlankDistance"/>
+        /// (место в очереди — <see cref="QueueIndex"/>, чтобы ждущие не толпились в одной точке).
+        /// </summary>
+        public readonly bool Flank;
+        public readonly float FlankDistance;
+        public readonly int QueueIndex;
+
+        public EnemyIntent(float moveSpeed, bool facePlayer, bool flank = false, float flankDistance = 0f, int queueIndex = -1)
         {
             MoveSpeed = moveSpeed;
             FacePlayer = facePlayer;
+            Flank = flank;
+            FlankDistance = flankDistance;
+            QueueIndex = queueIndex;
         }
     }
 
@@ -80,6 +91,27 @@ namespace ColorsAction.Combat
 
         public bool IsAggro => State != EnemyState.Idle && State != EnemyState.Dead;
 
+        /// <summary>
+        /// Сейчас окно парирования текущей атаки (время относительно начала удара в
+        /// [<see cref="EnemyAttackConfig.ParryFrom"/>, <see cref="EnemyAttackConfig.ParryTo"/>]).
+        /// </summary>
+        public bool InParryWindow
+        {
+            get
+            {
+                if (Attack == null)
+                    return false;
+                float t;
+                if (State == EnemyState.Windup)
+                    t = StateTime - Attack.Windup;
+                else if (State == EnemyState.Strike)
+                    t = StateTime;
+                else
+                    return false;
+                return t >= Attack.ParryFrom && t <= Attack.ParryTo;
+            }
+        }
+
         /// <summary>Смена состояния (для анимаций и звуков).</summary>
         public event Action<EnemyState> StateChanged;
 
@@ -125,31 +157,39 @@ namespace ColorsAction.Combat
 
                     if (TryStartAttack(distance))
                         return new EnemyIntent(0f, true);
-                    if (!CanAcquireNow() && distance <= Config.WaitDistance + 0.2f)
+                    // Подошёл на дистанцию ожидания, а право атаки занято — в очередь.
+                    if (distance <= Config.WaitDistance + 0.2f && (director.Attackers.Count > 0 || director.Queue.Count > 0))
+                    {
+                        director.Enqueue(Id);
                         SetState(EnemyState.Waiting);
+                    }
+
                     return new EnemyIntent(Config.MoveSpeed, true);
 
                 case EnemyState.Waiting:
                     if (!playerAvailable || distance > Config.LoseRadius)
                     {
+                        director.Leave(Id);
                         SetState(EnemyState.Idle);
                         return new EnemyIntent(0f, false);
                     }
 
+                    director.Enqueue(Id);
                     if (TryStartAttack(distance))
                         return new EnemyIntent(0f, true);
-                    if (CanAcquireNow())
+                    // Очередь пуста и никто не атакует — просто догоняем.
+                    if (director.Attackers.Count == 0 && director.QueueIndex(Id) == 0 && PickAttack(distance) == null)
                     {
+                        director.Leave(Id);
                         SetState(EnemyState.Chase);
                         return new EnemyIntent(Config.MoveSpeed, true);
                     }
 
-                    // Держим дистанцию: подходим, если далеко, отступаем, если вплотную.
-                    if (distance > Config.WaitDistance + 0.6f)
-                        return new EnemyIntent(Config.MoveSpeed * 0.5f, true);
-                    if (distance < Config.WaitDistance - 0.6f)
-                        return new EnemyIntent(-Config.MoveSpeed * 0.4f, true);
-                    return new EnemyIntent(0f, true);
+                    // Ждём за спиной игрока; следующий в очереди подходит на дистанцию своего удара,
+                    // чтобы начать замах точно вовремя и ударить сразу после текущего врага.
+                    var place = director.QueueIndex(Id);
+                    var close = place == 0 ? Math.Max(0.8f, Config.MaxAttackRange * 0.8f) : Config.WaitDistance;
+                    return new EnemyIntent(Config.MoveSpeed, true, true, close, place);
 
                 case EnemyState.Windup:
                     if (StateTime >= Attack.Windup)
@@ -171,6 +211,7 @@ namespace ColorsAction.Combat
                     if (StateTime >= Attack.Recovery)
                     {
                         director.Release(Id);
+                        director.Leave(Id);
                         cooldown = Config.AttackCooldown;
                         Attack = null;
                         SetState(EnemyState.Chase);
@@ -205,11 +246,13 @@ namespace ColorsAction.Combat
             }
 
             if (!IsAttacking)
+            {
+                director.Leave(Id);
                 SetState(EnemyState.Staggered);
+            }
+
             return false;
         }
-
-        private bool CanAcquireNow() => cooldown <= 0f && (director.Attackers.Count == 0 || director.IsAttacking(Id));
 
         private void Engage(float distance)
         {
@@ -222,7 +265,7 @@ namespace ColorsAction.Combat
             if (cooldown > 0f)
                 return false;
             var attack = PickAttack(distance);
-            if (attack == null || !director.TryAcquire(Id))
+            if (attack == null || !director.TryAcquire(Id, attack.Windup, attack.Strike))
                 return false;
             Attack = attack;
             SetState(EnemyState.Windup);
@@ -254,6 +297,7 @@ namespace ColorsAction.Combat
         private void OnDied()
         {
             director.Release(Id);
+            director.Leave(Id);
             Attack = null;
             SetState(EnemyState.Dead);
         }

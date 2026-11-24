@@ -354,7 +354,7 @@ namespace ColorsAction.Unity.Editor
                 var hpBefore = session.Vitals.Health.Current.Value;
                 var sawAlert = false;
                 var sawWindup = false;
-                var maxAttackers = 0;
+                var maxStriking = 0;
                 var windupFrames = 0;
                 var hitFrame = -1;
                 var invulnerableAfterHit = false;
@@ -365,7 +365,11 @@ namespace ColorsAction.Unity.Editor
                         if (e != null && e.Brain.State == ColorsAction.Combat.EnemyState.Windup)
                             windupFrames++;
                     sawWindup |= windupFrames > 0;
-                    maxAttackers = Mathf.Max(maxAttackers, director.Attackers.Count);
+                    var striking = 0;
+                    foreach (var e in enemies)
+                        if (e != null && e.Brain.State == ColorsAction.Combat.EnemyState.Strike)
+                            striking++;
+                    maxStriking = Mathf.Max(maxStriking, striking);
                     if (hitFrame < 0 && session.Vitals.Health.Current.Value < hpBefore)
                     {
                         hitFrame = f;
@@ -376,7 +380,7 @@ namespace ColorsAction.Unity.Editor
 
                 Check(sawAlert, "enemy notices the player and shows the alert");
                 Check(sawWindup && windupFrames >= 60, $"attack has a long readable wind-up: {windupFrames / 60f:F1} s of wind-up seen");
-                Check(maxAttackers <= 1, $"never more than one attacker: {maxAttackers}");
+                Check(maxStriking <= 1, $"two enemies never strike at the same time: {maxStriking}");
                 Check(hitFrame >= 0, $"enemy hits the player: hp {hpBefore:F0} -> {session.Vitals.Health.Current.Value:F0}");
                 if (hitFrame >= 0)
                     Check(invulnerableAfterHit, "player gets ~2 s of i-frames after a hit");
