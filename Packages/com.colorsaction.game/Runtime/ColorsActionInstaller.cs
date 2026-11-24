@@ -1,0 +1,38 @@
+using ColorsAction.Combat;
+using ColorsAction.Configs;
+using ColorsAction.Inventory;
+using ColorsAction.States;
+using GameCore.Config;
+using GameCore.DI;
+using GameCore.Events;
+using GameCore.Fsm;
+using GameCore.Hosting;
+using GameCore.Ticking;
+using GameCore.UI;
+
+namespace ColorsAction
+{
+    /// <summary>
+    /// Сервисы и состояния игры поверх ядра. Платформа (Unity) регистрирует логгер, источник конфигов и сериализатор.
+    /// Регистрация фабриками, без рефлексии: безопасно для IL2CPP.
+    /// </summary>
+    public sealed class ColorsActionInstaller : IInstaller
+    {
+        public void Install(Container container)
+        {
+            container
+                .Register(r => new ItemDatabase(r.Resolve<ConfigService>()))
+                .Register(r => new DamageRules(r.Resolve<ConfigService>().Load<CombatConfig>(ConfigKeys.Combat)))
+                .Register(r =>
+                {
+                    var session = new GameSession(r.Resolve<ConfigService>(), r.Resolve<ItemDatabase>(), r.Resolve<IEventBus>());
+                    r.Resolve<TickScheduler>().Add(session.Stamina);
+                    return session;
+                })
+                .Register(r => new BootState(r.Resolve<ConfigService>(), r.Resolve<StateMachine>()))
+                .Register(r => new PlayState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(), r.Resolve<IEventBus>()))
+                .Register(r => new InventoryState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(),
+                    r.Resolve<IEventBus>(), r.Resolve<ScreenStack>()));
+        }
+    }
+}

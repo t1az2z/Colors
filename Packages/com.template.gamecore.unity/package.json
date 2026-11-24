@@ -1,0 +1,11 @@
+{
+  "name": "com.template.gamecore.unity",
+  "displayName": "Game Core: Unity adapters",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Thin Unity layer for Game Core: logger, host MonoBehaviour driving ticks, config sources (StreamingAssets, Resources), uGUI bindings for reactive view models, event bus leak check.",
+  "dependencies": {
+    "com.template.gamecore": "0.1.0",
+    "com.unity.ugui": "2.0.0"
+  }
+}

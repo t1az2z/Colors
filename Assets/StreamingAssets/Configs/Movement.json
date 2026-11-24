@@ -1,0 +1,29 @@
+{
+  "player": {
+    "name": "Игрок",
+    "stepHeight": 0.3,
+    "jumpHeight": 1.25,
+    "maxDrop": 4,
+    "height": 1,
+    "diagonal": true,
+    "specials": ["ShieldSlide", "Lift", "GrappleAnchor", "FlailRing", "ShortcutDoor", "FloorTransition"]
+  },
+  "walker": {
+    "name": "Обычный враг (не прыгает)",
+    "stepHeight": 0.3,
+    "jumpHeight": 0,
+    "maxDrop": 1,
+    "height": 1,
+    "diagonal": true,
+    "specials": []
+  },
+  "boulder": {
+    "name": "Глыба",
+    "stepHeight": 0.3,
+    "jumpHeight": 0,
+    "maxDrop": 0.5,
+    "height": 2,
+    "diagonal": false,
+    "specials": []
+  }
+}

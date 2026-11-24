@@ -1,0 +1,7 @@
+{
+  "sameColorMultiplier": 1.5,
+  "unarmedItem": "fists",
+  "hitStop": 0.05,
+  "hitShake": 0.12,
+  "heldWeaponGlow": 0.25
+}

@@ -1,0 +1,59 @@
+{
+  "walkSpeed": 6.4,
+  "runMultiplier": 2.0,
+  "acceleration": 90,
+  "deceleration": 140,
+  "airControl": 0.6,
+  "turnSpeed": 900,
+  "blockMoveMultiplier": 0.45,
+  "attackMoveMultiplier": 0.25,
+
+  "colliderWidth": 0.9,
+  "colliderHeight": 1.0,
+  "stepHeight": 0.3,
+
+  "jumpHeight": 1.5,
+  "jumpWindup": 0.05,
+  "gravity": 30,
+  "fallGravityMultiplier": 1.4,
+  "maxFallSpeed": 25,
+  "coyoteTime": 0.1,
+  "jumpBuffer": 0.12,
+
+  "rollDistance": 4.0,
+  "rollDuration": 0.62,
+  "rollCooldown": 0.15,
+  "rollHopHeight": 0.4,
+  "rollInvulnerableFrom": 0.1,
+  "rollInvulnerableTo": 0.8,
+  "rollMidPause": 0.16,
+  "rollMidSpeed": 0.25,
+
+  "stamina": {
+    "max": 100,
+    "regenPerSecond": 44,
+    "regenDelay": 0.9,
+    "rollCost": 22,
+    "blockStartCost": 6,
+    "blockRegenMultiplier": 0.3,
+    "jumpCost": 0
+  },
+
+  "interactRadius": 1.4,
+
+  "deformation": {
+    "stiffness": 220,
+    "damping": 9,
+    "walkBend": 0.08,
+    "walkSwayPerMeter": 1.6,
+    "walkBob": 0.04,
+    "moveLean": 0.06,
+    "jumpWindupSquash": -0.3,
+    "jumpTakeoffStretch": 0.25,
+    "landSquashPerSpeed": -0.035,
+    "maxLandSquash": -0.4,
+    "rollBend": 0.18,
+    "rollLandSquash": -0.25,
+    "hitSquash": -0.15
+  }
+}

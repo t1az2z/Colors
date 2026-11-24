@@ -1,0 +1,10 @@
+{
+  "blue":   { "name": "Синий",       "hex": "#2F6BFF" },
+  "lilac":  { "name": "Сиреневый",   "hex": "#B07CFF" },
+  "red":    { "name": "Красный",     "hex": "#E8413C" },
+  "yellow": { "name": "Жёлтый",      "hex": "#F5C518" },
+  "green":  { "name": "Зелёный",     "hex": "#3DBE5A" },
+  "orange": { "name": "Оранжевый",   "hex": "#FF8A1F" },
+  "teal":   { "name": "Сине-зелёный","hex": "#18B5A8" },
+  "none":   { "name": "Без цвета",   "hex": "#9EA0A6" }
+}

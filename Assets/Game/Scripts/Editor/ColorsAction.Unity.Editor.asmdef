@@ -1,0 +1,23 @@
+{
+    "name": "ColorsAction.Unity.Editor",
+    "rootNamespace": "ColorsAction.Unity.Editor",
+    "references": [
+        "GameCore",
+        "GameCore.Newtonsoft",
+        "GameCore.Unity",
+        "ColorsAction.Game",
+        "ColorsAction.Unity",
+        "Unity.Cinemachine",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

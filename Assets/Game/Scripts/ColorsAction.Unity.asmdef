@@ -1,0 +1,22 @@
+{
+    "name": "ColorsAction.Unity",
+    "rootNamespace": "ColorsAction.Unity",
+    "references": [
+        "GameCore",
+        "GameCore.Newtonsoft",
+        "GameCore.Unity",
+        "ColorsAction.Game",
+        "Unity.InputSystem",
+        "Unity.Cinemachine",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

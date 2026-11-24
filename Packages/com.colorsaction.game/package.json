@@ -1,0 +1,10 @@
+{
+  "name": "com.colorsaction.game",
+  "displayName": "ColorsAction: game logic",
+  "version": "0.1.0",
+  "unity": "6000.0",
+  "description": "Engine-agnostic logic of ColorsAction built on Game Core: configs, inventory, combat rules, game states and screen models. No UnityEngine references; tested with dotnet test (see dotnet/).",
+  "dependencies": {
+    "com.template.gamecore": "0.1.0"
+  }
+}

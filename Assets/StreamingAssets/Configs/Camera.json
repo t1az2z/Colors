@@ -1,0 +1,18 @@
+{
+  "scheme": "FreeOrbit",
+  "fixedAngleStep": 90,
+  "fixedRotateTime": 0.18,
+  "aimDeadzone": 0.3,
+  "pitch": 35,
+  "startYaw": 45,
+  "fieldOfView": 25,
+  "distance": 26,
+  "minDistance": 14,
+  "maxDistance": 40,
+  "zoomStep": 2,
+  "mouseRotateSpeed": 0.15,
+  "lockCursor": true,
+  "stickRotateSpeed": 140,
+  "snapStep": 45,
+  "followDamping": 0.15
+}

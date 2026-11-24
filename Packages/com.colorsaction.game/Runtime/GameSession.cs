@@ -1,0 +1,75 @@
+using ColorsAction.Combat;
+using ColorsAction.Configs;
+using ColorsAction.Inventory;
+using GameCore.Config;
+using GameCore.Events;
+using GameCore.UI;
+
+namespace ColorsAction
+{
+    /// <summary>Игрок подобрал предмет.</summary>
+    public readonly struct ItemPickedUp
+    {
+        public readonly Item Item;
+
+        public ItemPickedUp(Item item)
+        {
+            Item = item;
+        }
+    }
+
+    /// <summary>Не удалось подобрать предмет: инвентарь полон.</summary>
+    public readonly struct InventoryFull
+    {
+        public readonly string ItemId;
+
+        public InventoryFull(string itemId)
+        {
+            ItemId = itemId;
+        }
+    }
+
+    /// <summary>Запрос открыть/закрыть инвентарь (TAB / View).</summary>
+    public sealed class InventoryToggleRequested
+    {
+    }
+
+    /// <summary>
+    /// Состояние текущей игры, общее для состояний FSM и адаптеров движка:
+    /// инвентарь игрока и флаг "игрок управляет персонажем".
+    /// </summary>
+    public sealed class GameSession
+    {
+        private readonly ItemDatabase items;
+        private readonly IEventBus events;
+
+        public PlayerInventory Inventory { get; }
+
+        public Stamina Stamina { get; }
+
+        /// <summary>false, когда открыт экран (инвентарь): движение и атаки игнорируются.</summary>
+        public ReactiveProperty<bool> PlayerControl { get; } = new ReactiveProperty<bool>(false);
+
+        public GameSession(ConfigService configs, ItemDatabase items, IEventBus events)
+        {
+            this.items = items;
+            this.events = events;
+            Inventory = new PlayerInventory(configs.Load<InventoryConfig>(ConfigKeys.Inventory));
+            Stamina = new Stamina(configs.Load<PlayerConfig>(ConfigKeys.Player).Stamina);
+        }
+
+        /// <summary>Подбор предмета с земли. false — инвентарь полон, предмет остаётся лежать.</summary>
+        public bool PickUp(string itemId)
+        {
+            var item = items.Create(itemId);
+            if (!Inventory.TryAdd(item))
+            {
+                events.Publish(new InventoryFull(itemId));
+                return false;
+            }
+
+            events.Publish(new ItemPickedUp(item));
+            return true;
+        }
+    }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "com.template.gamecore",
+  "displayName": "Game Core",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Engine-agnostic game core: event bus, FSM, DI container, ticks and timers, config loading, modular entities, reactive UI models. No UnityEngine references, so the same code runs in Godot and in plain dotnet test.",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.2"
+  }
+}
