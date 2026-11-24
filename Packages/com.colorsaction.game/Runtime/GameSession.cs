@@ -48,6 +48,12 @@ namespace ColorsAction
 
         public Stamina Stamina { get; }
 
+        /// <summary>Здоровье игрока и неуязвимость после попадания.</summary>
+        public PlayerVitals Vitals { get; }
+
+        /// <summary>Опыт: копится с осколков побеждённых врагов.</summary>
+        public ReactiveProperty<int> Experience { get; } = new ReactiveProperty<int>();
+
         /// <summary>false, когда открыт экран (инвентарь): движение и атаки игнорируются.</summary>
         public ReactiveProperty<bool> PlayerControl { get; } = new ReactiveProperty<bool>(false);
 
@@ -63,7 +69,9 @@ namespace ColorsAction
             this.events = events;
             inventoryConfig = configs.Load<InventoryConfig>(ConfigKeys.Inventory);
             Inventory = new PlayerInventory(inventoryConfig);
-            Stamina = new Stamina(configs.Load<PlayerConfig>(ConfigKeys.Player).Stamina);
+            var player = configs.Load<PlayerConfig>(ConfigKeys.Player);
+            Stamina = new Stamina(player.Stamina);
+            Vitals = new PlayerVitals(player.MaxHealth, player.HitInvulnerability);
             ControlScheme = new ReactiveProperty<CameraScheme>(configs.Load<CameraConfig>(ConfigKeys.Camera).Scheme);
         }
 

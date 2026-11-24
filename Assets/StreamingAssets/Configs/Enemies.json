@@ -1,0 +1,25 @@
+{
+  "club_cube": {
+    "name": "Куб с дубиной",
+    "color": "blue",
+    "size": 0.8,
+    "maxHealth": 40,
+    "weaponPrefab": "Items/Club",
+    "aggroRadius": 7,
+    "loseRadius": 13,
+    "alertDuration": 2,
+    "moveSpeed": 4.5,
+    "turnSpeed": 540,
+    "waitDistance": 3.2,
+    "attackCooldown": 0.8,
+    "staggerDuration": 0.35,
+    "hitPushback": 0.45,
+    "experience": 10,
+    "deathPieces": 14,
+    "experiencePieces": 6,
+    "attacks": [
+      { "motion": "Sweep",    "windup": 1.5, "strike": 0.1,  "hold": 0.3, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 150, "knockback": 1.0, "lunge": 0.3, "weight": 1 },
+      { "motion": "Overhead", "windup": 1.5, "strike": 0.12, "hold": 0.35, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50,  "knockback": 1.5, "lunge": 0.5, "weight": 1 }
+    ]
+  }
+}

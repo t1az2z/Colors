@@ -12,7 +12,7 @@ BLEND = os.path.join(PROJECT, "Art", "Blender")
 OUT = os.path.join(BLEND, "Previews")
 
 os.makedirs(OUT, exist_ok=True)
-for name in ("Player", "Sword", "Shield", "Dummy"):
+for name in ("Player", "Sword", "Shield", "Dummy", "Club"):
     bpy.ops.wm.open_mainfile(filepath=os.path.join(BLEND, name + ".blend"))
     scene = bpy.context.scene
     objs = [o for o in scene.objects if o.type == "MESH"]

@@ -9,10 +9,15 @@ using UnityEngine.UI;
 namespace ColorsAction.Unity
 {
     /// <summary>
-    /// HUD: выносливость, что в руках, подсказка взаимодействия, всплывающие сообщения и цифры урона.
+    /// HUD: слева вверху — здоровье (скруглённая полоса с цифрами) и выносливость под ним, опыт;
+    /// справа вверху — оружие в руках кружками (основное — правая рука, дополнительное — левая);
+    /// подсказка взаимодействия, всплывающие сообщения и цифры урона.
     /// </summary>
     public sealed class Hud : GameBehaviour
     {
+        private const float HealthWidth = 420f;
+        private const float StaminaWidth = 300f;
+
         [SerializeField] private PlayerInteractor interactor;
 
         private GameSession session;
@@ -22,16 +27,21 @@ namespace ColorsAction.Unity
         private readonly List<IDisposable> subscriptions = new List<IDisposable>();
 
         private RectTransform root;
+        private Image healthFill;
+        private Image healthLag;
+        private Text healthText;
         private Image staminaFill;
         private Image staminaLag;
+        private Text xpText;
         private Text prompt;
         private Text toast;
         private Text schemeLabel;
         private float toastTimer;
-        private readonly Text[] handLabels = new Text[2];
-        private readonly Image[] handColors = new Image[2];
+        private readonly WeaponCircle[] weapons = new WeaponCircle[2];
         private readonly List<FloatingNumber> numbers = new List<FloatingNumber>();
         private float staminaShown = 1f;
+        private float healthShown = 1f;
+        private float healthShake;
 
         protected override void OnConstruct(IResolver resolver)
         {
@@ -48,36 +58,29 @@ namespace ColorsAction.Unity
             UiFactory.Stretch(root);
             root.SetAsFirstSibling();
 
-            // Выносливость (слева снизу).
-            var bar = UiFactory.Image(root, "Stamina", new Color(0, 0, 0, 0.45f), new Vector2(0, 0), new Vector2(0, 0), new Vector2(40, 40), new Vector2(360, 18));
-            staminaLag = UiFactory.Image(bar.transform, "Lag", new Color(1f, 0.55f, 0.3f, 0.9f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), Vector2.zero, new Vector2(356, 14));
-            staminaLag.rectTransform.anchoredPosition = new Vector2(2, 0);
-            staminaFill = UiFactory.Image(bar.transform, "Fill", new Color(0.9f, 0.9f, 0.84f, 1f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(2, 0), new Vector2(356, 14));
-            var label = UiFactory.Text(bar.transform, "Label", "Выносливость", 18, TextAnchor.LowerLeft, UiFactory.MutedText);
-            label.rectTransform.anchorMin = label.rectTransform.anchorMax = new Vector2(0, 1);
-            label.rectTransform.pivot = new Vector2(0, 0);
-            label.rectTransform.anchoredPosition = new Vector2(0, 4);
-            UiFactory.Outline(label);
+            // Здоровье (слева вверху): скруглённая полоса, "хвост" урона и цифры поверх.
+            var topLeft = new Vector2(0, 1);
+            var hpBack = Bar(root, "Health", topLeft, new Vector2(36, -34), new Vector2(HealthWidth, 34), new Color(0, 0, 0, 0.55f));
+            healthLag = Bar(hpBack.transform, "Lag", new Vector2(0, 0.5f), new Vector2(3, 0), new Vector2(HealthWidth - 6, 28), new Color(1f, 0.85f, 0.55f, 0.95f));
+            healthFill = Bar(hpBack.transform, "Fill", new Vector2(0, 0.5f), new Vector2(3, 0), new Vector2(HealthWidth - 6, 28), new Color(0.88f, 0.27f, 0.25f, 1f));
+            healthText = UiFactory.Text(hpBack.transform, "Value", "", 22, TextAnchor.MiddleCenter, Color.white);
+            UiFactory.Stretch(healthText.rectTransform);
+            UiFactory.Outline(healthText);
 
-            // Руки (по центру снизу): Л и П.
-            for (int i = 0; i < 2; i++)
-            {
-                var hand = (Hand)i;
-                var x = hand == Hand.Left ? -90f : 90f;
-                var box = UiFactory.Image(root, hand + "Hand", new Color(0, 0, 0, 0.45f), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(x, 36), new Vector2(160, 56));
-                handColors[i] = UiFactory.Image(box.transform, "Color", Color.gray, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(8, 0), new Vector2(10, 40));
-                handLabels[i] = UiFactory.Text(box.transform, "Name", "", 20, TextAnchor.MiddleLeft, UiFactory.TextColor);
-                handLabels[i].rectTransform.anchorMin = Vector2.zero;
-                handLabels[i].rectTransform.anchorMax = Vector2.one;
-                handLabels[i].rectTransform.offsetMin = new Vector2(26, 0);
-                handLabels[i].rectTransform.offsetMax = new Vector2(-6, 0);
-                var key = UiFactory.Text(box.transform, "Key", "", 16, TextAnchor.LowerCenter, UiFactory.MutedText);
-                key.rectTransform.anchorMin = key.rectTransform.anchorMax = new Vector2(0.5f, 1);
-                key.rectTransform.pivot = new Vector2(0.5f, 0f);
-                key.rectTransform.anchoredPosition = new Vector2(0, 4);
-                key.name = "Key" + i;
-                UiFactory.Outline(key);
-            }
+            // Выносливость — под здоровьем, тоньше.
+            var stBack = Bar(root, "Stamina", topLeft, new Vector2(36, -76), new Vector2(StaminaWidth, 16), new Color(0, 0, 0, 0.5f));
+            staminaLag = Bar(stBack.transform, "Lag", new Vector2(0, 0.5f), new Vector2(2, 0), new Vector2(StaminaWidth - 4, 12), new Color(1f, 0.6f, 0.3f, 0.9f));
+            staminaFill = Bar(stBack.transform, "Fill", new Vector2(0, 0.5f), new Vector2(2, 0), new Vector2(StaminaWidth - 4, 12), new Color(0.93f, 0.93f, 0.86f, 1f));
+
+            xpText = UiFactory.Text(root, "Experience", "", 20, TextAnchor.UpperLeft, UiFactory.TextColor);
+            xpText.rectTransform.anchorMin = xpText.rectTransform.anchorMax = topLeft;
+            xpText.rectTransform.pivot = new Vector2(0, 1);
+            xpText.rectTransform.anchoredPosition = new Vector2(38, -100);
+            UiFactory.Outline(xpText);
+
+            // Оружие (справа вверху): правая рука — основное, крупнее; левая — дополнительное.
+            weapons[(int)Hand.Right] = WeaponCircle.Create(root, new Vector2(-36, -32), 104f, "Primary");
+            weapons[(int)Hand.Left] = WeaponCircle.Create(root, new Vector2(-36 - 104 - 18, -44), 80f, "Secondary");
 
             prompt = UiFactory.Text(root, "Prompt", "", 28, TextAnchor.MiddleCenter, UiFactory.TextColor);
             prompt.rectTransform.anchorMin = prompt.rectTransform.anchorMax = new Vector2(0.5f, 0);
@@ -103,9 +106,18 @@ namespace ColorsAction.Unity
                 ShowToast($"{e.Item.Config.Name} в инвентаре  ·  [{input.Label("inventory")}] открыть")));
             subscriptions.Add(events.Subscribe<InventoryFull>(_ => ShowToast("Инвентарь полон")));
             subscriptions.Add(events.Subscribe<DamageDealt>(OnDamage));
+            subscriptions.Add(session.Vitals.Health.Current.Subscribe(_ => healthShake = 0.35f, false));
             session.Inventory.Changed += RefreshHands;
-            subscriptions.Add(session.PlayerControl.Subscribe(v => root.gameObject.SetActive(true)));
             RefreshHands();
+        }
+
+        private static Image Bar(Transform parent, string name, Vector2 anchor, Vector2 pos, Vector2 size, Color color)
+        {
+            var pivot = anchor.x <= 0f ? new Vector2(0, anchor.y >= 1f ? 1 : 0.5f) : new Vector2(0.5f, 0.5f);
+            var image = UiFactory.Image(parent, name, color, anchor, pivot, pos, size);
+            UiSprites.Apply(image, UiSprites.Rounded, true);
+            image.raycastTarget = false;
+            return image;
         }
 
         private void OnDestroy()
@@ -128,8 +140,10 @@ namespace ColorsAction.Unity
             for (int i = 0; i < 2; i++)
             {
                 var item = session.Inventory.InHand((Hand)i);
-                handLabels[i].text = item != null ? item.Config.Name : "Пусто";
-                handColors[i].color = item != null ? palette.Get(item.Config.Color) : palette.Get("none");
+                // Двуручное оружие показываем только в основном кружке.
+                if (i == (int)Hand.Left && item != null && item.Config.IsTwoHanded)
+                    item = null;
+                weapons[i].Set(item, item != null ? palette.Get(item.Config.Color) : palette.Get("none"));
             }
         }
 
@@ -140,20 +154,34 @@ namespace ColorsAction.Unity
                 return;
             var dt = Time.unscaledDeltaTime;
 
-            // Выносливость: заполнение сразу, "хвост" догоняет медленно.
-            var fraction = session.Stamina.Fraction;
-            staminaFill.rectTransform.sizeDelta = new Vector2(356 * fraction, 14);
-            staminaShown = fraction > staminaShown ? fraction : Mathf.MoveTowards(staminaShown, fraction, dt * 0.6f);
-            staminaLag.rectTransform.sizeDelta = new Vector2(356 * staminaShown, 14);
-            staminaFill.color = fraction <= 0.001f ? new Color(0.9f, 0.35f, 0.3f) : new Color(0.9f, 0.9f, 0.84f);
-
-            // Подсказки кнопок рук.
-            for (int i = 0; i < 2; i++)
+            // Здоровье: заполнение сразу, светлый "хвост" догоняет; при уроне полоса дрожит.
+            var health = session.Vitals.Health;
+            var hp = health.Fraction;
+            healthFill.rectTransform.sizeDelta = new Vector2(Mathf.Max(0f, (HealthWidth - 6) * hp), 28);
+            healthFill.enabled = hp > 0.001f;
+            healthShown = hp > healthShown ? hp : Mathf.MoveTowards(healthShown, hp, dt * 0.5f);
+            healthLag.rectTransform.sizeDelta = new Vector2((HealthWidth - 6) * healthShown, 28);
+            healthLag.enabled = healthShown > 0.001f;
+            healthText.text = $"{Mathf.CeilToInt(health.Current.Value)} / {Mathf.RoundToInt(health.Max)}";
+            if (healthShake > 0f)
             {
-                var key = handLabels[i].transform.parent.Find("Key" + i)?.GetComponent<Text>();
-                if (key != null)
-                    key.text = input.Label(i == (int)Hand.Left ? "secondary" : "attack");
+                healthShake -= dt;
+                var k = Mathf.Clamp01(healthShake / 0.35f);
+                healthFill.transform.parent.localPosition += new Vector3(UnityEngine.Random.Range(-4f, 4f) * k, 0f, 0f);
             }
+
+            // Выносливость.
+            var fraction = session.Stamina.Fraction;
+            staminaFill.rectTransform.sizeDelta = new Vector2((StaminaWidth - 4) * fraction, 12);
+            staminaFill.enabled = fraction > 0.001f;
+            staminaShown = fraction > staminaShown ? fraction : Mathf.MoveTowards(staminaShown, fraction, dt * 0.6f);
+            staminaLag.rectTransform.sizeDelta = new Vector2((StaminaWidth - 4) * staminaShown, 12);
+            staminaLag.enabled = staminaShown > 0.001f;
+
+            xpText.text = $"Опыт  {session.Experience.Value}";
+
+            weapons[(int)Hand.Right].SetKey(input.Label("attack"));
+            weapons[(int)Hand.Left].SetKey(input.Label("secondary"));
 
             schemeLabel.text = session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FixedAngles
                 ? $"Схема Б  ·  [{input.Label("cameraTurn")}] поворот камеры  ·  [{input.Label("switchScheme")}] схема А"
@@ -173,12 +201,81 @@ namespace ColorsAction.Unity
             UpdateNumbers(dt);
         }
 
+        private void LateUpdate()
+        {
+            // Возврат полосы здоровья на место после дрожания.
+            if (healthFill != null)
+                healthFill.transform.parent.localPosition = Vector3.Lerp(healthFill.transform.parent.localPosition,
+                    BarHome, 0.5f);
+        }
+
+        private Vector3 barHome;
+        private bool barHomeSet;
+
+        private Vector3 BarHome
+        {
+            get
+            {
+                if (!barHomeSet && healthFill != null)
+                {
+                    barHome = healthFill.transform.parent.localPosition;
+                    barHomeSet = true;
+                }
+
+                return barHome;
+            }
+        }
+
+        /// <summary>Кружок оружия: тёмный фон, кольцо цвета оружия, иконка, клавиша под ним.</summary>
+        private sealed class WeaponCircle
+        {
+            private RectTransform rootRect;
+            private Image ring;
+            private RectTransform icon;
+            private Text key;
+            private float size;
+
+            public static WeaponCircle Create(Transform parent, Vector2 pos, float size, string name)
+            {
+                var c = new WeaponCircle { size = size };
+                var bg = UiFactory.Image(parent, name, new Color(0, 0, 0, 0.5f), new Vector2(1, 1), new Vector2(1, 1), pos, new Vector2(size, size));
+                UiSprites.Apply(bg, UiSprites.Circle, false);
+                bg.raycastTarget = false;
+                c.rootRect = bg.rectTransform;
+                c.ring = UiFactory.Image(bg.transform, "Ring", Color.gray, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(size, size));
+                UiSprites.Apply(c.ring, UiSprites.Ring, false);
+                c.ring.raycastTarget = false;
+                c.key = UiFactory.Text(bg.transform, "Key", "", 18, TextAnchor.UpperCenter, UiFactory.TextColor);
+                c.key.rectTransform.anchorMin = c.key.rectTransform.anchorMax = new Vector2(0.5f, 0);
+                c.key.rectTransform.pivot = new Vector2(0.5f, 1);
+                c.key.rectTransform.anchoredPosition = new Vector2(0, -4);
+                UiFactory.Outline(c.key);
+                return c;
+            }
+
+            public void Set(Item item, Color color)
+            {
+                if (icon != null)
+                    UnityEngine.Object.Destroy(icon.gameObject);
+                icon = null;
+                ring.color = item != null ? color : new Color(1f, 1f, 1f, 0.25f);
+                if (item == null)
+                    return;
+                icon = SlotView.CreateIcon(rootRect, item, color, size * 0.78f);
+                icon.anchorMin = icon.anchorMax = new Vector2(0.5f, 0.5f);
+                icon.anchoredPosition = Vector2.zero;
+            }
+
+            public void SetKey(string label) => key.text = label;
+        }
+
         // ------------------------------------------------------------------ цифры урона
 
         private void OnDamage(DamageDealt e)
         {
-            var text = UiFactory.Text(root, "Damage", Mathf.RoundToInt(e.Amount).ToString(), e.ColorBonus ? 46 : 34,
-                TextAnchor.MiddleCenter, e.ColorBonus ? Color.Lerp(e.Color, Color.white, 0.25f) : UiFactory.TextColor);
+            var color = e.ToPlayer ? new Color(1f, 0.35f, 0.3f) : e.ColorBonus ? Color.Lerp(e.Color, Color.white, 0.25f) : UiFactory.TextColor;
+            var text = UiFactory.Text(root, "Damage", Mathf.RoundToInt(e.Amount).ToString(), e.ColorBonus || e.ToPlayer ? 46 : 34,
+                TextAnchor.MiddleCenter, color);
             if (e.ColorBonus)
                 text.text += "!";
             UiFactory.Outline(text);

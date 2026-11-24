@@ -18,12 +18,16 @@ namespace ColorsAction.Unity
         public readonly bool ColorBonus;
         public readonly Color Color;
 
-        public DamageDealt(Vector3 position, float amount, bool colorBonus, Color color)
+        /// <summary>Урон получил игрок (цифра красная).</summary>
+        public readonly bool ToPlayer;
+
+        public DamageDealt(Vector3 position, float amount, bool colorBonus, Color color, bool toPlayer = false)
         {
             Position = position;
             Amount = amount;
             ColorBonus = colorBonus;
             Color = color;
+            ToPlayer = toPlayer;
         }
     }
 
@@ -392,7 +396,14 @@ namespace ColorsAction.Unity
             }
         }
 
-        /// <summary>Рывок вперёд при ударе: отдаётся контроллеру движения по кадрам до конца активной фазы.</summary>
+        /// <summary>Толчок камеры (попадание по игроку, блок).</summary>
+        public void Shake(float strength)
+        {
+            if (impulse != null && strength > 0f)
+                impulse.GenerateImpulseWithVelocity((Random.onUnitSphere + Vector3.down) * strength);
+        }
+
+                /// <summary>Рывок вперёд при ударе: отдаётся контроллеру движения по кадрам до конца активной фазы.</summary>
         public Vector3 ConsumeLunge(Vector3 forward)
         {
             if (attacking == null || step.Lunge <= 0f)
@@ -586,14 +597,14 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>Радиус вокруг оси куба, ближе которого рука не подходит (куб 1×1, угол — 0.71 от центра).</summary>
-        private const float BodyClearance = 0.74f;
+        public const float BodyClearance = 0.74f;
 
         /// <summary>
         /// Переход между позами руки по дуге вокруг куба, а не напрямую: угол вокруг вертикальной оси
         /// интерполируется линейно (путь идёт через перед куба), радиус не меньше <see cref="BodyClearance"/>,
         /// поэтому меч не проходит сквозь тело на замахе и возврате.
         /// </summary>
-        private static Pose AroundBody(Pose from, Pose to, float k)
+        public static Pose AroundBody(Pose from, Pose to, float k)
         {
             var a0 = Mathf.Atan2(from.position.x, from.position.z) * Mathf.Rad2Deg;
             var a1 = Mathf.Atan2(to.position.x, to.position.z) * Mathf.Rad2Deg;

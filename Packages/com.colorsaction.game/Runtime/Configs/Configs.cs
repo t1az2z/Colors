@@ -16,6 +16,7 @@ namespace ColorsAction.Configs
         public const string Combat = "Combat";
         public const string Dummy = "Dummy";
         public const string Inventory = "Inventory";
+        public const string Enemies = "Enemies";
     }
 
     /// <summary>Configs/Game.json — что загружать при старте.</summary>
@@ -85,6 +86,21 @@ namespace ColorsAction.Configs
 
         // Взаимодействие
         public float InteractRadius { get; set; } = 1.4f;
+
+        // Здоровье и урон
+        public float MaxHealth { get; set; } = 100f;
+
+        /// <summary>Неуязвимость после получения урона, секунды (игрок мигает).</summary>
+        public float HitInvulnerability { get; set; } = 2f;
+
+        /// <summary>Отбрасывание игрока при получении урона, метры.</summary>
+        public float HitKnockback { get; set; } = 0.8f;
+
+        /// <summary>Частота мигания во время неуязвимости, раз в секунду.</summary>
+        public float BlinkRate { get; set; } = 12f;
+
+        /// <summary>После смерти: через сколько секунд игрок появляется снова на точке старта.</summary>
+        public float RespawnDelay { get; set; } = 2.5f;
 
         public DeformationConfig Deformation { get; set; } = new DeformationConfig();
 
@@ -390,6 +406,12 @@ namespace ColorsAction.Configs
 
         /// <summary>Свечение цвета оружия в руках (доля эмиссии), чтобы оружие читалось издалека.</summary>
         public float HeldWeaponGlow { get; set; } = 0.25f;
+
+        /// <summary>Сколько врагов может атаковать игрока одновременно (оркестратор).</summary>
+        public int MaxAttackers { get; set; } = 1;
+
+        /// <summary>Пауза между атаками разных врагов, секунды.</summary>
+        public float AttackerGap { get; set; } = 0.4f;
     }
 
     /// <summary>Configs/Dummy.json — тренировочный манекен.</summary>

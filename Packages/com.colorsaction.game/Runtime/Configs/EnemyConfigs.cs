@@ -1,0 +1,128 @@
+using System;
+using System.Collections.Generic;
+using GameCore;
+using GameCore.Config;
+
+namespace ColorsAction.Configs
+{
+    /// <summary>Движение атаки врага (анимация оружия).</summary>
+    public enum EnemyAttackMotion
+    {
+        /// <summary>Размашистый горизонтальный удар.</summary>
+        Sweep,
+
+        /// <summary>Удар сверху вниз: дальше, но уже.</summary>
+        Overhead
+    }
+
+    /// <summary>Одиночная атака врага (без комбо): долгий читаемый замах и резкий удар.</summary>
+    [Preserve]
+    public sealed class EnemyAttackConfig
+    {
+        public EnemyAttackMotion Motion { get; set; } = EnemyAttackMotion.Sweep;
+
+        /// <summary>Замах, секунды. Долгий, чтобы игрок успел среагировать.</summary>
+        public float Windup { get; set; } = 1.5f;
+
+        /// <summary>Удар, секунды — резкий; в это время наносится урон.</summary>
+        public float Strike { get; set; } = 0.1f;
+
+        /// <summary>Фиксация финальной позы, секунды.</summary>
+        public float Hold { get; set; } = 0.3f;
+
+        /// <summary>Возврат в стойку, секунды.</summary>
+        public float Recovery { get; set; } = 0.5f;
+
+        public float Damage { get; set; } = 15f;
+
+        /// <summary>Дальность от центра врага до цели, метры. С какого расстояния враг начинает эту атаку.</summary>
+        public float Range { get; set; } = 1.5f;
+
+        /// <summary>Ширина сектора поражения, градусы.</summary>
+        public float Arc { get; set; } = 140f;
+
+        public float Knockback { get; set; } = 1f;
+
+        /// <summary>Рывок вперёд в момент удара, метры.</summary>
+        public float Lunge { get; set; } = 0.3f;
+
+        /// <summary>Вес при случайном выборе атаки.</summary>
+        public float Weight { get; set; } = 1f;
+
+        public float Total => Windup + Strike + Hold + Recovery;
+    }
+
+    /// <summary>Configs/Enemies.json — типы врагов.</summary>
+    [Preserve]
+    public sealed class EnemyConfig : IIdentified, IConfigPostLoad
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+
+        /// <summary>Цвет врага (Colors.json): бонус урона оружием того же цвета.</summary>
+        public string Color { get; set; } = "blue";
+
+        /// <summary>Размер куба относительно куба игрока.</summary>
+        public float Size { get; set; } = 0.8f;
+
+        public float MaxHealth { get; set; } = 40f;
+
+        /// <summary>Оружие в руке: модель из Resources (Items/Club).</summary>
+        public string WeaponPrefab { get; set; } = "Items/Club";
+
+        /// <summary>Зона агро: подойди ближе — враг заметит.</summary>
+        public float AggroRadius { get; set; } = 7f;
+
+        /// <summary>Дальше этого враг теряет игрока и возвращается в покой.</summary>
+        public float LoseRadius { get; set; } = 13f;
+
+        /// <summary>Реакция "заметил!" (сжатие, подпрыгивание, знак "!"), секунды. Потом бег или атака.</summary>
+        public float AlertDuration { get; set; } = 2f;
+
+        public float MoveSpeed { get; set; } = 4.5f;
+        public float TurnSpeed { get; set; } = 540f;
+
+        /// <summary>Пока атакует другой враг, этот держится на такой дистанции от игрока.</summary>
+        public float WaitDistance { get; set; } = 3.2f;
+
+        /// <summary>Пауза после своей атаки, прежде чем снова попросить право атаковать.</summary>
+        public float AttackCooldown { get; set; } = 0.8f;
+
+        /// <summary>Отшатывание при получении урона, секунды (враг не двигается).</summary>
+        public float StaggerDuration { get; set; } = 0.35f;
+
+        /// <summary>Сила отталкивания при попадании по врагу, метры.</summary>
+        public float HitPushback { get; set; } = 0.45f;
+
+        /// <summary>Опыт за победу.</summary>
+        public int Experience { get; set; } = 10;
+
+        /// <summary>На сколько кусков раскалывается при смерти и сколько из них летят к игроку как опыт.</summary>
+        public int DeathPieces { get; set; } = 14;
+        public int ExperiencePieces { get; set; } = 6;
+
+        public List<EnemyAttackConfig> Attacks { get; set; } = new List<EnemyAttackConfig>();
+
+        public float MaxAttackRange
+        {
+            get
+            {
+                var r = 0f;
+                foreach (var a in Attacks)
+                    r = Math.Max(r, a.Range);
+                return r;
+            }
+        }
+
+        public void OnConfigLoaded()
+        {
+            Attacks ??= new List<EnemyAttackConfig>();
+            if (Attacks.Count == 0)
+                throw new InvalidOperationException($"enemy '{Id}' needs at least one attack");
+            if (MaxHealth <= 0 || Size <= 0)
+                throw new InvalidOperationException($"enemy '{Id}': maxHealth and size must be positive");
+            if (LoseRadius < AggroRadius)
+                LoseRadius = AggroRadius;
+        }
+    }
+}

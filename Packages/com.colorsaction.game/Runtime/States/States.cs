@@ -31,6 +31,7 @@ namespace ColorsAction.States
             configs.Load<InventoryConfig>(ConfigKeys.Inventory);
             configs.LoadTable<ColorConfig>(ConfigKeys.Colors);
             configs.LoadTable<ItemConfig>(ConfigKeys.Items);
+            configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies);
             configs.Load<LevelConfig>(game.Level);
             fsm.SetState<PlayState>();
         }

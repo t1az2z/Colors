@@ -87,6 +87,26 @@
    "yaw": -20
   }
  ],
+ "enemies": [
+  {
+   "type": "club_cube",
+   "x": 16,
+   "z": 29,
+   "yaw": 180
+  },
+  {
+   "type": "club_cube",
+   "x": 20,
+   "z": 31,
+   "yaw": 200
+  },
+  {
+   "type": "club_cube",
+   "x": 12,
+   "z": 31,
+   "yaw": 160
+  }
+ ],
  "dummies": [
   {
    "x": 18,

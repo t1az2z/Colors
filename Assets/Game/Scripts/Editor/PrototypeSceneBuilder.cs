@@ -30,6 +30,7 @@ namespace ColorsAction.Unity.Editor
         {
             EnsureFolders();
             var layer = EnsureLayer(PlayerLayer);
+            EnsureLayer("Enemy");
             ConfigureRenderPipeline();
 
             // Материалы
@@ -47,6 +48,7 @@ namespace ColorsAction.Unity.Editor
             // Префабы
             CreateItemPrefab("Sword", new[] { colored, handle });
             CreateItemPrefab("Shield", new[] { colored, rim });
+            CreateClubPrefab();
             var dummyPrefab = CreateDummyPrefab(dummyRed, dummyBase);
 
             // Сцена
@@ -208,6 +210,18 @@ namespace ColorsAction.Unity.Editor
             Object.DestroyImmediate(go);
         }
 
+        /// <summary>Дубина врага (Resources/Items/Club): серая, без ItemVisual — красить не нужно.</summary>
+        public static void CreateClubPrefab()
+        {
+            var head = Lit("ClubHead", Hex("#7E7F84"), 0.25f);
+            var grip = Lit("ClubGrip", Hex("#3E3D42"), 0.3f);
+            var go = new GameObject("Club");
+            go.AddComponent<MeshFilter>().sharedMesh = LoadMesh("Club.fbx", "Club");
+            go.AddComponent<MeshRenderer>().sharedMaterials = new[] { head, grip };
+            PrefabUtility.SaveAsPrefabAsset(go, $"{ItemsResources}/Club.prefab");
+            Object.DestroyImmediate(go);
+        }
+
         private static GameObject CreateDummyPrefab(Material red, Material baseMat)
         {
             var root = new GameObject("TrainingDummy");
@@ -345,7 +359,7 @@ namespace ColorsAction.Unity.Editor
             }
         }
 
-        private static int EnsureLayer(string name)
+        public static int EnsureLayer(string name)
         {
             var existing = LayerMask.NameToLayer(name);
             if (existing >= 0)

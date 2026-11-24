@@ -254,7 +254,11 @@ namespace ColorsAction.Unity
         private void SpawnEntities(LevelConfig config)
         {
             if (player != null)
-                player.Teleport(CellPosition(config.Spawn.X, config.Spawn.Z), config.Spawn.Yaw);
+            {
+                var spawn = CellPosition(config.Spawn.X, config.Spawn.Z);
+                player.Teleport(spawn, config.Spawn.Yaw);
+                player.SetSpawn(spawn, config.Spawn.Yaw);
+            }
 
             foreach (var item in config.Items)
             {
@@ -272,6 +276,21 @@ namespace ColorsAction.Unity
                     var go = Instantiate(dummyPrefab, CellPosition(d.X, d.Z), Quaternion.Euler(0, d.Yaw, 0), root);
                     go.name = "TrainingDummy";
                     bootstrap.Inject(go);
+                }
+            }
+
+            // Враги: тело — тот же скруглённый куб, что у игрока (исходный меш и материалы берём у него).
+            if (player != null && config.Enemies.Count > 0)
+            {
+                var playerMesh = player.Deformer;
+                var mesh = playerMesh != null && playerMesh.SourceMesh != null
+                    ? playerMesh.SourceMesh
+                    : playerMesh != null ? playerMesh.GetComponent<MeshFilter>().sharedMesh : null;
+                var materials = playerMesh != null ? playerMesh.GetComponent<Renderer>().sharedMaterials : null;
+                if (mesh != null)
+                {
+                    foreach (var e in config.Enemies)
+                        EnemyController.Spawn(e.Type, CellPosition(e.X, e.Z), e.Yaw, root, bootstrap, mesh, materials);
                 }
             }
 

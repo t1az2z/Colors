@@ -16,6 +16,7 @@ Material slots are named; Unity maps them by submesh order:
     Sword:  0 Blade (weapon colour), 1 Handle
     Shield: 0 Face (weapon colour), 1 Rim
     Dummy:  0 Body (red), 1 Base
+    Club:   0 Head, 1 Grip
 """
 
 import math
@@ -241,6 +242,35 @@ def make_shield():
     return obj
 
 
+# --------------------------------------------------------------------------- club
+
+def make_club():
+    """Enemy club: grey, smaller than the sword. Origin in the middle of the grip; the head points up (+Z)."""
+    bm = bmesh.new()
+    seg = 10
+    # Grip.
+    res = bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=0.035, radius2=0.035, depth=0.26)
+    for f in {f for v in res["verts"] for f in v.link_faces}:
+        f.material_index = 1
+    # Pommel.
+    res = bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=0.05, radius2=0.05, depth=0.05)
+    for v in res["verts"]:
+        v.co.z -= 0.15
+    for f in {f for v in res["verts"] for f in v.link_faces}:
+        f.material_index = 1
+    # Head: thickens towards the top.
+    res = bmesh.ops.create_cone(bm, cap_ends=True, segments=seg, radius1=0.055, radius2=0.11, depth=0.5)
+    for v in res["verts"]:
+        v.co.z += 0.13 + 0.25
+    for f in {f for v in res["verts"] for f in v.link_faces}:
+        f.material_index = 0
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    obj = new_object("Club", bm, [material("ClubHead", (0.5, 0.5, 0.52, 1)), material("ClubGrip", (0.25, 0.24, 0.26, 1))])
+    bevel_all(obj, 0.012, 2)
+    smooth(obj, 40)
+    return obj
+
+
 # --------------------------------------------------------------------------- dummy
 
 def make_dummy():
@@ -289,6 +319,11 @@ def main():
     shield = make_shield()
     export([shield], "Shield.fbx")
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_BLEND, "Shield.blend"))
+
+    reset_scene()
+    club = make_club()
+    export([club], "Club.fbx")
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_BLEND, "Club.blend"))
 
     reset_scene()
     body, base = make_dummy()

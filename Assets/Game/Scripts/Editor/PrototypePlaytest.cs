@@ -340,6 +340,64 @@ namespace ColorsAction.Unity.Editor
             Check(lastY > 2.5f && maxJump < 0.06f,
                 $"0.25 staircase is a smooth slope: reached y={lastY:F2}, max height change per frame {maxJump:F3}");
 
+            // 14. Враги: агро с "!", замах, удар по игроку, айфреймы; атакует только один из трёх.
+            var director = bootstrap.Resolver.Resolve<ColorsAction.Combat.CombatDirector>();
+            var enemies = new System.Collections.Generic.List<EnemyController>(EnemyController.All);
+            Check(enemies.Count == 3, $"three enemies on the level: {enemies.Count}");
+            if (enemies.Count > 0)
+            {
+                session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FreeOrbit;
+                var first = enemies[0];
+                var ep = first.transform.position;
+                player.Teleport(new Vector3(ep.x, ep.y, ep.z - 3.2f), 0f);
+                input.ClearScripted();
+                var hpBefore = session.Vitals.Health.Current.Value;
+                var sawAlert = false;
+                var sawWindup = false;
+                var maxAttackers = 0;
+                var windupFrames = 0;
+                var hitFrame = -1;
+                var invulnerableAfterHit = false;
+                for (int f = 0; f < 60 * 7; f++)
+                {
+                    sawAlert |= first.Brain.State == ColorsAction.Combat.EnemyState.Alerted;
+                    foreach (var e in enemies)
+                        if (e != null && e.Brain.State == ColorsAction.Combat.EnemyState.Windup)
+                            windupFrames++;
+                    sawWindup |= windupFrames > 0;
+                    maxAttackers = Mathf.Max(maxAttackers, director.Attackers.Count);
+                    if (hitFrame < 0 && session.Vitals.Health.Current.Value < hpBefore)
+                    {
+                        hitFrame = f;
+                        invulnerableAfterHit = session.Vitals.InvulnerableTime > 1.5f;
+                    }
+                    yield return 1;
+                }
+
+                Check(sawAlert, "enemy notices the player and shows the alert");
+                Check(sawWindup && windupFrames >= 60, $"attack has a long readable wind-up: {windupFrames / 60f:F1} s of wind-up seen");
+                Check(maxAttackers <= 1, $"never more than one attacker: {maxAttackers}");
+                Check(hitFrame >= 0, $"enemy hits the player: hp {hpBefore:F0} -> {session.Vitals.Health.Current.Value:F0}");
+                if (hitFrame >= 0)
+                    Check(invulnerableAfterHit, "player gets ~2 s of i-frames after a hit");
+
+                // 15. Бьём врага мечом до смерти: цифры урона, осколки летят к игроку как опыт.
+                var xpBefore = session.Experience.Value;
+                var target = first;
+                for (int i = 0; i < 40 && target != null && !target.Dead; i++)
+                {
+                    var to = target.transform.position - player.transform.position;
+                    to.y = 0;
+                    player.Teleport(target.transform.position - to.normalized * 1.3f, Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg);
+                    input.ScriptPress(GameAction.Primary);
+                    yield return 20;
+                }
+
+                Check(target == null || target.Dead, "enemy dies from sword hits");
+                yield return 150;
+                Check(session.Experience.Value > xpBefore, $"shards fly to the player as experience: {xpBefore} -> {session.Experience.Value}");
+            }
+
             session.ControlScheme.Value = startScheme;
         }
 

@@ -44,7 +44,16 @@ namespace ColorsAction.Unity
         private int controlResumedFrame;
 
         /// <summary>Игрок управляет персонажем. Кадр, в котором закрыли инвентарь, пропускается, чтобы B/A не сработали дважды.</summary>
-        public bool HasControl => session != null && session.PlayerControl.Value && Time.frameCount > controlResumedFrame;
+        public bool HasControl => session != null && session.PlayerControl.Value && !Frozen && Time.frameCount > controlResumedFrame;
+
+        /// <summary>Персонаж не управляется (погиб и ждёт появления).</summary>
+        public bool Frozen { get; set; }
+
+        private Vector3 knockback;
+        private IResolver resolver;
+
+        /// <summary>Отбросить на расстояние (метры), гасится за ~0.25 с.</summary>
+        public void ApplyKnockback(Vector3 distance) => knockback += distance * 4f;
 
         public bool Invulnerable { get; private set; }
         public bool Rolling => rolling;
@@ -56,6 +65,7 @@ namespace ColorsAction.Unity
 
         protected override void OnConstruct(IResolver resolver)
         {
+            this.resolver = resolver;
             config = resolver.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player);
             cameraConfig = resolver.Resolve<ConfigService>().Load<CameraConfig>(ConfigKeys.Camera);
             input = resolver.Resolve<GameInput>();
@@ -72,7 +82,10 @@ namespace ColorsAction.Unity
             motor = GetComponent<BoxMotor>();
             combat = GetComponent<PlayerCombat>();
             motor.Configure(config.ColliderWidth, config.ColliderHeight, config.StepHeight);
-            motor.CollisionMask = ~(1 << gameObject.layer);
+            // Свой слой и осколки (Ignore Raycast) не мешают движению.
+            motor.CollisionMask = ~((1 << gameObject.layer) | (1 << Debris.Layer));
+            if (GetComponent<PlayerDamageReceiver>() == null)
+                gameObject.AddComponent<PlayerDamageReceiver>().Construct(resolver);
             motor.Landed += OnLanded;
             deformer.Configure(config.Deformation.Stiffness, config.Deformation.Damping);
             yaw = body.eulerAngles.y;
@@ -80,6 +93,16 @@ namespace ColorsAction.Unity
                 cameraTransform = Camera.main.transform;
             if (FindAnyObjectByType<AimMarker>() == null)
                 AimMarker.Create(this, deformer.GetComponent<Renderer>()?.sharedMaterial);
+        }
+
+        /// <summary>Точка появления (старт уровня, потом — после смерти).</summary>
+        public Vector3? SpawnPoint { get; private set; }
+        public float SpawnYaw { get; private set; }
+
+        public void SetSpawn(Vector3 position, float facingYaw)
+        {
+            SpawnPoint = position;
+            SpawnYaw = facingYaw;
         }
 
         public void Teleport(Vector3 position, float facingYaw)
@@ -131,7 +154,8 @@ namespace ColorsAction.Unity
             var verticalDelta = (vBefore + motor.VerticalVelocity) * 0.5f * dt;
 
             var lunge = combat != null ? combat.ConsumeLunge(Forward) : Vector3.zero;
-            motor.Move(horizontalVelocity * dt + lunge, dt, verticalDelta);
+            knockback = Vector3.MoveTowards(knockback, Vector3.zero, 16f * dt);
+            motor.Move((horizontalVelocity + knockback) * dt + lunge, dt, verticalDelta);
 
             airTime = motor.Grounded ? 0f : airTime + dt;
             UpdateGroundAlign(dt);
@@ -475,7 +499,8 @@ namespace ColorsAction.Unity
                 }
             }
 
-            var lean = -new Vector2(local.x, local.z) * d.MoveLean / Mathf.Max(0.1f, config.WalkSpeed);
+            // Наклон вперёд по ходу движения; на бегу сильнее (скорость больше).
+            var lean = new Vector2(local.x, local.z) * d.MoveLean / Mathf.Max(0.1f, config.WalkSpeed);
             deformer.LeanTarget = lean;
         }
     }

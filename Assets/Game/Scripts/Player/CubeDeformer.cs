@@ -16,7 +16,9 @@ namespace ColorsAction.Unity
         [SerializeField] private float damping = 9f;
 
         private Mesh mesh;
+        private Mesh source;
         private Vector3[] rest;
+        private Vector3[] dents;
         private Vector3[] work;
 
         private Spring squash;
@@ -44,6 +46,42 @@ namespace ColorsAction.Unity
         public float PitchTarget { get; set; }
 
         public float Squash => squash.Value;
+
+        /// <summary>Исходный меш (до копирования для деформации) — для врагов того же вида.</summary>
+        public Mesh SourceMesh => source;
+
+        /// <summary>Рабочая копия меша (её же рисует MeshFilter).</summary>
+        public Mesh Mesh => mesh;
+
+        /// <summary>
+        /// Сколы: вершины у указанных углов (координаты меша) вдавливаются к центру, угол как будто отколот.
+        /// null — без сколов.
+        /// </summary>
+        public void SetChips(Vector3[] corners, float radius)
+        {
+            if (rest == null)
+                return;
+            if (corners == null || corners.Length == 0)
+            {
+                dents = null;
+                return;
+            }
+
+            dents = new Vector3[rest.Length];
+            var center = new Vector3(0f, height * 0.5f, 0f);
+            for (int i = 0; i < rest.Length; i++)
+            {
+                foreach (var c in corners)
+                {
+                    var d = Vector3.Distance(rest[i], c);
+                    if (d >= radius)
+                        continue;
+                    // Срез плоскостью: чем ближе к углу, тем глубже вдавлено к центру.
+                    var depth = (radius - d) * 0.85f;
+                    dents[i] += (center - rest[i]).normalized * depth;
+                }
+            }
+        }
         public float Height => height;
 
         public void Configure(float springStiffness, float springDamping)
@@ -63,6 +101,7 @@ namespace ColorsAction.Unity
                 return;
             }
 
+            this.source = source;
             mesh = Instantiate(source);
             mesh.name = source.name + " (deformed)";
             mesh.MarkDynamic();
@@ -117,7 +156,7 @@ namespace ColorsAction.Unity
             squash.Value = Mathf.Clamp(squash.Value, -0.6f, 0.8f);
 
             for (int i = 0; i < rest.Length; i++)
-                work[i] = DeformPoint(rest[i]);
+                work[i] = DeformPoint(dents != null ? rest[i] + dents[i] : rest[i]);
             mesh.vertices = work;
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();

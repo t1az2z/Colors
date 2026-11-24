@@ -27,7 +27,14 @@ namespace ColorsAction
                 {
                     var session = new GameSession(r.Resolve<ConfigService>(), r.Resolve<ItemDatabase>(), r.Resolve<IEventBus>());
                     r.Resolve<TickScheduler>().Add(session.Stamina);
+                    r.Resolve<TickScheduler>().Add(session.Vitals);
                     return session;
+                })
+                .Register(r =>
+                {
+                    var director = new CombatDirector(r.Resolve<ConfigService>().Load<CombatConfig>(ConfigKeys.Combat));
+                    r.Resolve<TickScheduler>().Add(director);
+                    return director;
                 })
                 .Register(r => new BootState(r.Resolve<ConfigService>(), r.Resolve<StateMachine>()))
                 .Register(r => new PlayState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(), r.Resolve<IEventBus>()))

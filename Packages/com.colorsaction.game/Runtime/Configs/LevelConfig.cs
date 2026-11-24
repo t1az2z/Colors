@@ -34,6 +34,7 @@ namespace ColorsAction.Configs
         public LevelPoint Spawn { get; set; } = new LevelPoint();
         public List<LevelItem> Items { get; set; } = new List<LevelItem>();
         public List<LevelPoint> Dummies { get; set; } = new List<LevelPoint>();
+        public List<LevelEnemy> Enemies { get; set; } = new List<LevelEnemy>();
         public List<LevelHint> Hints { get; set; } = new List<LevelHint>();
 
         public int Width { get; private set; }
@@ -57,6 +58,7 @@ namespace ColorsAction.Configs
 
             Items ??= new List<LevelItem>();
             Dummies ??= new List<LevelPoint>();
+            Enemies ??= new List<LevelEnemy>();
             Hints ??= new List<LevelHint>();
             Spawn ??= new LevelPoint();
         }
@@ -157,6 +159,13 @@ namespace ColorsAction.Configs
     public sealed class LevelItem : LevelPoint
     {
         public string Item { get; set; }
+    }
+
+    /// <summary>Враг на карте: тип из Enemies.json.</summary>
+    [Preserve]
+    public sealed class LevelEnemy : LevelPoint
+    {
+        public string Type { get; set; }
     }
 
     /// <summary>Подсказка на полу: иконка действия (jump, roll, interact...).</summary>
