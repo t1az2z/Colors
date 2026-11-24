@@ -17,7 +17,8 @@ namespace ColorsAction.Unity
         Submit,
         Cancel,
         CameraLeft,
-        CameraRight
+        CameraRight,
+        SwitchScheme
     }
 
     /// <summary>
@@ -44,6 +45,9 @@ namespace ColorsAction.Unity
         public InputAction CameraStick { get; private set; }
         public InputAction CameraLeft { get; private set; }
         public InputAction CameraRight { get; private set; }
+
+        /// <summary>Переключение схемы управления А/Б для сравнения в прототипе: F1 / Start.</summary>
+        public InputAction SwitchScheme { get; private set; }
         public InputAction Zoom { get; private set; }
         public InputAction[] QuickItems { get; private set; }
 
@@ -105,6 +109,7 @@ namespace ColorsAction.Unity
                 case GameAction.Submit: return Submit;
                 case GameAction.CameraLeft: return CameraLeft;
                 case GameAction.CameraRight: return CameraRight;
+                case GameAction.SwitchScheme: return SwitchScheme;
                 default: return Cancel;
             }
         }
@@ -191,6 +196,10 @@ namespace ColorsAction.Unity
             CameraRight = player.AddAction("CameraRight", InputActionType.Button);
             CameraRight.AddBinding("<Gamepad>/rightShoulder");
             CameraRight.AddBinding("<Keyboard>/e");
+
+            SwitchScheme = player.AddAction("SwitchScheme", InputActionType.Button);
+            SwitchScheme.AddBinding("<Keyboard>/f1");
+            SwitchScheme.AddBinding("<Gamepad>/start");
 
             Zoom = player.AddAction("Zoom", InputActionType.Value, expectedControlLayout: "Vector2");
             Zoom.AddBinding("<Mouse>/scroll");
@@ -279,6 +288,8 @@ namespace ColorsAction.Unity
                 case "attack": return UsingGamepad ? "RT" : "ЛКМ";
                 case "secondary": return UsingGamepad ? "LT" : "ПКМ";
                 case "run": return UsingGamepad ? "L3" : "Shift";
+                case "cameraTurn": return UsingGamepad ? "LB / RB" : "Q / E";
+                case "switchScheme": return UsingGamepad ? "Start" : "F1";
                 default: return action;
             }
         }

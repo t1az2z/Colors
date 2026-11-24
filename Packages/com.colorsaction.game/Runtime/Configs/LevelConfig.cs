@@ -22,6 +22,13 @@ namespace ColorsAction.Configs
         /// <summary>Глубина столбиков под нулевой высотой.</summary>
         public float Depth { get; set; } = 1f;
 
+        /// <summary>
+        /// Перепады до этой высоты (включительно) строятся слопом, а не ступенькой — чтобы ходьба и камера шли плавно.
+        /// Правило то же, что у воксельного редактора (SurfaceSmoothing): угол верха клетки поднимается до самого
+        /// высокого соседнего верха (по сторонам и диагонали), который выше не больше чем на этот шаг. 0 — без слопов.
+        /// </summary>
+        public float SlopeMaxStep { get; set; } = 0.3f;
+
         public List<string> Rows { get; set; } = new List<string>();
 
         public LevelPoint Spawn { get; set; } = new LevelPoint();
@@ -64,6 +71,52 @@ namespace ColorsAction.Configs
         {
             var steps = HeightSteps(x, z);
             return steps == Hole ? -Depth : steps * Step;
+        }
+
+        /// <summary>
+        /// Высоты четырёх углов верха клетки с учётом слопов, в метрах.
+        /// Порядок: (x0,z0), (x0,z1), (x1,z1), (x1,z0). Для дыры все углы равны -Depth.
+        /// </summary>
+        public void TopCorners(int x, int z, out float x0z0, out float x0z1, out float x1z1, out float x1z0)
+        {
+            var own = HeightAt(x, z);
+            if (HeightSteps(x, z) == Hole)
+            {
+                x0z0 = x0z1 = x1z1 = x1z0 = own;
+                return;
+            }
+
+            x0z0 = Corner(x, z, own, -1, -1);
+            x0z1 = Corner(x, z, own, -1, 1);
+            x1z1 = Corner(x, z, own, 1, 1);
+            x1z0 = Corner(x, z, own, 1, -1);
+        }
+
+        /// <summary>Высота поверхности в точке клетки (u, v ∈ [0,1]), билинейно по углам.</summary>
+        public float SurfaceHeight(int x, int z, float u, float v)
+        {
+            TopCorners(x, z, out var a00, out var a01, out var a11, out var a10);
+            var a = a00 + (a10 - a00) * u;
+            var b = a01 + (a11 - a01) * u;
+            return a + (b - a) * v;
+        }
+
+        private float Corner(int x, int z, float own, int sx, int sz)
+        {
+            var h = own;
+            h = Math.Max(h, Raise(x + sx, z, own));
+            h = Math.Max(h, Raise(x, z + sz, own));
+            h = Math.Max(h, Raise(x + sx, z + sz, own));
+            return h;
+        }
+
+        private float Raise(int x, int z, float own)
+        {
+            const float eps = 1e-4f;
+            if (SlopeMaxStep <= 0f || HeightSteps(x, z) == Hole)
+                return own;
+            var top = HeightAt(x, z);
+            return top > own + eps && top <= own + SlopeMaxStep + eps ? top : own;
         }
 
         public static int Decode(char c)

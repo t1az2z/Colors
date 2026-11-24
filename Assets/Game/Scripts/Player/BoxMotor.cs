@@ -95,6 +95,15 @@ namespace ColorsAction.Unity
                 pos += dir * allowed;
                 var left = dist - allowed;
 
+                // Слоп (пологая поверхность): идём вдоль неё вверх, без ступенчатого подъёма.
+                if (Grounded && hit.normal.y >= MinGroundNormalY)
+                {
+                    var along = Vector3.ProjectOnPlane(dir, hit.normal).normalized;
+                    var horizontalPart = new Vector2(along.x, along.z).magnitude;
+                    delta = along * (left / Mathf.Max(0.2f, horizontalPart));
+                    continue;
+                }
+
                 if (Grounded && TryStepUp(ref pos, dir, left))
                     break;
 

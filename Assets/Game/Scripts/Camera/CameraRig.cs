@@ -23,10 +23,14 @@ namespace ColorsAction.Unity
         private CinemachineOrbitalFollow orbit;
         private float yaw;
         private float targetYaw;
-        private float yawVelocity;
         private float distance;
 
-        public CameraScheme Scheme => config != null ? config.Scheme : CameraScheme.FreeOrbit;
+        // Схема Б: поворот на 90° как твин фиксированной длительности.
+        private float tweenFrom;
+        private float tweenTime = 1f;
+        private CameraScheme lastScheme;
+
+        public CameraScheme Scheme => session != null ? session.ControlScheme.Value : CameraScheme.FreeOrbit;
 
         protected override void OnConstruct(IResolver resolver)
         {
@@ -47,6 +51,7 @@ namespace ColorsAction.Unity
                 virtualCamera.Follow = followTarget;
 
             yaw = targetYaw = config.StartYaw;
+            lastScheme = Scheme;
             distance = config.Distance;
             orbit.OrbitStyle = CinemachineOrbitalFollow.OrbitStyles.Sphere;
             orbit.VerticalAxis.Range = new Vector2(-10f, 89f);
@@ -61,7 +66,13 @@ namespace ColorsAction.Unity
                 return;
 
             var control = session.PlayerControl.Value;
-            var fixedAngles = config.Scheme == CameraScheme.FixedAngles;
+            var fixedAngles = Scheme == CameraScheme.FixedAngles;
+            if (Scheme != lastScheme)
+            {
+                lastScheme = Scheme;
+                if (fixedAngles)
+                    StartTurn(NearestFixedAngle(yaw));
+            }
             if (config.LockCursor)
             {
                 var wanted = control && !fixedAngles && Application.isFocused ? CursorLockMode.Locked : CursorLockMode.None;
@@ -76,10 +87,9 @@ namespace ColorsAction.Unity
             {
                 // Схема 2: четыре угла на LB/RB (Q/E), мышь и правый стик заняты направлением взгляда.
                 if (input.Pressed(GameAction.CameraLeft))
-                    targetYaw -= config.FixedAngleStep;
+                    StartTurn(targetYaw - config.FixedAngleStep);
                 if (input.Pressed(GameAction.CameraRight))
-                    targetYaw += config.FixedAngleStep;
-                yaw = Mathf.SmoothDampAngle(yaw, targetYaw, ref yawVelocity, config.FixedRotateTime, Mathf.Infinity, Time.unscaledDeltaTime);
+                    StartTurn(targetYaw + config.FixedAngleStep);
                 Zoom();
             }
             else if (control)
@@ -94,9 +104,37 @@ namespace ColorsAction.Unity
                 targetYaw = yaw;
             }
 
-            if (!fixedAngles)
+            if (fixedAngles)
+            {
+                // Поворот ровно за FixedRotateTime с плавным разгоном и торможением (GDD: ~0.25 с).
+                tweenTime = Mathf.Min(1f, tweenTime + Time.unscaledDeltaTime / Mathf.Max(0.01f, config.FixedRotateTime));
+                var k = tweenTime * tweenTime * (3f - 2f * tweenTime);
+                yaw = tweenFrom + Mathf.DeltaAngle(tweenFrom, targetYaw) * k;
+            }
+            else
+            {
                 yaw = Mathf.Repeat(yaw + 180f, 360f) - 180f;
+            }
+
             Apply();
+        }
+
+        /// <summary>Текущий целевой угол схемы Б (для автотестов и HUD).</summary>
+        public float TargetYaw => targetYaw;
+
+        private void StartTurn(float to)
+        {
+            tweenFrom = yaw;
+            targetYaw = to;
+            tweenTime = 0f;
+        }
+
+        /// <summary>Ближайший из четырёх изометрических углов: StartYaw + k·шаг.</summary>
+        private float NearestFixedAngle(float current)
+        {
+            var step = Mathf.Max(1f, config.FixedAngleStep);
+            var k = Mathf.Round(Mathf.DeltaAngle(config.StartYaw, current) / step);
+            return config.StartYaw + k * step;
         }
 
         private void Zoom()

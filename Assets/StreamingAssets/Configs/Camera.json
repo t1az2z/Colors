@@ -1,7 +1,8 @@
 {
-  "scheme": "FreeOrbit",
+  "scheme": "FixedAngles",
   "fixedAngleStep": 90,
-  "fixedRotateTime": 0.18,
+  "fixedRotateTime": 0.25,
+  "stickAimMarkerDistance": 2.5,
   "aimDeadzone": 0.3,
   "pitch": 35,
   "startYaw": 45,

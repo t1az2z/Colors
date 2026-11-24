@@ -158,9 +158,12 @@ namespace ColorsAction.Configs
     {
         public CameraScheme Scheme { get; set; } = CameraScheme.FreeOrbit;
 
-        /// <summary>FixedAngles: шаг поворота и время доворота камеры.</summary>
+        /// <summary>FixedAngles: шаг поворота (90° — четыре угла) и длительность плавного поворота, секунды.</summary>
         public float FixedAngleStep { get; set; } = 90f;
-        public float FixedRotateTime { get; set; } = 0.18f;
+        public float FixedRotateTime { get; set; } = 0.25f;
+
+        /// <summary>FixedAngles: расстояние маркера прицела от игрока при прицеливании стиком.</summary>
+        public float StickAimMarkerDistance { get; set; } = 2.5f;
 
         /// <summary>FixedAngles: мёртвая зона правого стика для направления взгляда.</summary>
         public float AimDeadzone { get; set; } = 0.3f;

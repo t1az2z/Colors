@@ -78,6 +78,8 @@ namespace ColorsAction.Unity
             yaw = body.eulerAngles.y;
             if (Camera.main != null)
                 cameraTransform = Camera.main.transform;
+            if (FindAnyObjectByType<AimMarker>() == null)
+                AimMarker.Create(this, deformer.GetComponent<Renderer>()?.sharedMaterial);
         }
 
         public void Teleport(Vector3 position, float facingYaw)
@@ -132,7 +134,8 @@ namespace ColorsAction.Unity
             motor.Move(horizontalVelocity * dt + lunge, dt, verticalDelta);
 
             airTime = motor.Grounded ? 0f : airTime + dt;
-            body.rotation = Quaternion.Euler(0, yaw, 0);
+            UpdateGroundAlign(dt);
+            body.rotation = groundTilt * Quaternion.Euler(0, yaw, 0);
             UpdateDeformation(dt);
         }
 
@@ -161,6 +164,8 @@ namespace ColorsAction.Unity
             horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, accel * dt);
 
             // Схема FixedAngles: взгляд и атака — по правому стику/мыши, независимо от движения.
+            if (!HasControl)
+                AimPoint = null;
             var aim = HasControl ? AimDirection() : null;
             var facing = aim ?? move;
             var turn = aim.HasValue ? config.TurnSpeed * 2f : config.TurnSpeed;
@@ -171,14 +176,28 @@ namespace ColorsAction.Unity
             }
         }
 
+        /// <summary>Схема Б: точка на земле, куда смотрит и бьёт персонаж (для маркера прицела). null — прицела нет.</summary>
+        public Vector3? AimPoint { get; private set; }
+
+        public bool FixedAnglesScheme => session != null && session.ControlScheme.Value == CameraScheme.FixedAngles;
+
+        /// <summary>
+        /// Схема Б (GDD, раздел 3): направление взгляда и атаки — правый стик или курсор мыши на земле.
+        /// Без ввода правым стиком на геймпаде персонаж смотрит по направлению движения (возвращается null).
+        /// </summary>
         private Vector3? AimDirection()
         {
-            if (cameraConfig == null || cameraConfig.Scheme != CameraScheme.FixedAngles)
+            AimPoint = null;
+            if (!FixedAnglesScheme || cameraConfig == null)
                 return null;
             var camYaw = cameraTransform != null ? cameraTransform.eulerAngles.y : 0f;
             var stick = input.AimStick;
             if (stick.magnitude > cameraConfig.AimDeadzone)
-                return Quaternion.Euler(0, camYaw, 0) * new Vector3(stick.x, 0, stick.y).normalized;
+            {
+                var dir = Quaternion.Euler(0, camYaw, 0) * new Vector3(stick.x, 0, stick.y).normalized;
+                AimPoint = GroundBelow(transform.position + dir * cameraConfig.StickAimMarkerDistance);
+                return dir;
+            }
 
             var mouse = UnityEngine.InputSystem.Mouse.current;
             if (input.UsingGamepad || mouse == null || cameraTransform == null)
@@ -187,12 +206,32 @@ namespace ColorsAction.Unity
             if (cam == null)
                 return null;
             var ray = cam.ScreenPointToRay(mouse.position.ReadValue());
-            var plane = new Plane(Vector3.up, transform.position + Vector3.up * config.ColliderHeight * 0.5f);
-            if (!plane.Raycast(ray, out var enter))
-                return null;
-            var dir = ray.GetPoint(enter) - transform.position;
-            dir.y = 0;
-            return dir.sqrMagnitude > 0.04f ? dir.normalized : (Vector3?)null;
+            Vector3 point;
+            // Сначала по геометрии уровня (маркер ложится на ступени), иначе — плоскость на высоте игрока.
+            if (Physics.Raycast(ray, out var hit, 500f, motor.CollisionMask, QueryTriggerInteraction.Ignore))
+            {
+                point = hit.point;
+            }
+            else
+            {
+                var plane = new Plane(Vector3.up, transform.position);
+                if (!plane.Raycast(ray, out var enter))
+                    return null;
+                point = ray.GetPoint(enter);
+            }
+
+            AimPoint = point;
+            var flat = point - transform.position;
+            flat.y = 0;
+            return flat.sqrMagnitude > 0.04f ? flat.normalized : (Vector3?)null;
+        }
+
+        private Vector3 GroundBelow(Vector3 position)
+        {
+            var origin = position + Vector3.up * 3f;
+            return Physics.Raycast(origin, Vector3.down, out var hit, 10f, motor.CollisionMask, QueryTriggerInteraction.Ignore)
+                ? hit.point
+                : position;
         }
 
         // ------------------------------------------------------------------ прыжок
@@ -358,6 +397,36 @@ namespace ColorsAction.Unity
         }
 
         private static float EaseInOut(float x) => x * x * (3f - 2f * x);
+
+        // ------------------------------------------------------------------ слопы
+
+        private Quaternion groundTilt = Quaternion.identity;
+        private float groundOffset;
+
+        /// <summary>
+        /// На слопе куб ложится на поверхность: наклон по нормали и опускание до высоты под центром
+        /// (коллизия — выровненный бокс, он касается слопа только верхней кромкой).
+        /// </summary>
+        private void UpdateGroundAlign(float dt)
+        {
+            var targetTilt = Quaternion.identity;
+            var targetOffset = 0f;
+            if (motor.Grounded && !rolling)
+            {
+                var origin = transform.position + Vector3.up * (config.ColliderHeight * 0.5f);
+                if (Physics.Raycast(origin, Vector3.down, out var hit, config.ColliderHeight, motor.CollisionMask,
+                        QueryTriggerInteraction.Ignore) && hit.normal.y > 0.7f)
+                {
+                    targetTilt = Quaternion.FromToRotation(Vector3.up, hit.normal);
+                    targetOffset = Mathf.Clamp(hit.point.y - transform.position.y, -config.StepHeight, 0f);
+                }
+            }
+
+            var k = 1f - Mathf.Exp(-dt * 18f);
+            groundTilt = Quaternion.Slerp(groundTilt, targetTilt, k);
+            groundOffset = Mathf.Lerp(groundOffset, targetOffset, k);
+            body.localPosition = new Vector3(0f, groundOffset, 0f);
+        }
 
         // ------------------------------------------------------------------ деформация
 

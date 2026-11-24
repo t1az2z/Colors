@@ -50,12 +50,26 @@ namespace ColorsAction
         /// <summary>false, когда открыт экран (инвентарь): движение и атаки игнорируются.</summary>
         public ReactiveProperty<bool> PlayerControl { get; } = new ReactiveProperty<bool>(false);
 
+        /// <summary>
+        /// Текущая схема управления камерой и взглядом (GDD, раздел 3): А — свободная камера, Б — 4 фиксированных угла.
+        /// Стартует со значения из Camera.json, в игре переключается для сравнения по ощущениям.
+        /// </summary>
+        public ReactiveProperty<CameraScheme> ControlScheme { get; }
+
         public GameSession(ConfigService configs, ItemDatabase items, IEventBus events)
         {
             this.items = items;
             this.events = events;
             Inventory = new PlayerInventory(configs.Load<InventoryConfig>(ConfigKeys.Inventory));
             Stamina = new Stamina(configs.Load<PlayerConfig>(ConfigKeys.Player).Stamina);
+            ControlScheme = new ReactiveProperty<CameraScheme>(configs.Load<CameraConfig>(ConfigKeys.Camera).Scheme);
+        }
+
+        /// <summary>Переключить схему А ↔ Б.</summary>
+        public CameraScheme ToggleControlScheme()
+        {
+            ControlScheme.Value = ControlScheme.Value == CameraScheme.FreeOrbit ? CameraScheme.FixedAngles : CameraScheme.FreeOrbit;
+            return ControlScheme.Value;
         }
 
         /// <summary>Подбор предмета с земли. false — инвентарь полон, предмет остаётся лежать.</summary>

@@ -108,7 +108,8 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>
-        /// Верх столбика — всегда; боковые грани — только там, где сосед ниже (от его высоты до своей).
+        /// Верх столбика — четырёхугольник по высотам углов (<see cref="LevelConfig.TopCorners"/>): перепады до
+        /// SlopeMaxStep становятся слопами. Боковые грани — только там, где сосед ниже, от его кромки до своей.
         /// UV в мировых метрах, текстура рисует тонкую рамку на каждом кубе 1×1.
         /// </summary>
         private static Mesh BuildChunk(LevelConfig config, int cx, int cz)
@@ -123,19 +124,17 @@ namespace ColorsAction.Unity
             {
                 if (config.HeightSteps(x, z) == LevelConfig.Hole)
                     continue;
-                var h = config.HeightAt(x, z);
-                var bottom = -config.Depth;
+                config.TopCorners(x, z, out var h00, out var h01, out var h11, out var h10);
 
-                // Верх.
-                Quad(verts, normals, uvs, tris,
-                    new Vector3(x, h, z), new Vector3(x, h, z + 1), new Vector3(x + 1, h, z + 1), new Vector3(x + 1, h, z),
-                    Vector3.up, new Vector2(x, z), new Vector2(1, 1));
+                // Верх (возможно, наклонный).
+                Top(verts, normals, uvs, tris,
+                    new Vector3(x, h00, z), new Vector3(x, h01, z + 1), new Vector3(x + 1, h11, z + 1), new Vector3(x + 1, h10, z));
 
-                // Бока: -X, +X, -Z, +Z.
-                Side(config, verts, normals, uvs, tris, x, z, h, bottom, -1, 0);
-                Side(config, verts, normals, uvs, tris, x, z, h, bottom, 1, 0);
-                Side(config, verts, normals, uvs, tris, x, z, h, bottom, 0, -1);
-                Side(config, verts, normals, uvs, tris, x, z, h, bottom, 0, 1);
+                // Бока: -X, +X, -Z, +Z. Кромка соседа берётся по его углам на общей стороне.
+                Side(config, verts, normals, uvs, tris, x, z, -1, 0, h00, h01);
+                Side(config, verts, normals, uvs, tris, x, z, 1, 0, h10, h11);
+                Side(config, verts, normals, uvs, tris, x, z, 0, -1, h00, h10);
+                Side(config, verts, normals, uvs, tris, x, z, 0, 1, h01, h11);
             }
 
             if (verts.Count == 0)
@@ -150,48 +149,107 @@ namespace ColorsAction.Unity
             return mesh;
         }
 
+        private static void Top(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> t,
+            Vector3 p00, Vector3 p01, Vector3 p11, Vector3 p10)
+        {
+            // Диагональ выбираем так, чтобы излом шёл вдоль слопа, а не поперёк (меньше "седла").
+            var splitMain = Mathf.Abs(p00.y - p11.y) <= Mathf.Abs(p01.y - p10.y);
+            if (splitMain)
+            {
+                Tri(v, n, uv, t, p00, p01, p11);
+                Tri(v, n, uv, t, p00, p11, p10);
+            }
+            else
+            {
+                Tri(v, n, uv, t, p00, p01, p10);
+                Tri(v, n, uv, t, p01, p11, p10);
+            }
+        }
+
+        private static void Tri(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> t, Vector3 a, Vector3 b, Vector3 c)
+        {
+            var i = v.Count;
+            var normal = Vector3.Cross(b - a, c - a).normalized;
+            v.Add(a); v.Add(b); v.Add(c);
+            n.Add(normal); n.Add(normal); n.Add(normal);
+            uv.Add(new Vector2(a.x, a.z)); uv.Add(new Vector2(b.x, b.z)); uv.Add(new Vector2(c.x, c.z));
+            t.Add(i); t.Add(i + 1); t.Add(i + 2);
+        }
+
+        /// <param name="ownA">Высота своего угла в начале стороны (меньшая координата вдоль стороны).</param>
+        /// <param name="ownB">Высота своего угла в конце стороны.</param>
         private static void Side(LevelConfig config, List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> t,
-            int x, int z, float h, float bottom, int dx, int dz)
+            int x, int z, int dx, int dz, float ownA, float ownB)
         {
             var nx = x + dx;
             var nz = z + dz;
-            float neighbour = config.InBounds(nx, nz) ? config.HeightAt(nx, nz) : bottom;
-            if (neighbour >= h)
+            float nbA, nbB;
+            if (config.InBounds(nx, nz) && config.HeightSteps(nx, nz) != LevelConfig.Hole)
+            {
+                config.TopCorners(nx, nz, out var m00, out var m01, out var m11, out var m10);
+                // Общая сторона у соседа — противоположная.
+                if (dx == -1) { nbA = m10; nbB = m11; }
+                else if (dx == 1) { nbA = m00; nbB = m01; }
+                else if (dz == -1) { nbA = m01; nbB = m11; }
+                else { nbA = m00; nbB = m10; }
+            }
+            else
+            {
+                nbA = nbB = -config.Depth;
+            }
+
+            var loA = Mathf.Min(nbA, ownA);
+            var loB = Mathf.Min(nbB, ownB);
+            if (ownA <= loA + 1e-4f && ownB <= loB + 1e-4f)
                 return;
-            var normal = new Vector3(dx, 0, dz);
-            float lo = neighbour, hi = h;
-            // Отрезок грани на стороне соседа.
+
+            // Точки стороны: A — меньшая координата вдоль стороны.
             Vector3 a, b;
-            if (dx == -1) { a = new Vector3(x, 0, z + 1); b = new Vector3(x, 0, z); }
-            else if (dx == 1) { a = new Vector3(x + 1, 0, z); b = new Vector3(x + 1, 0, z + 1); }
-            else if (dz == -1) { a = new Vector3(x, 0, z); b = new Vector3(x + 1, 0, z); }
-            else { a = new Vector3(x + 1, 0, z + 1); b = new Vector3(x, 0, z + 1); }
+            if (dx != 0)
+            {
+                var sx = dx < 0 ? x : x + 1;
+                a = new Vector3(sx, 0, z);
+                b = new Vector3(sx, 0, z + 1);
+            }
+            else
+            {
+                var sz = dz < 0 ? z : z + 1;
+                a = new Vector3(x, 0, sz);
+                b = new Vector3(x + 1, 0, sz);
+            }
 
-            var u0 = dx != 0 ? a.z : a.x;
-            Quad(v, n, uv, t,
-                new Vector3(a.x, lo, a.z), new Vector3(a.x, hi, a.z), new Vector3(b.x, hi, b.z), new Vector3(b.x, lo, b.z),
-                normal, new Vector2(dx != 0 ? z : x, lo), new Vector2(1, hi - lo));
-            _ = u0;
-        }
+            var aLo = new Vector3(a.x, loA, a.z);
+            var aHi = new Vector3(a.x, ownA, a.z);
+            var bLo = new Vector3(b.x, loB, b.z);
+            var bHi = new Vector3(b.x, ownB, b.z);
+            var normal = new Vector3(dx, 0, dz);
+            var along = dx != 0 ? z : x;
 
-        private static void Quad(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> t,
-            Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, Vector3 normal, Vector2 uvOrigin, Vector2 uvSize)
-        {
+            // Обход по часовой, если смотреть снаружи (с нормали).
+            var flip = (dx == -1) || (dz == 1);
             var i = v.Count;
-            v.Add(p0); v.Add(p1); v.Add(p2); v.Add(p3);
+            if (!flip)
+            {
+                v.Add(aLo); v.Add(aHi); v.Add(bHi); v.Add(bLo);
+                uv.Add(new Vector2(along, loA)); uv.Add(new Vector2(along, ownA));
+                uv.Add(new Vector2(along + 1, ownB)); uv.Add(new Vector2(along + 1, loB));
+            }
+            else
+            {
+                v.Add(bLo); v.Add(bHi); v.Add(aHi); v.Add(aLo);
+                uv.Add(new Vector2(along + 1, loB)); uv.Add(new Vector2(along + 1, ownB));
+                uv.Add(new Vector2(along, ownA)); uv.Add(new Vector2(along, loA));
+            }
+
             for (int k = 0; k < 4; k++)
                 n.Add(normal);
-            uv.Add(uvOrigin);
-            uv.Add(uvOrigin + new Vector2(0, uvSize.y));
-            uv.Add(uvOrigin + uvSize);
-            uv.Add(uvOrigin + new Vector2(uvSize.x, 0));
             t.Add(i); t.Add(i + 1); t.Add(i + 2);
             t.Add(i); t.Add(i + 2); t.Add(i + 3);
         }
 
         // ------------------------------------------------------------------ объекты
 
-        public Vector3 CellPosition(int x, int z) => new Vector3(x + 0.5f, level.HeightAt(x, z), z + 0.5f);
+        public Vector3 CellPosition(int x, int z) => new Vector3(x + 0.5f, level.SurfaceHeight(x, z, 0.5f, 0.5f), z + 0.5f);
 
         private void SpawnEntities(LevelConfig config)
         {

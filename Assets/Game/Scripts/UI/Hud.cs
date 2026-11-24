@@ -26,6 +26,7 @@ namespace ColorsAction.Unity
         private Image staminaLag;
         private Text prompt;
         private Text toast;
+        private Text schemeLabel;
         private float toastTimer;
         private readonly Text[] handLabels = new Text[2];
         private readonly Image[] handColors = new Image[2];
@@ -82,6 +83,16 @@ namespace ColorsAction.Unity
             prompt.rectTransform.anchorMin = prompt.rectTransform.anchorMax = new Vector2(0.5f, 0);
             prompt.rectTransform.anchoredPosition = new Vector2(0, 150);
             UiFactory.Outline(prompt);
+
+            schemeLabel = UiFactory.Text(root, "Scheme", "", 20, TextAnchor.LowerRight, UiFactory.MutedText);
+            schemeLabel.rectTransform.anchorMin = schemeLabel.rectTransform.anchorMax = new Vector2(1, 0);
+            schemeLabel.rectTransform.pivot = new Vector2(1, 0);
+            schemeLabel.rectTransform.anchoredPosition = new Vector2(-40, 40);
+            UiFactory.Outline(schemeLabel);
+            subscriptions.Add(session.ControlScheme.Subscribe(scheme =>
+                ShowToast(scheme == ColorsAction.Configs.CameraScheme.FixedAngles
+                    ? "Схема Б: 4 угла камеры, взгляд — мышь / правый стик"
+                    : "Схема А: свободная камера"), false));
 
             toast = UiFactory.Text(root, "Toast", "", 30, TextAnchor.MiddleCenter, UiFactory.TextColor);
             toast.rectTransform.anchorMin = toast.rectTransform.anchorMax = new Vector2(0.5f, 1);
@@ -142,6 +153,10 @@ namespace ColorsAction.Unity
                 if (key != null)
                     key.text = input.Label(i == (int)Hand.Left ? "secondary" : "attack");
             }
+
+            schemeLabel.text = session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FixedAngles
+                ? $"Схема Б  ·  [{input.Label("cameraTurn")}] поворот камеры  ·  [{input.Label("switchScheme")}] схема А"
+                : $"Схема А  ·  [{input.Label("switchScheme")}] схема Б";
 
             var target = interactor != null ? interactor.Target : null;
             prompt.text = target != null ? $"[{input.Label("interact")}]  взять: {target.DisplayName}" : string.Empty;

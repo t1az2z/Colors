@@ -102,6 +102,10 @@ namespace ColorsAction.Unity.Editor
             var fsm = bootstrap.Host.States;
             var cam = Camera.main.transform;
             var pc = player.Config;
+            // Шаги 1–10 — в схеме А: в схеме Б взгляд шёл бы за настоящей мышью и мешал проверкам.
+            var startScheme = session.ControlScheme.Value;
+            report.AppendLine($"  info start scheme: {startScheme}");
+            session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FreeOrbit;
 
             Vector2 Dir(Vector3 world)
             {
@@ -184,16 +188,18 @@ namespace ColorsAction.Unity.Editor
             var stamina = session.Stamina.Current.Value;
             input.ScriptPress(GameAction.Roll);
             var invuln = false;
+            var lowest = stamina;
             for (int i = 0; i < 60; i++)
             {
                 invuln |= player.Invulnerable;
+                lowest = Mathf.Min(lowest, session.Stamina.Current.Value);
                 yield return 1;
             }
 
             var rolled = Vector3.Distance(start, player.transform.position);
             Check(Mathf.Abs(rolled - pc.RollDistance) < 0.2f, $"roll distance ~{pc.RollDistance}: {rolled:F2}");
             Check(invuln, "roll has i-frames");
-            Check(session.Stamina.Current.Value < stamina, $"roll spends stamina: {stamina:F0} -> {session.Stamina.Current.Value:F0}");
+            Check(lowest <= stamina - pc.Stamina.RollCost + 0.5f, $"roll spends stamina: {stamina:F0} -> {lowest:F0}");
 
             // 7. Подбор меча и щита на F.
             player.Teleport(new Vector3(12.5f, 0f, 12.7f), 0f);
@@ -257,18 +263,20 @@ namespace ColorsAction.Unity.Editor
             Check(!combat.Blocking, "block released");
 
             // 11. Вторая схема: 4 угла камеры на Q/E (LB/RB), правый стик задаёт взгляд.
-            var cameraConfig = bootstrap.Resolver.Resolve<GameCore.Config.ConfigService>()
-                .Load<ColorsAction.Configs.CameraConfig>(ColorsAction.Configs.ConfigKeys.Camera);
-            var previousScheme = cameraConfig.Scheme;
-            cameraConfig.Scheme = ColorsAction.Configs.CameraScheme.FixedAngles;
+            session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FixedAngles;
             player.Teleport(new Vector3(10.5f, 0f, 5.5f), 0f);
             input.ClearScripted();
-            yield return 20;
+            yield return 30;
+            var fixedYaw = Mathf.DeltaAngle(45f, cam.eulerAngles.y);
+            Check(Mathf.Abs(Mathf.Repeat(fixedYaw + 45f, 90f) - 45f) < 1f, $"scheme B snaps camera to an iso angle: {cam.eulerAngles.y:F1}");
             var yawBefore = cam.eulerAngles.y;
             input.ScriptPress(GameAction.CameraRight);
-            yield return 40;
+            yield return 8;
+            var midTurn = Mathf.Abs(Mathf.DeltaAngle(yawBefore, cam.eulerAngles.y));
+            yield return 10;
             var turned = Mathf.Abs(Mathf.DeltaAngle(yawBefore, cam.eulerAngles.y));
-            Check(Mathf.Abs(turned - 90f) < 3f, $"fixed-angle camera turns by 90: {turned:F1}");
+            Check(midTurn > 20f && midTurn < 80f && Mathf.Abs(turned - 90f) < 1f,
+                $"Q/E (LB/RB) turns the camera 90 in ~0.25 s: half-way {midTurn:F0}, after 0.3 s {turned:F1}");
             // Идём "вперёд" по экрану, а смотрим вправо по стику.
             input.ScriptedMove = new Vector2(0f, 1f);
             input.ScriptedAim = new Vector2(1f, 0f);
@@ -277,7 +285,34 @@ namespace ColorsAction.Unity.Editor
             var aimError = Vector3.Angle(player.Forward, expected);
             Check(aimError < 10f, $"right stick sets facing independent of movement: error {aimError:F1}");
             input.ClearScripted();
-            cameraConfig.Scheme = previousScheme;
+
+            // 12. Переключение схем в игре (F1 / Start).
+            input.ScriptPress(GameAction.SwitchScheme);
+            yield return 3;
+            Check(session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FreeOrbit, "F1 switches back to scheme A");
+
+            // 13. Слоп из ступенек по 0.25: подъём без рывков (высота меняется плавно каждый кадр).
+            session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FreeOrbit;
+            player.Teleport(new Vector3(27.5f, 0f, 1.6f), 0f);
+            input.ClearScripted();
+            yield return 20;
+            input.ScriptedMove = Dir(Vector3.forward);
+            var maxJump = 0f;
+            var lastY = player.transform.position.y;
+            var climbFrames = Frames(12f, pc.WalkSpeed);
+            for (int i = 0; i < climbFrames; i++)
+            {
+                yield return 1;
+                var y = player.transform.position.y;
+                maxJump = Mathf.Max(maxJump, Mathf.Abs(y - lastY));
+                lastY = y;
+            }
+
+            input.ClearScripted();
+            Check(lastY > 2.5f && maxJump < 0.06f,
+                $"0.25 staircase is a smooth slope: reached y={lastY:F2}, max height change per frame {maxJump:F3}");
+
+            session.ControlScheme.Value = startScheme;
         }
 
         private static int Frames(float meters, float speed) => Mathf.CeilToInt(meters / Mathf.Max(0.1f, speed) * 60f);
