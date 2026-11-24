@@ -10,6 +10,8 @@ namespace ColorsAction.Unity
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+        /// <summary>Цвет силуэта оружия за блоками (шейдер ColorsAction/Silhouette).</summary>
+        private static readonly int SilhouetteTintId = Shader.PropertyToID("_SilhouetteTint");
 
         [SerializeField] private Renderer[] renderers;
         [SerializeField] private int[] coloredMaterialIndices = { 0 };
@@ -21,15 +23,21 @@ namespace ColorsAction.Unity
             block ??= new MaterialPropertyBlock();
             if (renderers == null || renderers.Length == 0)
                 renderers = GetComponentsInChildren<Renderer>();
+            var tint = color;
+            tint.a = 1f;
             foreach (var r in renderers)
             {
-                foreach (var index in coloredMaterialIndices)
+                for (int index = 0; index < r.sharedMaterials.Length; index++)
                 {
-                    if (index >= r.sharedMaterials.Length)
-                        continue;
                     r.GetPropertyBlock(block, index);
-                    block.SetColor(BaseColorId, color);
-                    block.SetColor(EmissionColorId, color * emission);
+                    if (System.Array.IndexOf(coloredMaterialIndices, index) >= 0)
+                    {
+                        block.SetColor(BaseColorId, color);
+                        block.SetColor(EmissionColorId, color * emission);
+                    }
+
+                    // Всё оружие целиком, включая рукоять, в силуэте окрашено цветом оружия.
+                    block.SetColor(SilhouetteTintId, tint);
                     r.SetPropertyBlock(block, index);
                 }
             }

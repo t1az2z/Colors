@@ -318,13 +318,44 @@ namespace ColorsAction.Unity.Editor
                 var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
                 if (data == null)
                     continue;
-                // Сначала метка видимых пикселей игрока, потом сам силуэт: иначе части игрока,
-                // закрытые его же кубом (глаза сзади, оружие за спиной), просвечивают сквозь него.
-                AddRenderObjects(data, "PlayerStencilMark", RenderPassEvent.AfterRenderingOpaques, playerLayer, mat, 1);
-                AddRenderObjects(data, "PlayerSilhouette", RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 0);
+                // Порядок важен: метка видимых пикселей игрока, затем глубина закрытых частей
+                // (ближайшая часть игрока), затем покраска. Подробно — в шейдере Silhouette.
+                var wanted = new[] { "PlayerStencilMark", "PlayerSilhouetteReset", "PlayerSilhouetteDepth", "PlayerSilhouette" };
+                var present = data.rendererFeatures.Where(f => f != null && f.name.StartsWith("PlayerS")).Select(f => f.name);
+                if (present.SequenceEqual(wanted))
+                    continue;
+                foreach (var name in wanted)
+                    RemoveRendererFeature(data, name);
+                AddRenderObjects(data, wanted[0], RenderPassEvent.AfterRenderingOpaques, playerLayer, mat, 1);
+                AddRenderObjects(data, wanted[1], RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 2);
+                AddRenderObjects(data, wanted[2], RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 3);
+                AddRenderObjects(data, wanted[3], RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 0);
             }
 
             AssetDatabase.SaveAssets();
+        }
+
+        private static void RemoveRendererFeature(UniversalRendererData data, string name)
+        {
+            var so = new SerializedObject(data);
+            var features = so.FindProperty("m_RendererFeatures");
+            var map = so.FindProperty("m_RendererFeatureMap");
+            for (int i = features.arraySize - 1; i >= 0; i--)
+            {
+                var feature = features.GetArrayElementAtIndex(i).objectReferenceValue;
+                if (feature == null || feature.name != name)
+                    continue;
+                features.GetArrayElementAtIndex(i).objectReferenceValue = null;
+                features.DeleteArrayElementAtIndex(i);
+                map.DeleteArrayElementAtIndex(i);
+                so.ApplyModifiedPropertiesWithoutUndo();
+                AssetDatabase.RemoveObjectFromAsset(feature);
+                Object.DestroyImmediate(feature, true);
+                so.Update();
+            }
+
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(data);
         }
 
         private static void AddRenderObjects(UniversalRendererData data, string name, RenderPassEvent evt, int layer, Material mat, int pass)
