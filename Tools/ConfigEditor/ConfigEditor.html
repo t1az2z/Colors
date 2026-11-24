@@ -1,0 +1,1150 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ColorsAction — редактор конфигов</title>
+<style>
+  :root {
+    --bg: #e9ebee; --panel: #ffffff; --panel2: #f5f6f8; --line: #d9dce1; --line2: #c3c7ce;
+    --text: #23262b; --muted: #6b7078; --faint: #9aa0a8;
+    --accent: #2F6BFF; --ok: #3DBE5A; --warn: #E8913C; --bad: #E8413C;
+    --cube: #c9ccd2; --cube-top: #e3e5e9; --cube-edge: #9ea2aa;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); background: var(--bg); }
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0 10px 0 0; font-weight: 650; display: flex; align-items: center; gap: 8px; }
+  header h1 .logo { width: 18px; height: 18px; background: var(--cube); border: 1px solid var(--cube-edge); border-radius: 3px; box-shadow: inset 0 -5px 0 rgba(0,0,0,.08); }
+  #status { color: var(--muted); font-size: 13px; flex: 1; min-width: 200px; }
+  button, .btn { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 7px; border: 1px solid var(--line2); background: var(--panel); color: var(--text); cursor: pointer; white-space: nowrap; }
+  button:hover, .btn:hover { background: var(--panel2); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { filter: brightness(1.08); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.small { padding: 2px 8px; font-size: 12px; }
+  button.icon { padding: 2px 7px; font-size: 12px; color: var(--muted); }
+  button.danger { color: var(--bad); }
+  .layout { display: grid; grid-template-columns: 210px 1fr; min-height: calc(100vh - 53px); }
+  nav { background: var(--panel); border-right: 1px solid var(--line); padding: 10px 8px; position: sticky; top: 53px; height: calc(100vh - 53px); overflow: auto; }
+  nav a { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 7px; color: var(--text); text-decoration: none; cursor: pointer; margin-bottom: 2px; }
+  nav a small { color: var(--faint); font-size: 11px; display: block; }
+  nav a:hover { background: var(--panel2); }
+  nav a.active { background: #e4ebff; }
+  nav a .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); flex: none; }
+  nav a .err { color: var(--bad); font-weight: 700; flex: none; }
+  nav .hint { color: var(--muted); font-size: 12px; padding: 10px; }
+  main { padding: 18px 22px 80px; max-width: 1500px; }
+  .empty { max-width: 640px; margin: 60px auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 26px 30px; }
+  .empty h2 { margin-top: 0; }
+  .empty ol { padding-left: 20px; } .empty li { margin: 6px 0; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
+  .pagehead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .pagehead h2 { margin: 0; font-size: 22px; }
+  .pagehead .file { color: var(--muted); font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .pagehead .actions { margin-left: auto; display: flex; gap: 8px; }
+  .pagedesc { color: var(--muted); margin: 2px 0 14px; max-width: 900px; }
+  .warnings { margin: 0 0 14px; }
+  .warnings div { background: #fdecea; color: #a12a25; border: 1px solid #f3c2bf; padding: 6px 10px; border-radius: 7px; margin-bottom: 4px; font-size: 13px; }
+  section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+  section.card > h3 { margin: 0; padding: 11px 16px; font-size: 15px; border-bottom: 1px solid var(--line); background: var(--panel2); display: flex; align-items: center; gap: 10px; }
+  section.card > h3 .sub { font-weight: 400; color: var(--muted); font-size: 12px; }
+  section.card > h3 .right { margin-left: auto; display: flex; gap: 6px; }
+  .cardbody { display: grid; grid-template-columns: minmax(540px, 1.1fr) minmax(380px, 1fr); gap: 0; }
+  .cardbody.single { grid-template-columns: 1fr; }
+  .fields { padding: 6px 16px 12px; }
+  .viz { padding: 12px 16px; border-left: 1px solid var(--line); background: #fbfbfc; min-width: 0; }
+  .vizin { position: sticky; top: 66px; }
+  .viz svg { display: block; max-width: 100%; height: auto; }
+  .viz .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 0 4px; font-size: 12.5px; color: var(--muted); }
+  .viz .facts b { color: var(--text); font-weight: 600; }
+  .viz h4 { margin: 12px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .viz h4:first-child { margin-top: 0; }
+  .row { display: grid; grid-template-columns: minmax(200px, 1fr) 130px 150px 22px; gap: 4px 12px; align-items: center; padding: 7px 0; border-bottom: 1px dashed #eceef1; }
+  .row:last-child { border-bottom: 0; }
+  .row .lbl { min-width: 0; }
+  .row .lbl .name { font-weight: 560; }
+  .row .lbl .key { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--faint); margin-left: 6px; }
+  .row .lbl .desc { color: var(--muted); font-size: 12px; margin-top: 1px; }
+  .row.changed .lbl .name::after { content: " •"; color: var(--warn); }
+  .row.default .ctl input[type=number], .row.default .ctl input[type=text] { color: var(--faint); font-style: italic; }
+  .row input[type=range] { width: 100%; accent-color: var(--accent); }
+  .row .ctl { display: flex; align-items: center; gap: 6px; }
+  .row .ctl input[type=number], .row .ctl input[type=text], .row .ctl select { width: 100%; font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--line2); border-radius: 6px; background: #fff; color: var(--text); min-width: 0; }
+  .row .ctl input[type=number] { width: 86px; flex: none; text-align: right; }
+  .row .ctl .unit { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .row .ctl input[type=color] { width: 36px; height: 28px; padding: 0; border: 1px solid var(--line2); border-radius: 6px; background: none; flex: none; }
+  .row .wide { grid-column: 2 / 4; }
+  .row .reset { visibility: hidden; border: 0; background: none; color: var(--muted); padding: 0; font-size: 15px; cursor: pointer; }
+  .row.changed .reset { visibility: visible; }
+  .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.15); vertical-align: -1px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips label { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line2); border-radius: 14px; padding: 2px 9px; font-size: 12px; cursor: pointer; background: #fff; }
+  .chips label.on { background: #e4ebff; border-color: #a9c0ff; }
+  .chips input { margin: 0; }
+  .subhead { margin: 14px 0 2px; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .combo { border: 1px solid var(--line); border-radius: 9px; margin: 8px 0; background: #fcfcfd; }
+  .combo .chead { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 13px; }
+  .combo .chead .right { margin-left: auto; display: flex; gap: 4px; }
+  .combo .fields { padding: 0 10px 4px; }
+  .combo .row { grid-template-columns: 1fr 120px 150px 22px; padding: 4px 0; }
+  .add { margin: 6px 0; }
+  .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line2); border-radius: 10px; padding: 0 7px; font-weight: 400; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+  table.dmg { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+  table.dmg th, table.dmg td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+  table.dmg th { color: var(--muted); font-weight: 600; }
+  .toast { position: fixed; right: 18px; bottom: 18px; background: #23262b; color: #fff; padding: 9px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: 480px; }
+  .toast.show { opacity: .95; }
+  svg text { font-family: system-ui, "Segoe UI", sans-serif; }
+  @media (max-width: 1100px) { .cardbody { grid-template-columns: 1fr; } .viz { border-left: 0; border-top: 1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="logo"></span>ColorsAction · конфиги</h1>
+  <span id="status">Конфиги не открыты</span>
+  <button id="btnReopen" style="display:none"></button>
+  <button id="btnOpen" class="primary">Открыть папку Configs</button>
+  <label class="btn" title="Без доступа к папке: правки сохранятся скачиванием файлов">Загрузить файлы…<input id="fileInput" type="file" accept=".json" multiple hidden></label>
+  <button id="btnSaveAll" disabled title="Ctrl+S">Сохранить всё</button>
+</header>
+<div class="layout">
+  <nav id="nav"><div class="hint">Откройте папку <code>Assets/StreamingAssets/Configs</code> (или корень проекта).</div></nav>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* =====================================================================
+   ColorsAction — редактор JSON-конфигов.
+   Источник данных — Assets/StreamingAssets/Configs/*.json, игра читает их в рантайме.
+   Этот файл ничего не хранит сам: открывает папку (File System Access API, Chrome/Edge)
+   и пишет правки обратно в те же файлы. Без доступа к папке — сохраняет скачиванием.
+   Описания параметров — в SCHEMA ниже. Неописанные ключи показываются как есть.
+   ===================================================================== */
+
+const FILE_ORDER = ['Player', 'Camera', 'Items', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Movement', 'Game'];
+const S = { dir: null, files: {}, current: null, levels: [], mode: 'none' };
+
+/* ---------- утилиты ---------- */
+const $ = (sel, el = document) => el.querySelector(sel);
+const clone = v => v === undefined ? undefined : JSON.parse(JSON.stringify(v));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const r2 = (v, d = 2) => Number.isFinite(v) ? (+v.toFixed(d)).toString() : '—';
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const num = (v, def = 0) => Number.isFinite(+v) && v !== '' && v !== null && v !== undefined ? +v : def;
+function getPath(o, p) { for (const k of p) { if (o == null) return undefined; o = o[k]; } return o; }
+function setPath(o, p, v) { for (let i = 0; i < p.length - 1; i++) { if (o[p[i]] == null || typeof o[p[i]] !== 'object') o[p[i]] = {}; o = o[p[i]]; } o[p[p.length - 1]] = v; }
+function decimals(step) { const s = String(step); return s.includes('.') ? s.split('.')[1].length : 0; }
+function roundTo(v, step) { const d = Math.min(6, decimals(step) + 1); return +(+v).toFixed(d); }
+function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), ms); }
+function colorHex(id) { const c = S.files.Colors?.data?.[id]; return c?.hex || '#9EA0A6'; }
+function colorName(id) { const c = S.files.Colors?.data?.[id]; return c?.name || id; }
+function itemsData() { return S.files.Items?.data || {}; }
+
+/* ---------- форматирование JSON (как в исходных файлах: короткие объекты в одну строку) ---------- */
+function oneLine(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  if (Array.isArray(v)) return '[' + v.map(oneLine).join(', ') + ']';
+  const ks = Object.keys(v);
+  return ks.length ? '{ ' + ks.map(k => JSON.stringify(k) + ': ' + oneLine(v[k])).join(', ') + ' }' : '{}';
+}
+function fmt(v, ind = '') {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v);
+  const line = oneLine(v);
+  const flat = Object.values(v).every(x => x === null || typeof x !== 'object');
+  if (ind.length >= 2 && ((flat && line.length <= 100) || (ind.length >= 6 && line.length <= 230))) return line;
+  if (Array.isArray(v)) {
+    if (!v.length) return '[]';
+    if (flat && line.length <= 120) return line;
+    return '[\n' + v.map(x => ind + '  ' + fmt(x, ind + '  ')).join(',\n') + '\n' + ind + ']';
+  }
+  const ks = Object.keys(v);
+  if (!ks.length) return '{}';
+  return '{\n' + ks.map(k => ind + '  ' + JSON.stringify(k) + ': ' + fmt(v[k], ind + '  ')).join(',\n') + '\n' + ind + '}';
+}
+
+/* =====================================================================
+   SCHEMA — подписи, единицы и диапазоны. 1 блок = 1 куб = 1 метр в Unity.
+   t: num | int | bool | enum | text | color(hex) | colorRef | itemRef | level
+   ===================================================================== */
+const U = { bl: 'бл', bls: 'бл/с', bls2: 'бл/с²', s: 'с', deg: '°', degs: '°/с', x: '×', frac: 'доля', pts: 'ед.' };
+
+const SCHEMA = {
+  Player: {
+    title: 'Игрок', desc: 'Движение, прыжок, перекат, выносливость и деформация куба игрока. 1 блок = размер куба = 1 метр.',
+    sections: [
+      { title: 'Движение', viz: vizSpeed, fields: [
+        { k: 'walkSpeed', l: 'Скорость ходьбы', d: 'Сколько блоков проходит куб за секунду шагом.', u: U.bls, min: 0.5, max: 15, step: 0.1 },
+        { k: 'runMultiplier', l: 'Множитель бега', d: 'Бег (LShift / L3) = ходьба × это число.', u: U.x, min: 1, max: 3, step: 0.05 },
+        { k: 'acceleration', l: 'Разгон', d: 'Как быстро набирается скорость. Больше — резче старт.', u: U.bls2, min: 5, max: 300, step: 1 },
+        { k: 'deceleration', l: 'Торможение', d: 'Как быстро куб останавливается, когда отпустили стик.', u: U.bls2, min: 5, max: 300, step: 1 },
+        { k: 'airControl', l: 'Управление в воздухе', d: 'Доля разгона, доступная в прыжке (0 — траектория не меняется, 1 — как на земле).', u: U.frac, min: 0, max: 1, step: 0.05 },
+        { k: 'turnSpeed', l: 'Скорость поворота', d: 'Сколько градусов в секунду куб поворачивается к направлению движения.', u: U.degs, min: 90, max: 2000, step: 10 },
+        { k: 'blockMoveMultiplier', l: 'Скорость при блоке', d: 'Множитель скорости, пока поднят щит.', u: U.x, min: 0, max: 1, step: 0.05 },
+        { k: 'attackMoveMultiplier', l: 'Скорость при атаке', d: 'Множитель скорости во время удара.', u: U.x, min: 0, max: 1, step: 0.05 },
+      ] },
+      { title: 'Тело и взаимодействие', viz: vizBody, fields: [
+        { k: 'colliderWidth', l: 'Ширина коллайдера', d: 'Ширина капсулы столкновений. Чуть меньше 1, чтобы куб проходил в проёмы шириной 1 блок.', u: U.bl, min: 0.4, max: 1, step: 0.01 },
+        { k: 'colliderHeight', l: 'Высота коллайдера', d: 'Высота куба для столкновений.', u: U.bl, min: 0.4, max: 2, step: 0.01 },
+        { k: 'stepHeight', l: 'Высота шага', d: 'Перепад, который куб проходит без прыжка. Должна быть меньше высоты коллайдера.', u: U.bl, min: 0, max: 0.9, step: 0.01 },
+        { k: 'interactRadius', l: 'Радиус взаимодействия', d: 'На каком расстоянии можно подобрать предмет или нажать рычаг.', u: U.bl, min: 0.3, max: 5, step: 0.1 },
+      ] },
+      { title: 'Прыжок', viz: vizJump, fields: [
+        { k: 'jumpHeight', l: 'Высота прыжка', d: 'На сколько блоков поднимается низ куба. Уступ этой высоты — запрыгивается.', u: U.bl, min: 0, max: 4, step: 0.05 },
+        { k: 'jumpWindup', l: 'Замах перед прыжком', d: 'Пауза на сжатие куба перед отрывом от земли.', u: U.s, min: 0, max: 0.3, step: 0.01 },
+        { k: 'gravity', l: 'Гравитация', d: 'Ускорение падения на подъёме. Больше — прыжок короче и резче (высота не меняется).', u: U.bls2, min: 5, max: 100, step: 0.5 },
+        { k: 'fallGravityMultiplier', l: 'Гравитация на спуске', d: 'Множитель гравитации после верхней точки: спуск быстрее подъёма.', u: U.x, min: 1, max: 4, step: 0.05 },
+        { k: 'maxFallSpeed', l: 'Предел скорости падения', d: 'Быстрее этого куб не падает.', u: U.bls, min: 5, max: 60, step: 0.5 },
+        { k: 'coyoteTime', l: 'Время «койота»', d: 'Сколько ещё можно прыгнуть после того, как куб сошёл с края.', u: U.s, min: 0, max: 0.3, step: 0.01 },
+        { k: 'jumpBuffer', l: 'Буфер прыжка', d: 'Нажатие прыжка чуть раньше приземления запомнится на это время.', u: U.s, min: 0, max: 0.3, step: 0.01 },
+      ] },
+      { title: 'Перекат', viz: vizRoll, fields: [
+        { k: 'rollDistance', l: 'Длина переката', d: 'Сколько блоков куб проходит за весь перекат (два переворота).', u: U.bl, min: 0, max: 8, step: 0.1 },
+        { k: 'rollDuration', l: 'Длительность', d: 'Время всего переката от старта до приземления «на ноги».', u: U.s, min: 0.1, max: 1.5, step: 0.01 },
+        { k: 'rollCooldown', l: 'Перезарядка', d: 'Пауза после переката, прежде чем можно сделать следующий.', u: U.s, min: 0, max: 1, step: 0.01 },
+        { k: 'rollHopHeight', l: 'Высота подскока', d: 'Насколько куб подпрыгивает в каждом из двух переворотов.', u: U.bl, min: 0, max: 1.5, step: 0.01 },
+        { k: 'rollInvulnerableFrom', l: 'Неуязвимость с', d: 'Начало окна неуязвимости, доля длительности переката (0..1).', u: U.frac, min: 0, max: 1, step: 0.01 },
+        { k: 'rollInvulnerableTo', l: 'Неуязвимость до', d: 'Конец окна неуязвимости, доля длительности (0..1).', u: U.frac, min: 0, max: 1, step: 0.01 },
+        { k: 'rollMidPause', l: 'Пауза «на голове»', d: 'Доля длительности, которую куб стоит вверх дном между переворотами (0..0.6).', u: U.frac, min: 0, max: 0.6, step: 0.01 },
+        { k: 'rollMidSpeed', l: 'Скольжение в паузе', d: 'Скорость в паузе относительно скорости в полёте (0 — стоит на месте).', u: U.x, min: 0, max: 1, step: 0.05 },
+      ] },
+      { title: 'Выносливость', viz: vizStamina, fields: [
+        { k: 'stamina.max', l: 'Запас', d: 'Полная шкала выносливости.', u: U.pts, min: 10, max: 300, step: 1 },
+        { k: 'stamina.regenPerSecond', l: 'Восстановление', d: 'Сколько единиц восстанавливается в секунду.', u: 'ед./с', min: 1, max: 200, step: 1 },
+        { k: 'stamina.regenDelay', l: 'Задержка восстановления', d: 'Через сколько секунд после траты начинается восстановление.', u: U.s, min: 0, max: 3, step: 0.05 },
+        { k: 'stamina.rollCost', l: 'Цена переката', d: '', u: U.pts, min: 0, max: 100, step: 1 },
+        { k: 'stamina.blockStartCost', l: 'Цена поднятия щита', d: 'Списывается в момент начала блока.', u: U.pts, min: 0, max: 50, step: 1 },
+        { k: 'stamina.blockRegenMultiplier', l: 'Восстановление при блоке', d: 'Множитель восстановления, пока щит поднят.', u: U.x, min: 0, max: 1, step: 0.05 },
+        { k: 'stamina.jumpCost', l: 'Цена прыжка', d: '0 — прыжок бесплатный.', u: U.pts, min: 0, max: 50, step: 1 },
+      ] },
+      { title: 'Деформация куба', sub: 'пружина сжатия/изгиба; отрицательное сжатие — сплющивание, положительное — вытягивание', viz: vizDeform, fields: [
+        { k: 'deformation.stiffness', l: 'Жёсткость пружины', d: 'Как быстро куб возвращается к исходной форме. Больше — быстрее и мельче колебания.', u: '', min: 20, max: 800, step: 5 },
+        { k: 'deformation.damping', l: 'Затухание', d: 'Гасит покачивание (wobble). Меньше — дольше трясётся.', u: '', min: 0, max: 60, step: 0.5 },
+        { k: 'deformation.walkBend', l: 'Изгиб при ходьбе', d: 'Амплитуда покачивания из стороны в сторону.', u: U.frac, min: 0, max: 0.4, step: 0.005 },
+        { k: 'deformation.walkSwayPerMeter', l: 'Частота покачивания', d: 'Сколько полупериодов покачивания на каждый пройденный блок.', u: '1/бл', min: 0, max: 5, step: 0.05 },
+        { k: 'deformation.walkBob', l: 'Подпрыгивание при ходьбе', d: 'Насколько куб приседает на каждом «шаге».', u: U.frac, min: 0, max: 0.3, step: 0.005 },
+        { k: 'deformation.moveLean', l: 'Наклон при разгоне', d: 'Отклонение верха куба при движении.', u: U.frac, min: 0, max: 0.3, step: 0.005 },
+        { k: 'deformation.jumpWindupSquash', l: 'Сжатие перед прыжком', d: 'Форма в момент замаха.', u: U.frac, min: -0.8, max: 0, step: 0.01 },
+        { k: 'deformation.jumpTakeoffStretch', l: 'Вытягивание при отрыве', d: 'Форма в момент прыжка вверх.', u: U.frac, min: 0, max: 0.8, step: 0.01 },
+        { k: 'deformation.landSquashPerSpeed', l: 'Сжатие от скорости приземления', d: 'Сжатие на каждый бл/с скорости удара о землю.', u: 'на бл/с', min: -0.2, max: 0, step: 0.001 },
+        { k: 'deformation.maxLandSquash', l: 'Предел сжатия при приземлении', d: 'Сильнее этого куб не сплющится.', u: U.frac, min: -0.8, max: 0, step: 0.01 },
+        { k: 'deformation.rollBend', l: 'Изгиб при перекате', d: 'Насколько куб выгибается в сторону переката.', u: U.frac, min: 0, max: 0.5, step: 0.01 },
+        { k: 'deformation.rollLandSquash', l: 'Сжатие при перекате', d: 'Сплющивание при приземлении на «голову» и на «ноги».', u: U.frac, min: -0.8, max: 0, step: 0.01 },
+        { k: 'deformation.hitSquash', l: 'Сжатие от удара', d: 'Реакция куба на полученный удар.', u: U.frac, min: -0.8, max: 0, step: 0.01 },
+      ] },
+    ],
+    validate(d) {
+      const w = [];
+      if (!(num(d.walkSpeed) > 0)) w.push('walkSpeed должен быть больше 0.');
+      if (!(num(d.gravity) > 0)) w.push('gravity должна быть больше 0.');
+      if (!(num(d.rollDuration) > 0)) w.push('rollDuration должна быть больше 0.');
+      if (num(d.jumpHeight) < 0) w.push('jumpHeight не может быть отрицательной.');
+      if (num(d.stepHeight) >= num(d.colliderHeight, 1)) w.push('Высота шага должна быть меньше высоты коллайдера — иначе игра не загрузит конфиг.');
+      if (num(d.rollMidPause) < 0 || num(d.rollMidPause) > 0.6) w.push('Пауза «на голове» должна быть в пределах 0..0.6.');
+      if (num(d.rollInvulnerableFrom) < 0 || num(d.rollInvulnerableTo) > 1 || num(d.rollInvulnerableFrom) > num(d.rollInvulnerableTo)) w.push('Окно неуязвимости должно лежать в 0..1, начало не позже конца.');
+      return w;
+    },
+  },
+
+  Camera: {
+    title: 'Камера', desc: 'Изометрическая орбитальная камера (Cinemachine). Расстояния — в блоках, углы — в градусах.',
+    sections: [
+      { title: 'Схема управления', fields: [
+        { k: 'scheme', l: 'Схема', t: 'enum', opts: [['FreeOrbit', 'FreeOrbit — свободное вращение мышью/стиком, куб смотрит, куда идёт'], ['FixedAngles', 'FixedAngles — 4 угла (Q/E, LB/RB), мышь/стик задают взгляд и атаку']], d: 'Как вращается камера и куда смотрит персонаж.' },
+        { k: 'lockCursor', l: 'Прятать курсор', t: 'bool', d: 'Запирать курсор во время игры (в инвентаре он свободен).' },
+        { k: 'mouseRotateSpeed', l: 'Чувствительность мыши', d: 'Градусов поворота на пиксель движения мыши (FreeOrbit).', u: '°/пикс', min: 0.01, max: 1, step: 0.01 },
+        { k: 'stickRotateSpeed', l: 'Скорость поворота стиком', d: 'Градусов в секунду при полностью отклонённом правом стике.', u: U.degs, min: 20, max: 500, step: 5 },
+        { k: 'fixedAngleStep', l: 'Шаг фиксированного угла', d: 'FixedAngles: на сколько градусов поворачивает Q/E.', u: U.deg, min: 15, max: 180, step: 5 },
+        { k: 'fixedRotateTime', l: 'Время доворота', d: 'FixedAngles: за сколько секунд камера доворачивает к новому углу.', u: U.s, min: 0, max: 1, step: 0.01 },
+        { k: 'aimDeadzone', l: 'Мёртвая зона стика взгляда', d: 'FixedAngles: отклонение правого стика, ниже которого взгляд не меняется.', u: U.frac, min: 0, max: 0.9, step: 0.05 },
+        { k: 'snapStep', l: 'Шаг привязки', d: 'Сейчас кодом не используется.', u: U.deg, min: 0, max: 180, step: 5 },
+      ] },
+      { title: 'Положение и обзор', viz: vizCamera, fields: [
+        { k: 'pitch', l: 'Наклон', d: 'Угол камеры над горизонтом. Классическая изометрия ≈ 30–35°.', u: U.deg, min: 5, max: 89, step: 1 },
+        { k: 'startYaw', l: 'Начальный поворот', d: 'Угол вокруг вертикали при старте (45° — классическая диагональ).', u: U.deg, min: 0, max: 360, step: 1 },
+        { k: 'fieldOfView', l: 'Поле зрения (FOV)', d: 'Вертикальный угол обзора. Маленький FOV + большая дистанция ≈ почти ортографический вид.', u: U.deg, min: 5, max: 90, step: 1 },
+        { k: 'distance', l: 'Дистанция', d: 'Начальное расстояние от камеры до куба.', u: U.bl, min: 2, max: 80, step: 0.5 },
+        { k: 'minDistance', l: 'Мин. дистанция', d: 'Ближе колесом не приблизить.', u: U.bl, min: 1, max: 80, step: 0.5 },
+        { k: 'maxDistance', l: 'Макс. дистанция', d: 'Дальше колесом не отдалить.', u: U.bl, min: 2, max: 120, step: 0.5 },
+        { k: 'zoomStep', l: 'Шаг зума', d: 'Изменение дистанции за один щелчок колеса.', u: U.bl, min: 0.1, max: 10, step: 0.1 },
+        { k: 'followDamping', l: 'Сглаживание слежения', d: 'Демпфирование следования за кубом (Cinemachine). 0 — жёстко.', u: U.s, min: 0, max: 2, step: 0.01 },
+      ] },
+    ],
+    validate(d) {
+      const w = [];
+      if (num(d.minDistance) > num(d.maxDistance)) w.push('Мин. дистанция больше максимальной.');
+      if (num(d.distance) < num(d.minDistance) || num(d.distance) > num(d.maxDistance)) w.push('Дистанция вне пределов мин./макс. — зум сразу её обрежет.');
+      return w;
+    },
+  },
+
+  Combat: {
+    title: 'Бой', desc: 'Общие правила боя.',
+    sections: [
+      { title: 'Правила', viz: vizCombat, fields: [
+        { k: 'sameColorMultiplier', l: 'Бонус цвета', d: 'Множитель урона по врагу того же цвета, что и оружие.', u: U.x, min: 1, max: 4, step: 0.05 },
+        { k: 'unarmedItem', l: 'Пустая рука', t: 'itemRef', d: 'Какой предмет используется, когда в руке ничего нет.' },
+        { k: 'hitStop', l: 'Хит-стоп', d: 'Короткая остановка времени при попадании (0 — выключено).', u: U.s, min: 0, max: 0.3, step: 0.005 },
+        { k: 'hitShake', l: 'Тряска камеры', d: 'Сила толчка камеры при попадании (0 — выключено).', u: U.bl, min: 0, max: 1, step: 0.01 },
+        { k: 'heldWeaponGlow', l: 'Свечение оружия', d: 'Доля эмиссии цвета оружия в руках, чтобы оно читалось издалека.', u: U.frac, min: 0, max: 2, step: 0.05 },
+      ] },
+    ],
+    validate(d) {
+      const w = [];
+      if (d.unarmedItem && !itemsData()[d.unarmedItem] && S.files.Items) w.push(`Предмета «${d.unarmedItem}» нет в Items.json.`);
+      return w;
+    },
+  },
+
+  Dummy: {
+    title: 'Манекен', desc: 'Тренировочный манекен: наклон от ударов и вспышка.',
+    sections: [
+      { title: 'Реакция на удар', viz: vizDummy, fields: [
+        { k: 'color', l: 'Цвет манекена', t: 'colorRef', d: 'Оружие того же цвета бьёт его с бонусом.' },
+        { k: 'tiltPerHit', l: 'Толчок от удара', d: 'Сила наклона от одного удара (умножается на отбрасывание удара).', u: U.deg, min: 0, max: 40, step: 0.5 },
+        { k: 'maxTilt', l: 'Предел наклона', d: 'Сильнее манекен не наклонится.', u: U.deg, min: 0, max: 60, step: 1 },
+        { k: 'stiffness', l: 'Жёсткость', d: 'Как быстро манекен выпрямляется.', u: '', min: 10, max: 600, step: 5 },
+        { k: 'damping', l: 'Затухание', d: 'Гасит раскачивание.', u: '', min: 0, max: 40, step: 0.5 },
+        { k: 'flashDuration', l: 'Длительность вспышки', d: '', u: U.s, min: 0, max: 1, step: 0.01 },
+        { k: 'flashColor', l: 'Цвет вспышки', t: 'color', d: '' },
+        { k: 'flashIntensity', l: 'Яркость вспышки', d: 'Множитель эмиссии.', u: U.x, min: 0, max: 8, step: 0.1 },
+      ] },
+    ],
+    validate(d) { return d.color && S.files.Colors && !S.files.Colors.data[d.color] ? [`Цвета «${d.color}» нет в Colors.json.`] : []; },
+  },
+
+  Inventory: {
+    title: 'Инвентарь', desc: 'Размер сетки инвентаря и число быстрых слотов предметов (клавиши 1–4).',
+    sections: [
+      { title: 'Размер', viz: vizInventory, fields: [
+        { k: 'columns', l: 'Колонки', t: 'int', d: '', u: 'шт.', min: 1, max: 10, step: 1 },
+        { k: 'rows', l: 'Строки', t: 'int', d: '', u: 'шт.', min: 1, max: 10, step: 1 },
+        { k: 'quickSlots', l: 'Быстрые слоты', t: 'int', d: 'Предметы на клавишах 1, 2, 3…', u: 'шт.', min: 0, max: 9, step: 1 },
+      ] },
+    ],
+  },
+
+  Game: {
+    title: 'Игра', desc: 'Что загружать при старте.',
+    sections: [
+      { title: 'Старт', fields: [
+        { k: 'title', l: 'Название', t: 'text', d: 'Заголовок окна/игры.' },
+        { k: 'level', l: 'Уровень', t: 'level', d: 'Ключ уровня без .json, путь от папки Configs, например Levels/Test. Обязателен.' },
+      ] },
+    ],
+    validate(d) { return d.level ? [] : ['Уровень обязателен — без него игра не загрузит конфиг.']; },
+  },
+};
+
+/* Поля, используемые в «словарных» конфигах */
+const ITEM_FIELDS = [
+  { k: 'name', l: 'Название', t: 'text', d: 'Как предмет называется в игре.' },
+  { k: 'color', l: 'Цвет', t: 'colorRef', d: 'Даёт бонус урона по врагам того же цвета и открывает проходы этого цвета.' },
+  { k: 'kind', l: 'Тип', t: 'enum', opts: [['OneHanded', 'Одноручное'], ['TwoHanded', 'Двуручное (занимает обе руки)'], ['Shield', 'Щит (блок на ПКМ/LT)'], ['Consumable', 'Расходник']], d: '' },
+  { k: 'hand', l: 'Рука', t: 'enum', def: 'Any', opts: [['Any', 'Любая'], ['Right', 'Только правая (ЛКМ/RT)'], ['Left', 'Только левая (ПКМ/LT)']], d: 'В какой слот руки можно надеть.' },
+  { k: 'damage', l: 'Базовый урон', d: 'Урон удара = базовый урон × множитель удара серии.', u: U.pts, min: 0, max: 200, step: 0.5 },
+  { k: 'prefab', l: 'Префаб', t: 'text', d: 'Путь в Resources, например Items/Sword. Пусто — без модели.' },
+  { k: 'comboWindow', l: 'Окно комбо', d: 'Сколько секунд после удара следующее нажатие продолжает серию.', u: U.s, min: 0, max: 1.5, step: 0.01, def: 0.35, onlyWeapon: true },
+  { k: 'blockAngle', l: 'Угол блока', d: 'Сектор перед игроком, в котором щит гасит удар.', u: U.deg, min: 0, max: 360, step: 5, def: 120, onlyShield: true },
+];
+const MOTIONS = [['SlashRight', 'Удар справа'], ['SlashLeft', 'Удар слева'], ['Chop', 'Рубящий сверху'], ['Thrust', 'Укол'], ['Punch', 'Тычок']];
+const STEP_FIELDS = [
+  { k: 'motion', l: 'Движение', t: 'enum', opts: MOTIONS, def: 'SlashRight', d: 'Анимация удара.' },
+  { k: 'duration', l: 'Длительность', u: U.s, min: 0.05, max: 1.5, step: 0.01, def: 0.38, d: 'Время всего удара.' },
+  { k: 'activeFrom', l: 'Попадание с', u: U.frac, min: 0, max: 1, step: 0.01, def: 0.3, d: 'Начало активной фазы, доля длительности.' },
+  { k: 'activeTo', l: 'Попадание до', u: U.frac, min: 0, max: 1, step: 0.01, def: 0.65, d: 'Конец активной фазы, доля длительности.' },
+  { k: 'damageMultiplier', l: 'Множитель урона', u: U.x, min: 0, max: 5, step: 0.05, def: 1, d: '' },
+  { k: 'lunge', l: 'Выпад', u: U.bl, min: 0, max: 3, step: 0.05, def: 0.25, d: 'Насколько куб продвигается вперёд при ударе.' },
+  { k: 'range', l: 'Дальность', u: U.bl, min: 0.2, max: 6, step: 0.05, def: 1.3, d: 'Дальность поражения от центра куба.' },
+  { k: 'arc', l: 'Сектор', u: U.deg, min: 5, max: 360, step: 5, def: 150, d: 'Ширина сектора поражения.' },
+  { k: 'knockback', l: 'Отбрасывание', u: U.x, min: 0, max: 5, step: 0.1, def: 1, d: '' },
+  { k: 'staminaCost', l: 'Выносливость', u: U.pts, min: 0, max: 100, step: 1, def: 12, d: 'Цена удара.' },
+];
+const SPECIALS = [
+  ['ShieldSlide', 'Спуск на щите'], ['Lift', 'Лифт'], ['GrappleAnchor', 'Крюк-кошка'], ['FlailRing', 'Кольцо кистеня'],
+  ['Lever', 'Рычаг'], ['ShortcutDoor', 'Дверь-срезка'], ['FloorTransition', 'Переход между этажами'],
+];
+const MOVE_FIELDS = [
+  { k: 'name', l: 'Название', t: 'text', d: '' },
+  { k: 'stepHeight', l: 'Высота шага', u: U.bl, min: 0, max: 1, step: 0.05, def: 0.3, d: 'Перепад, который проходится шагом.' },
+  { k: 'jumpHeight', l: 'Высота прыжка', u: U.bl, min: 0, max: 4, step: 0.05, def: 0, d: 'Наибольший подъём прыжком; 0 — не прыгает.' },
+  { k: 'maxDrop', l: 'Высота спрыгивания', u: U.bl, min: 0, max: 10, step: 0.25, def: 1, d: 'С какой высоты готов спрыгнуть.' },
+  { k: 'height', l: 'Рост', u: U.bl, min: 0.25, max: 4, step: 0.25, def: 1, d: 'Сколько свободного места нужно над клеткой.' },
+  { k: 'diagonal', l: 'Ходит по диагонали', t: 'bool', def: true, d: 'Без срезания углов.' },
+  { k: 'jumpCost', l: 'Цена прыжка для пути', u: '', min: 0, max: 10, step: 0.1, def: 1, d: 'Чем больше, тем охотнее путь обходит прыжки.' },
+  { k: 'dropCost', l: 'Цена спрыгивания для пути', u: '', min: 0, max: 10, step: 0.1, def: 0.5, d: '' },
+];
+
+/* =====================================================================
+   Загрузка и сохранение
+   ===================================================================== */
+const IDB = {
+  db() { return new Promise((res, rej) => { const r = indexedDB.open('colorsaction-config-editor', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async get(k) { const db = await this.db(); return new Promise(res => { const r = db.transaction('kv').objectStore('kv').get(k); r.onsuccess = () => res(r.result); r.onerror = () => res(undefined); }); },
+  async set(k, v) { const db = await this.db(); return new Promise(res => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = () => res(); t.onerror = () => res(); }); },
+};
+
+function addFile(name, text, handle) {
+  let data;
+  try { data = JSON.parse(text); } catch (e) { toast(`${name}.json: ошибка JSON — ${e.message}`, 6000); return; }
+  S.files[name] = { data, orig: clone(data), saved: fmt(data), handle: handle || null, eol: text.includes('\r\n') ? '\r\n' : '\n' };
+}
+
+async function openDir(dir) {
+  // Если выбрали корень проекта — спускаемся в Assets/StreamingAssets/Configs.
+  for (const p of ['Assets', 'StreamingAssets', 'Configs']) {
+    try { dir = await dir.getDirectoryHandle(p); } catch { /* нет такой папки — остаёмся */ }
+  }
+  S.files = {}; S.levels = []; S.dir = dir; S.mode = 'dir';
+  for await (const [name, h] of dir.entries()) {
+    if (h.kind === 'file' && name.toLowerCase().endsWith('.json')) {
+      const f = await h.getFile();
+      addFile(name.replace(/\.json$/i, ''), await f.text(), h);
+    } else if (h.kind === 'directory' && /levels/i.test(name)) {
+      for await (const [ln, lh] of h.entries()) if (lh.kind === 'file' && ln.endsWith('.json')) S.levels.push(`${name}/${ln.replace(/\.json$/, '')}`);
+    }
+  }
+  if (!Object.keys(S.files).length) { toast(`В папке «${dir.name}» нет .json — выберите Assets/StreamingAssets/Configs.`, 6000); S.dir = null; S.mode = 'none'; renderAll(); return; }
+  await IDB.set('dir', dir);
+  S.current = S.files[S.current] ? S.current : firstFile();
+  renderAll();
+  toast(`Открыто: ${Object.keys(S.files).length} конфигов из «${dir.name}». Правки пишутся прямо в файлы.`);
+}
+
+async function pickDir() {
+  if (!window.showDirectoryPicker) { toast('Браузер не умеет писать в папки (нужен Chrome или Edge). Используйте «Загрузить файлы…» — сохранение будет скачиванием.', 7000); return; }
+  try { const d = await showDirectoryPicker({ id: 'colorsaction-configs', mode: 'readwrite' }); await openDir(d); }
+  catch (e) { if (e.name !== 'AbortError') toast('Не удалось открыть папку: ' + e.message, 6000); }
+}
+
+async function ensureWrite(handle) {
+  const o = { mode: 'readwrite' };
+  if (await handle.queryPermission(o) === 'granted') return true;
+  return await handle.requestPermission(o) === 'granted';
+}
+
+async function saveFile(name) {
+  const f = S.files[name]; if (!f) return false;
+  const text = fmt(f.data).replace(/\n/g, f.eol) + f.eol;
+  try {
+    if (f.handle) {
+      if (!(await ensureWrite(S.dir || f.handle))) { toast('Нет разрешения на запись.'); return false; }
+      const w = await f.handle.createWritable(); await w.write(text); await w.close();
+    } else {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      a.download = name + '.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    }
+  } catch (e) { toast(`Не удалось сохранить ${name}.json: ${e.message}`, 6000); return false; }
+  f.saved = fmt(f.data); f.orig = clone(f.data);
+  return true;
+}
+async function saveAll() {
+  const dirty = Object.keys(S.files).filter(isDirty);
+  if (!dirty.length) { toast('Нет несохранённых правок.'); return; }
+  let ok = 0; for (const n of dirty) if (await saveFile(n)) ok++;
+  renderNav(); renderPage();
+  toast(S.mode === 'dir' ? `Сохранено файлов: ${ok}. Unity подхватит их при следующем запуске Play.` : `Скачано файлов: ${ok}. Положите их в Assets/StreamingAssets/Configs.`);
+}
+
+const isDirty = n => S.files[n] && fmt(S.files[n].data) !== S.files[n].saved;
+function firstFile() { return FILE_ORDER.find(n => S.files[n]) || Object.keys(S.files)[0]; }
+function warningsFor(n) { const f = S.files[n]; const sc = SCHEMA[n]; return f && sc?.validate ? sc.validate(f.data) : (n === 'Items' ? validateItems(f.data) : []); }
+
+/* =====================================================================
+   Рендер: навигация и страница
+   ===================================================================== */
+function renderAll() { renderHeader(); renderNav(); renderPage(); }
+
+function renderHeader() {
+  const n = Object.keys(S.files).length;
+  $('#status').textContent = !n ? 'Конфиги не открыты'
+    : S.mode === 'dir' ? `Папка «${S.dir.name}» · ${n} файлов · сохранение прямо в файлы`
+    : S.mode === 'fetch' ? `Только просмотр (${n} файлов с сервера) · сохранение скачиванием, или откройте папку для записи`
+    : `${n} файлов загружено · сохранение скачиванием`;
+  $('#btnSaveAll').disabled = !n || !Object.keys(S.files).some(isDirty);
+}
+
+function renderNav() {
+  const nav = $('#nav');
+  const names = Object.keys(S.files);
+  if (!names.length) { nav.innerHTML = '<div class="hint">Откройте папку <code>Assets/StreamingAssets/Configs</code> (или корень проекта).</div>'; return; }
+  const order = [...FILE_ORDER.filter(n => S.files[n]), ...names.filter(n => !FILE_ORDER.includes(n)).sort()];
+  nav.innerHTML = order.map(n => {
+    const t = SCHEMA[n]?.title || ({ Items: 'Оружие и предметы', Colors: 'Цвета', Movement: 'Профили передвижения' })[n] || n;
+    const w = warningsFor(n).length;
+    return `<a data-f="${esc(n)}" class="${n === S.current ? 'active' : ''}"><span>${esc(t)}<small>${esc(n)}.json</small></span>${w ? `<span class="err" title="Есть ошибки">!</span>` : isDirty(n) ? '<span class="dot" title="Есть несохранённые правки"></span>' : ''}</a>`;
+  }).join('');
+  nav.querySelectorAll('a').forEach(a => a.onclick = () => { S.current = a.dataset.f; renderNav(); renderPage(); window.scrollTo(0, 0); });
+  renderHeader();
+}
+
+let VIZ = []; // { el, fn, ctx }
+function refresh() {
+  for (const v of VIZ) { try { v.el.innerHTML = v.fn(v.ctx()); } catch (e) { v.el.innerHTML = `<div style="color:var(--bad)">Ошибка визуализации: ${esc(e.message)}</div>`; } }
+  const w = $('#warnings'); if (w) w.innerHTML = warningsFor(S.current).map(x => `<div>⚠ ${esc(x)}</div>`).join('');
+  renderNav();
+}
+
+function renderPage() {
+  const main = $('#main'); VIZ = [];
+  const n = S.current; const f = S.files[n];
+  if (!f) { main.innerHTML = emptyHtml(); return; }
+  const sc = SCHEMA[n];
+  main.innerHTML = '';
+  const head = el(`<div class="pagehead"><h2>${esc(sc?.title || ({ Items: 'Оружие и предметы', Colors: 'Цвета', Movement: 'Профили передвижения' })[n] || n)}</h2>
+    <span class="file">Assets/StreamingAssets/Configs/${esc(n)}.json</span>
+    <span class="actions"><button id="btnRevert">Отменить правки</button><button class="primary" id="btnSave">${S.mode === 'dir' ? 'Сохранить' : 'Скачать'} ${esc(n)}.json</button></span></div>`);
+  main.append(head);
+  main.append(el(`<div class="pagedesc">${esc(sc?.desc || PAGE_DESC[n] || 'Описания для этого файла нет — ключи показаны как есть.')}</div>`));
+  main.append(el('<div class="warnings" id="warnings"></div>'));
+  $('#btnSave').onclick = async () => { if (await saveFile(n)) { toast(S.mode === 'dir' ? `${n}.json сохранён.` : `${n}.json скачан.`); renderPage(); renderNav(); } };
+  $('#btnRevert').onclick = () => { f.data = clone(f.orig); renderPage(); refresh(); };
+
+  if (n === 'Items') renderItems(main, f);
+  else if (n === 'Colors') renderColors(main, f);
+  else if (n === 'Movement') renderMovement(main, f);
+  else if (sc) {
+    const used = new Set();
+    for (const s of sc.sections) {
+      const card = sectionCard(s.title, s.sub, !!s.viz);
+      for (const fd of s.fields) { used.add(fd.k.split('.')[0] === fd.k ? fd.k : fd.k); card.fields.append(fieldRow(f, fd.k.split('.'), fd)); }
+      if (s.viz) addViz(card.viz, s.viz, () => ({ d: f.data, f }));
+      main.append(card.root);
+    }
+    const leftovers = collectUnknown(f.data, sc.sections.flatMap(s => s.fields.map(x => x.k)));
+    if (leftovers.length) {
+      const card = sectionCard('Прочие ключи', 'без описания', false);
+      for (const p of leftovers) card.fields.append(genericRow(f, p));
+      main.append(card.root);
+    }
+  } else {
+    const card = sectionCard('Ключи', 'без описания', false);
+    for (const p of collectUnknown(f.data, [])) card.fields.append(genericRow(f, p));
+    main.append(card.root);
+  }
+  refresh();
+}
+
+const PAGE_DESC = {
+  Items: 'Оружие и предметы. Ключ (id) используется в коде, инвентаре и Combat.unarmedItem. У оружия — серия ударов (комбо): каждое нажатие атаки в окне комбо запускает следующий удар.',
+  Colors: 'Палитра: id цвета → название и HEX. Цвета оружия, врагов и стен ссылаются на эти id.',
+  Movement: 'Профили передвижения для поиска пути в редакторе уровней: что персонаж проходит шагом, прыжком и спрыгиванием, какими особыми связями пользуется.',
+};
+
+function emptyHtml() {
+  return `<div class="empty"><h2>Редактор конфигов ColorsAction</h2>
+  <p>Игра читает параметры из JSON в <code>Assets/StreamingAssets/Configs</code>. Здесь их удобно смотреть и крутить: подписи, единицы, слайдеры и наглядные схемы.</p>
+  <ol>
+    <li>Нажмите <b>«Открыть папку Configs»</b> и выберите <code>Assets/StreamingAssets/Configs</code> (можно корень проекта — папка найдётся сама). Браузер спросит разрешение на изменение файлов.</li>
+    <li>Меняйте значения — схемы справа обновляются сразу. Изменённые параметры помечены точкой, ↺ возвращает прежнее значение.</li>
+    <li><b>Сохранить</b> (или Ctrl+S) пишет JSON обратно в те же файлы. Unity подхватит их при следующем запуске Play.</li>
+  </ol>
+  <p style="color:var(--muted)">Запись в папку работает в Chrome и Edge. В других браузерах используйте «Загрузить файлы…» — тогда изменённые файлы будут скачиваться, и их нужно положить на место вручную.</p></div>`;
+}
+
+function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+function sectionCard(title, sub, withViz) {
+  const root = el(`<section class="card"><h3>${esc(title)}${sub ? ` <span class="sub">${esc(sub)}</span>` : ''}<span class="right"></span></h3><div class="cardbody ${withViz ? '' : 'single'}"><div class="fields"></div>${withViz ? '<div class="viz"><div class="vizin"></div></div>' : ''}</div></section>`);
+  return { root, fields: $('.fields', root), viz: $('.vizin', root), right: $('h3 .right', root) };
+}
+function addViz(container, fn, ctx) { VIZ.push({ el: container, fn, ctx }); }
+
+function collectUnknown(data, knownKeys, prefix = []) {
+  const known = new Set(knownKeys);
+  const out = [];
+  for (const k of Object.keys(data || {})) {
+    const p = [...prefix, k]; const pk = p.join('.');
+    if (known.has(pk)) continue;
+    const v = data[k];
+    if (v && typeof v === 'object' && !Array.isArray(v) && [...known].some(x => x.startsWith(pk + '.'))) out.push(...collectUnknown(v, knownKeys, p));
+    else out.push(p);
+  }
+  return out;
+}
+
+/* ---------- строка параметра ---------- */
+function fieldRow(f, path, fd, onChange) {
+  const t = fd.t || 'num';
+  let v = getPath(f.data, path);
+  const isDef = v === undefined;
+  if (isDef) v = fd.def;
+  const origV = getPath(f.orig, path);
+  const row = el(`<div class="row"><div class="lbl"><span class="name">${esc(fd.l)}</span><span class="key">${esc(path[path.length - 1])}</span>${fd.d ? `<div class="desc">${esc(fd.d)}</div>` : ''}</div></div>`);
+  const mark = () => {
+    const cur = getPath(f.data, path);
+    row.classList.toggle('changed', JSON.stringify(cur) !== JSON.stringify(origV));
+    row.classList.toggle('default', cur === undefined);
+  };
+  const commit = val => { setPath(f.data, path, val); mark(); onChange?.(val); refresh(); };
+  let ctl;
+  if (t === 'num' || t === 'int') {
+    const step = fd.step ?? (t === 'int' ? 1 : 0.01);
+    const range = el(`<input type="range" min="${fd.min ?? 0}" max="${fd.max ?? Math.max(1, Math.abs(num(v)) * 3)}" step="${step}">`);
+    const box = el(`<div class="ctl"><input type="number" step="${step}"><span class="unit">${esc(fd.u || '')}</span></div>`);
+    const nb = $('input', box);
+    range.value = num(v); nb.value = v ?? '';
+    range.oninput = () => { const x = t === 'int' ? Math.round(+range.value) : roundTo(range.value, step); nb.value = x; commit(x); };
+    nb.oninput = () => { if (nb.value === '' || !Number.isFinite(+nb.value)) return; const x = t === 'int' ? Math.round(+nb.value) : +nb.value; range.value = x; commit(x); };
+    row.append(range, box);
+    ctl = { set: x => { range.value = num(x); nb.value = x ?? ''; } };
+  } else if (t === 'bool') {
+    const box = el(`<div class="ctl wide"><label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox"> <span></span></label></div>`);
+    const cb = $('input', box); const sp = $('span', box);
+    const upd = () => sp.textContent = cb.checked ? 'да' : 'нет';
+    cb.checked = !!v; upd(); cb.onchange = () => { upd(); commit(cb.checked); };
+    row.append(box); ctl = { set: x => { cb.checked = !!x; upd(); } };
+  } else if (t === 'enum' || t === 'colorRef' || t === 'itemRef') {
+    let opts = fd.opts;
+    if (t === 'colorRef') opts = Object.entries(S.files.Colors?.data || {}).map(([id, c]) => [id, `${c.name || id} (${id})`]);
+    if (t === 'itemRef') opts = Object.entries(itemsData()).map(([id, c]) => [id, `${c.name || id} (${id})`]);
+    if (v !== undefined && v !== null && !opts.some(o => o[0] === v)) opts = [[v, `${v} — нет в списке`], ...opts];
+    const box = el(`<div class="ctl wide">${t === 'colorRef' ? '<span class="swatch"></span>' : ''}<select>${opts.map(o => `<option value="${esc(o[0])}">${esc(o[1])}</option>`).join('')}</select></div>`);
+    const s = $('select', box); s.value = v ?? '';
+    const sw = $('.swatch', box); const updSw = () => sw && (sw.style.background = colorHex(s.value)); updSw();
+    s.onchange = () => { updSw(); commit(s.value); };
+    row.append(box); ctl = { set: x => { s.value = x ?? ''; updSw(); } };
+  } else if (t === 'color') {
+    const box = el(`<div class="ctl wide"><input type="color"><input type="text" style="width:100px;flex:none;font-family:ui-monospace,Consolas,monospace"></div>`);
+    const [cp, tx] = box.querySelectorAll('input');
+    const norm = x => /^#[0-9a-f]{6}$/i.test(x || '') ? x : '#000000';
+    cp.value = norm(v); tx.value = v ?? '';
+    cp.oninput = () => { tx.value = cp.value.toUpperCase(); commit(tx.value); };
+    tx.oninput = () => { if (/^#[0-9a-f]{6}$/i.test(tx.value)) { cp.value = tx.value; commit(tx.value.toUpperCase()); } };
+    row.append(box); ctl = { set: x => { cp.value = norm(x); tx.value = x ?? ''; } };
+  } else { // text, level
+    const id = 'dl' + Math.random().toString(36).slice(2);
+    const box = el(`<div class="ctl wide"><input type="text" ${t === 'level' ? `list="${id}"` : ''}>${t === 'level' ? `<datalist id="${id}">${S.levels.map(x => `<option value="${esc(x)}">`).join('')}</datalist>` : ''}</div>`);
+    const tx = $('input', box); tx.value = v ?? '';
+    tx.oninput = () => commit(tx.value);
+    row.append(box); ctl = { set: x => { tx.value = x ?? ''; } };
+  }
+  const reset = el('<button class="reset" title="Вернуть сохранённое значение">↺</button>');
+  reset.onclick = () => {
+    if (origV === undefined) { const parent = getPath(f.data, path.slice(0, -1)); if (parent) delete parent[path[path.length - 1]]; ctl.set(fd.def); }
+    else { setPath(f.data, path, clone(origV)); ctl.set(origV); }
+    mark(); onChange?.(origV); refresh();
+  };
+  row.append(reset);
+  mark();
+  return row;
+}
+
+function genericRow(f, path) {
+  const v = getPath(f.data, path);
+  const label = path.join('.');
+  if (typeof v === 'number') return fieldRow(f, path, { l: label, min: Math.min(0, v * 3), max: Math.max(1, Math.abs(v) * 3), step: Number.isInteger(v) ? 1 : 0.01 });
+  if (typeof v === 'boolean') return fieldRow(f, path, { l: label, t: 'bool' });
+  if (typeof v === 'string') return /^#[0-9a-f]{6}$/i.test(v) ? fieldRow(f, path, { l: label, t: 'color' }) : fieldRow(f, path, { l: label, t: 'text' });
+  // объект / массив — как JSON
+  const row = el(`<div class="row"><div class="lbl"><span class="name">${esc(label)}</span><div class="desc">JSON</div></div><div class="ctl wide"><textarea rows="3" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea></div><span></span></div>`);
+  const ta = $('textarea', row); ta.value = JSON.stringify(v, null, 1);
+  ta.oninput = () => { try { setPath(f.data, path, JSON.parse(ta.value)); ta.style.borderColor = ''; refresh(); } catch { ta.style.borderColor = 'var(--bad)'; } };
+  return row;
+}
+
+/* ---------- Items ---------- */
+function validateItems(d) {
+  const w = [];
+  for (const [id, it] of Object.entries(d || {})) {
+    const weapon = it.kind === 'OneHanded' || it.kind === 'TwoHanded';
+    if (weapon && !(it.combo?.length)) w.push(`${id}: у оружия должна быть хотя бы одна атака в серии.`);
+    if (it.color && S.files.Colors && !S.files.Colors.data[it.color]) w.push(`${id}: цвета «${it.color}» нет в Colors.json.`);
+    (it.combo || []).forEach((s, i) => { if (num(s.activeFrom, 0.3) > num(s.activeTo, 0.65)) w.push(`${id}, удар ${i + 1}: «попадание с» позже, чем «попадание до».`); });
+  }
+  return w;
+}
+
+function renderItems(main, f) {
+  const bar = el('<div style="margin:-4px 0 14px;display:flex;gap:8px"><button id="addItem">+ Новый предмет</button></div>');
+  main.append(bar);
+  $('#addItem', bar).onclick = () => {
+    const id = prompt('Id нового предмета (латиница, например spear):'); if (!id) return;
+    if (f.data[id]) { toast('Такой id уже есть.'); return; }
+    f.data[id] = { name: id, color: 'none', kind: 'OneHanded', hand: 'Any', damage: 10, prefab: '', comboWindow: 0.35, combo: [{ motion: 'SlashRight', duration: 0.38, activeFrom: 0.3, activeTo: 0.65, damageMultiplier: 1, lunge: 0.25, range: 1.3, arc: 150, knockback: 1, staminaCost: 12 }] };
+    renderPage();
+  };
+  for (const id of Object.keys(f.data)) {
+    const it = f.data[id];
+    const card = sectionCard('', '', true);
+    const h3 = $('h3', card.root);
+    h3.innerHTML = `<span class="swatch" style="width:16px;height:16px;background:${esc(colorHex(it.color))}"></span>${esc(it.name || id)} <span class="tag">${esc(id)}</span><span class="right"></span>`;
+    const right = $('.right', h3);
+    const bRen = el('<button class="small">Переименовать id</button>');
+    const bDup = el('<button class="small">Копия</button>');
+    const bDel = el('<button class="small danger">Удалить</button>');
+    right.append(bRen, bDup, bDel);
+    bRen.onclick = () => { const nid = prompt('Новый id:', id); if (!nid || nid === id) return; if (f.data[nid]) return toast('Такой id уже есть.'); f.data = renameKey(f.data, id, nid); renderPage(); };
+    bDup.onclick = () => { let nid = id + '_copy'; while (f.data[nid]) nid += '_'; f.data = insertAfter(f.data, id, nid, clone(it)); renderPage(); };
+    bDel.onclick = () => { if (confirm(`Удалить предмет «${it.name || id}»?`)) { delete f.data[id]; renderPage(); } };
+
+    const isShield = it.kind === 'Shield';
+    for (const fd of ITEM_FIELDS) {
+      if (fd.onlyShield && !isShield) continue;
+      if (fd.onlyWeapon && (isShield || it.kind === 'Consumable')) continue;
+      card.fields.append(fieldRow(f, [id, fd.k], fd, () => { if (fd.k === 'kind' || fd.k === 'color' || fd.k === 'name') renderPage(); }));
+    }
+    const leftovers = collectUnknown(it, [...ITEM_FIELDS.map(x => x.k), 'combo']);
+    for (const p of leftovers) card.fields.append(genericRow(f, [id, ...p]));
+
+    if (!isShield && it.kind !== 'Consumable' || it.combo?.length) {
+      const sh = el(`<div class="subhead">Серия ударов (комбо) <button class="small">+ удар</button></div>`);
+      card.fields.append(sh);
+      $('button', sh).onclick = () => { it.combo = it.combo || []; it.combo.push(clone(it.combo[it.combo.length - 1] || Object.fromEntries(STEP_FIELDS.map(x => [x.k, x.def])))); renderPage(); };
+      (it.combo || []).forEach((step, i) => {
+        const box = el(`<div class="combo"><div class="chead">Удар ${i + 1}<span class="right"></span></div><div class="fields"></div></div>`);
+        const r = $('.right', box);
+        const up = el('<button class="icon" title="Выше">↑</button>'), dn = el('<button class="icon" title="Ниже">↓</button>'), cp = el('<button class="icon" title="Копия">⧉</button>'), rm = el('<button class="icon danger" title="Удалить">✕</button>');
+        r.append(up, dn, cp, rm);
+        up.disabled = i === 0; dn.disabled = i === it.combo.length - 1;
+        up.onclick = () => { [it.combo[i - 1], it.combo[i]] = [it.combo[i], it.combo[i - 1]]; renderPage(); };
+        dn.onclick = () => { [it.combo[i + 1], it.combo[i]] = [it.combo[i], it.combo[i + 1]]; renderPage(); };
+        cp.onclick = () => { it.combo.splice(i + 1, 0, clone(step)); renderPage(); };
+        rm.onclick = () => { it.combo.splice(i, 1); renderPage(); };
+        const fl = $('.fields', box);
+        for (const fd of STEP_FIELDS) fl.append(fieldRow(f, [id, 'combo', i, fd.k], fd));
+        card.fields.append(box);
+      });
+    }
+    addViz(card.viz, vizItem, () => ({ id, it: f.data[id] }));
+    main.append(card.root);
+  }
+}
+function renameKey(o, a, b) { const r = {}; for (const k of Object.keys(o)) r[k === a ? b : k] = o[k]; return r; }
+function insertAfter(o, after, k, v) { const r = {}; for (const x of Object.keys(o)) { r[x] = o[x]; if (x === after) r[k] = v; } return r; }
+
+/* ---------- Colors ---------- */
+function renderColors(main, f) {
+  const card = sectionCard('Палитра', 'id → название и HEX', true);
+  const bAdd = el('<button class="small">+ цвет</button>'); card.right.append(bAdd);
+  bAdd.onclick = () => { const id = prompt('Id цвета (латиница, например purple):'); if (!id) return; if (f.data[id]) return toast('Такой id уже есть.'); f.data[id] = { name: id, hex: '#888888' }; renderPage(); };
+  for (const id of Object.keys(f.data)) {
+    const c = f.data[id];
+    const sub = el(`<div class="subhead"><span class="swatch" style="background:${esc(c.hex)}"></span>${esc(id)} <button class="icon danger" title="Удалить цвет">✕</button></div>`);
+    $('button', sub).onclick = () => { const users = Object.entries(itemsData()).filter(([, it]) => it.color === id).map(([k]) => k); if (confirm(`Удалить цвет «${id}»?${users.length ? ' Его используют: ' + users.join(', ') : ''}`)) { delete f.data[id]; renderPage(); } };
+    card.fields.append(sub);
+    card.fields.append(fieldRow(f, [id, 'name'], { l: 'Название', t: 'text' }));
+    card.fields.append(fieldRow(f, [id, 'hex'], { l: 'Цвет', t: 'color' }, () => { $('.swatch', sub).style.background = c.hex; }));
+  }
+  addViz(card.viz, vizColors, () => ({ d: f.data }));
+  main.append(card.root);
+}
+
+/* ---------- Movement ---------- */
+function renderMovement(main, f) {
+  const bar = el('<div style="margin:-4px 0 14px"><button>+ Новый профиль</button></div>'); main.append(bar);
+  $('button', bar).onclick = () => { const id = prompt('Id профиля (латиница):'); if (!id) return; if (f.data[id]) return toast('Такой id уже есть.'); f.data[id] = { name: id, stepHeight: 0.3, jumpHeight: 0, maxDrop: 1, height: 1, diagonal: true, specials: [] }; renderPage(); };
+  for (const id of Object.keys(f.data)) {
+    const p = f.data[id];
+    const card = sectionCard(p.name || id, id, true);
+    const bDel = el('<button class="small danger">Удалить</button>'); card.right.append(bDel);
+    bDel.onclick = () => { if (confirm(`Удалить профиль «${p.name || id}»?`)) { delete f.data[id]; renderPage(); } };
+    for (const fd of MOVE_FIELDS) card.fields.append(fieldRow(f, [id, fd.k], fd));
+    const sp = el(`<div class="row"><div class="lbl"><span class="name">Особые связи</span><span class="key">specials</span><div class="desc">Какими точками взаимодействия пользуется при поиске пути.</div></div><div class="ctl wide chips"></div><span></span></div>`);
+    const chips = $('.chips', sp);
+    for (const [k, l] of SPECIALS) {
+      const lab = el(`<label><input type="checkbox"> ${esc(l)}</label>`); const cb = $('input', lab);
+      cb.checked = (p.specials || []).includes(k); lab.classList.toggle('on', cb.checked); lab.title = k;
+      cb.onchange = () => { const set = new Set(p.specials || []); cb.checked ? set.add(k) : set.delete(k); p.specials = SPECIALS.map(x => x[0]).filter(x => set.has(x)).concat([...set].filter(x => !SPECIALS.some(s => s[0] === x))); lab.classList.toggle('on', cb.checked); refresh(); };
+      chips.append(lab);
+    }
+    card.fields.append(sp);
+    for (const q of collectUnknown(p, [...MOVE_FIELDS.map(x => x.k), 'specials'])) card.fields.append(genericRow(f, [id, ...q]));
+    addViz(card.viz, vizMoveProfile, () => ({ p: f.data[id] }));
+    main.append(card.root);
+  }
+}
+
+/* =====================================================================
+   Визуализации (SVG). Сцена «сбоку»: ось X — блоки вперёд, ось Y — высота.
+   ===================================================================== */
+const C = { grid: '#e3e5e9', grid2: '#cfd3d9', ground: '#c9ccd2', groundTop: '#b7bbc2', text: '#6b7078', dark: '#23262b', blue: '#2F6BFF', red: '#E8413C', green: '#3DBE5A', orange: '#FF8A1F', lilac: '#B07CFF', yellow: '#F5C518', teal: '#18B5A8' };
+function svgWrap(w, h, inner) { return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`; }
+const T = (x, y, s, o = {}) => `<text x="${x}" y="${y}" font-size="${o.size || 11}" fill="${o.fill || C.text}" text-anchor="${o.anchor || 'start'}" ${o.weight ? `font-weight="${o.weight}"` : ''}>${esc(s)}</text>`;
+const facts = arr => `<div class="facts">${arr.map(([k, v]) => `<span>${esc(k)}: <b>${esc(v)}</b></span>`).join('')}</div>`;
+
+// Сторона-сцена: возвращает функции преобразования координат
+function scene(w, h, xMin, xMax, yMin, yMax, pad = { l: 30, r: 12, t: 12, b: 22 }) {
+  const sx = (w - pad.l - pad.r) / (xMax - xMin), sy = (h - pad.t - pad.b) / (yMax - yMin);
+  const s = Math.min(sx, sy);
+  const X = x => pad.l + (x - xMin) * s, Y = y => h - pad.b - (y - yMin) * s;
+  let g = '';
+  for (let y = Math.ceil(yMin * 4) / 4; y <= yMax + 1e-6; y += 0.25) {
+    const major = Math.abs(y - Math.round(y)) < 1e-6;
+    g += `<line x1="${X(xMin)}" x2="${X(xMax)}" y1="${Y(y)}" y2="${Y(y)}" stroke="${major ? C.grid2 : C.grid}" stroke-width="${major ? 1 : 0.6}"/>`;
+    if (major) g += T(pad.l - 5, Y(y) + 4, String(Math.round(y)), { anchor: 'end', size: 10 });
+  }
+  for (let x = Math.ceil(xMin); x <= xMax + 1e-6; x++) {
+    g += `<line x1="${X(x)}" x2="${X(x)}" y1="${Y(yMin)}" y2="${Y(yMax)}" stroke="${C.grid}" stroke-width="0.6"/>`;
+    if (x % (s < 18 ? 5 : s < 30 ? 2 : 1) === 0) g += T(X(x), h - pad.b + 13, String(x), { anchor: 'middle', size: 10 });
+  }
+  return { X, Y, s, g };
+}
+function cubes(sc, x0, x1, y0, y1, fill = C.ground) {
+  let o = '';
+  for (let x = Math.floor(x0); x < x1 - 1e-6; x++) for (let y = Math.floor(y0); y < y1 - 1e-6; y++) {
+    const w = Math.min(1, x1 - x), hh = Math.min(1, y1 - y);
+    o += `<rect x="${sc.X(x)}" y="${sc.Y(y + hh)}" width="${w * sc.s}" height="${hh * sc.s}" fill="${fill}" stroke="#fff" stroke-width="1"/>`;
+  }
+  return o;
+}
+function playerCube(sc, cx, by, w = 1, h = 1, o = {}) {
+  const x = sc.X(cx - w / 2), y = sc.Y(by + h);
+  return `<rect x="${x}" y="${y}" width="${w * sc.s}" height="${h * sc.s}" rx="${sc.s * 0.08}" fill="${o.fill || '#b3b6bd'}" stroke="${o.stroke || '#7d818a'}" stroke-width="1.2" opacity="${o.op ?? 1}" ${o.dash ? 'stroke-dasharray="3 2"' : ''}/>`
+    + (o.foot ? `<rect x="${x}" y="${o.footTop ? y : y + h * sc.s - 3}" width="${w * sc.s}" height="3" fill="${o.foot}" opacity="${o.op ?? 1}"/>` : '');
+}
+// мини-график значений во времени
+function chart(w, h, series, o = {}) {
+  const pad = { l: 34, r: 10, t: 10, b: 22 };
+  const xs = series.flatMap(s => s.pts.map(p => p[0])), ys = series.flatMap(s => s.pts.map(p => p[1]));
+  const x0 = o.x0 ?? Math.min(...xs), x1 = o.x1 ?? Math.max(...xs);
+  let y0 = o.y0 ?? Math.min(0, ...ys), y1 = o.y1 ?? Math.max(...ys);
+  if (y1 - y0 < 1e-6) y1 = y0 + 1;
+  const X = x => pad.l + (x - x0) / (x1 - x0) * (w - pad.l - pad.r), Y = y => h - pad.b - (y - y0) / (y1 - y0) * (h - pad.t - pad.b);
+  let g = `<rect x="${pad.l}" y="${pad.t}" width="${w - pad.l - pad.r}" height="${h - pad.t - pad.b}" fill="#fff" stroke="${C.grid2}"/>`;
+  const ticks = (a, b, n) => { const st = niceStep((b - a) / n); const r = []; for (let v = Math.ceil(a / st) * st; v <= b + 1e-9; v += st) r.push(+v.toFixed(6)); return r; };
+  for (const v of ticks(y0, y1, 4)) g += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.grid}"/>` + T(pad.l - 4, Y(v) + 3.5, r2(v), { anchor: 'end', size: 10 });
+  for (const v of ticks(x0, x1, 6)) g += T(X(v), h - pad.b + 13, r2(v), { anchor: 'middle', size: 10 });
+  if (o.xl) g += T(w - pad.r, h - 1, o.xl, { anchor: 'end', size: 10 });
+  if (y0 < 0 && y1 > 0) g += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${C.grid2}" stroke-width="1.2"/>`;
+  for (const m of o.marks || []) g += `<line x1="${X(m.x)}" x2="${X(m.x)}" y1="${pad.t}" y2="${h - pad.b}" stroke="${m.c || C.grid2}" stroke-dasharray="3 3"/>` + (m.l ? T(X(m.x) + 3, pad.t + 11, m.l, { size: 10 }) : '');
+  for (const s of series) g += `<polyline fill="none" stroke="${s.c}" stroke-width="${s.w || 2}" ${s.dash ? 'stroke-dasharray="5 4"' : ''} points="${s.pts.map(p => `${X(p[0]).toFixed(1)},${Y(clamp(p[1], y0, y1)).toFixed(1)}`).join(' ')}"/>`;
+  return svgWrap(w, h, g) + (o.legend ? `<div class="legend">${series.filter(s => s.name).map(s => `<span><i style="background:${s.c}"></i>${esc(s.name)}</span>`).join('')}</div>` : '');
+}
+function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x || 1))); const m = x / p; return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p; }
+
+/* ---------- физика прыжка ---------- */
+function jumpModel(d) {
+  const g = Math.max(0.01, num(d.gravity, 30)), h = Math.max(0, num(d.jumpHeight)), fm = Math.max(0.01, num(d.fallGravityMultiplier, 1)), vmax = Math.max(0.01, num(d.maxFallSpeed, 25));
+  const v0 = Math.sqrt(2 * g * h), tUp = v0 / g, gf = g * fm;
+  const fall = drop => { const tc = vmax / gf, dc = vmax * vmax / (2 * gf); return drop <= dc ? Math.sqrt(2 * drop / gf) : tc + (drop - dc) / vmax; };
+  const tDown = fall(h);
+  const y = t => t <= tUp ? v0 * t - g * t * t / 2 : (() => { const u = t - tUp, tc = vmax / gf; const dy = u <= tc ? gf * u * u / 2 : vmax * vmax / (2 * gf) + vmax * (u - tc); return h - dy; })();
+  const landV = Math.min(vmax, gf * Math.min(tDown, vmax / gf));
+  return { g, h, v0, tUp, tDown, air: tUp + tDown, y, fall, landV };
+}
+
+function vizJump({ d }) {
+  const J = jumpModel(d);
+  const walk = num(d.walkSpeed, 3), run = walk * num(d.runMultiplier, 1);
+  const dWalk = walk * J.air, dRun = run * J.air;
+  const xMax = Math.max(6, Math.ceil(dRun + 2)), yMax = Math.max(2, Math.ceil(J.h + 1.2));
+  const sc = scene(560, Math.min(300, 60 + yMax * 48), -1, xMax, -0.5, yMax);
+  let g = sc.g + cubes(sc, -1, xMax, -0.5, 0);
+  // уступ высотой jumpHeight (округлён вниз до шага уровня 0.25) после вершины прыжка с бега
+  const ledge = Math.floor(J.h * 4 + 1e-6) / 4;
+  const lx = Math.min(xMax - 1.5, Math.max(2, 0.5 + run * J.tUp + 0.6));
+  if (ledge > 0) g += cubes(sc, lx, xMax, 0, ledge, '#d6d9de') + `<line x1="${sc.X(lx)}" x2="${sc.X(xMax)}" y1="${sc.Y(ledge)}" y2="${sc.Y(ledge)}" stroke="${C.green}" stroke-width="2"/>` + T(sc.X(lx) + 4, sc.Y(ledge) - 4, `уступ ${r2(ledge)} бл — запрыгивает`, { fill: C.green });
+  // ступенька stepHeight
+  const st = num(d.stepHeight);
+  if (st > 0) g += `<rect x="${sc.X(-1)}" y="${sc.Y(st)}" width="${sc.s * 0.6}" height="${st * sc.s}" fill="#d6d9de"/>` + T(sc.X(-1) + 2, sc.Y(st) - 3, `шаг ${r2(st)}`, { size: 10 });
+  // траектории низа куба
+  const path = (speed, c, dash) => { const pts = []; for (let i = 0; i <= 60; i++) { const t = J.air * i / 60, x = 0.5 + speed * t; let y = Math.max(0, J.y(t)); const onLedge = ledge > 0 && t > J.tUp && x + 0.45 >= lx && y <= ledge; if (onLedge) y = ledge; pts.push(`${sc.X(x).toFixed(1)},${sc.Y(y).toFixed(1)}`); if (onLedge) break; } return `<polyline fill="none" stroke="${c}" stroke-width="2" ${dash ? 'stroke-dasharray="6 4"' : ''} points="${pts.join(' ')}"/>`; };
+  g += path(walk, C.blue) + path(run, C.orange, true);
+  g += `<line x1="${sc.X(-1)}" x2="${sc.X(xMax)}" y1="${sc.Y(J.h)}" y2="${sc.Y(J.h)}" stroke="${C.blue}" stroke-dasharray="2 3" opacity=".6"/>` + T(sc.X(-1) + 2, sc.Y(J.h) - 4, `вершина ${r2(J.h)} бл`, { fill: C.blue });
+  g += playerCube(sc, 0.5, 0, num(d.colliderWidth, 0.9), num(d.colliderHeight, 1), { foot: '#7d818a' });
+  g += playerCube(sc, 0.5 + walk * J.tUp, J.h, num(d.colliderWidth, 0.9), num(d.colliderHeight, 1), { fill: 'none', stroke: C.blue, dash: true });
+  const yt = []; for (let i = 0; i <= 60; i++) { const t = J.air * i / 60; yt.push([t, Math.max(0, J.y(t))]); }
+  const blocksReach = Math.floor(J.h + 1e-6);
+  return `<h4>Прыжок сбоку (низ куба), клетка = 1 блок</h4>` + svgWrap(560, Math.min(300, 60 + yMax * 48), g)
+    + `<div class="legend"><span><i style="background:${C.blue}"></i>шагом</span><span><i style="background:${C.orange}"></i>бегом</span></div>`
+    + facts([['Высота', `${r2(J.h)} бл (${blocksReach} ${plural(blocksReach, 'куб', 'куба', 'кубов')} целиком)`], ['Скорость отрыва', `${r2(J.v0)} бл/с`], ['Подъём', `${r2(J.tUp)} с`], ['Спуск', `${r2(J.tDown)} с`], ['В воздухе', `${r2(J.air + num(d.jumpWindup))} с с замахом`], ['Дальность шагом', `${r2(dWalk)} бл`], ['Дальность бегом', `${r2(dRun)} бл`]])
+    + `<h4>Высота во времени</h4>` + chart(560, 150, [{ pts: yt, c: C.blue }], { xl: 'секунды', marks: [{ x: J.tUp, l: 'вершина' }] });
+}
+function plural(n, a, b, c) { n = Math.abs(n) % 100; const m = n % 10; return n > 10 && n < 20 ? c : m > 1 && m < 5 ? b : m === 1 ? a : c; }
+
+function vizSpeed({ d }) {
+  const walk = num(d.walkSpeed, 3), run = walk * num(d.runMultiplier, 1), acc = Math.max(0.01, num(d.acceleration, 30)), dec = Math.max(0.01, num(d.deceleration, 40));
+  const tRun = run / acc, hold = Math.max(0.3, tRun + 0.25), total = hold + run / dec + 0.15;
+  const prof = (top) => { const pts = []; for (let i = 0; i <= 120; i++) { const t = total * i / 120; const v = t < hold ? Math.min(top, acc * t) : Math.max(0, Math.min(top, acc * hold) - dec * (t - hold)); pts.push([t, v]); } return pts; };
+  return `<h4>Скорость: держим стик ${r2(hold)} с, потом отпускаем</h4>`
+    + chart(560, 190, [{ pts: prof(walk), c: C.blue, name: 'ходьба' }, { pts: prof(run), c: C.orange, name: 'бег' }, { pts: prof(walk * num(d.blockMoveMultiplier, 1)), c: C.lilac, name: 'с поднятым щитом', w: 1.5, dash: true }, { pts: prof(walk * num(d.attackMoveMultiplier, 1)), c: C.red, name: 'во время удара', w: 1.5, dash: true }], { xl: 'секунды', legend: true, marks: [{ x: hold, l: 'отпустили' }] })
+    + facts([['Ходьба', `${r2(walk)} бл/с`], ['Бег', `${r2(run)} бл/с`], ['До полной скорости бега', `${r2(tRun)} с`], ['Тормозной путь с бега', `${r2(run * run / (2 * dec))} бл`], ['Разворот на 180°', `${r2(180 / Math.max(1, num(d.turnSpeed, 900)))} с`], ['Блоков за секунду бегом', r2(run, 1)]]);
+}
+
+function vizBody({ d }) {
+  const w = num(d.colliderWidth, 0.9), h = num(d.colliderHeight, 1), st = num(d.stepHeight), ir = num(d.interactRadius, 1.4);
+  const sc = scene(560, 190, -3, 6, -0.5, 2.2);
+  let g = sc.g + cubes(sc, -3, 6, -0.5, 0);
+  g += cubes(sc, 2, 6, 0, 0.25, '#d6d9de') + cubes(sc, 4, 6, 0.25, 1, '#d6d9de');
+  g += T(sc.X(2) + 3, sc.Y(0.25) - 4, '0.25', { size: 10 }) + T(sc.X(4) + 3, sc.Y(1) - 4, '1.0', { size: 10 });
+  const okStep = 0.25 <= st + 1e-6;
+  g += `<circle cx="${sc.X(0.5)}" cy="${sc.Y(h / 2)}" r="${ir * sc.s}" fill="${C.green}" fill-opacity=".07" stroke="${C.green}" stroke-dasharray="4 3"/>` + T(sc.X(0.5) - ir * sc.s + 4, sc.Y(h / 2) - 4, `радиус взаимодействия ${r2(ir)}`, { fill: C.green, size: 10 });
+  g += `<rect x="${sc.X(-0.5)}" y="${sc.Y(st)}" width="${sc.s * 2}" height="${st * sc.s}" fill="${C.orange}" opacity=".18"/>` + T(sc.X(-0.5), sc.Y(st) - 3, `шаг ${r2(st)}`, { fill: C.orange, size: 10 });
+  g += playerCube(sc, 0.5, 0, 1, 1, { fill: 'none', stroke: C.grid2, dash: true }) + playerCube(sc, 0.5, 0, w, h);
+  return `<h4>Куб и ступени уровня (высоты по 0.25 бл)</h4>` + svgWrap(560, 190, g)
+    + facts([['Коллайдер', `${r2(w)} × ${r2(h)} бл`], ['Ступень 0.25', okStep ? 'проходит шагом' : 'нужен прыжок'], ['Проём шириной 1 бл', w < 1 ? 'проходит' : 'застревает']]);
+}
+
+function vizRoll({ d }) {
+  const D = num(d.rollDistance), T0 = Math.max(0.01, num(d.rollDuration, 0.45)), p = clamp(num(d.rollMidPause), 0, 0.95), ms = num(d.rollMidSpeed), hop = num(d.rollHopHeight);
+  const hopLen = (1 - p) / 2, avg = (1 - p) + p * ms, base = D / T0 / Math.max(0.05, avg);
+  const x1 = base * hopLen * T0, xp = base * ms * p * T0;
+  const xMax = Math.max(5, Math.ceil(D + 2)), yMax = Math.max(2, Math.ceil(hop + 1.4));
+  const sc = scene(560, 70 + yMax * 50, -1, xMax, -0.5, yMax);
+  let g = sc.g + cubes(sc, -1, xMax, -0.5, 0);
+  // путь центра куба
+  const pts = [];
+  for (let i = 0; i <= 120; i++) {
+    const t = i / 120; let x, y;
+    if (t < hopLen) { const u = t / hopLen; x = base * t * T0; y = Math.sin(u * Math.PI) * hop; }
+    else if (t < hopLen + p) { x = x1 + base * ms * (t - hopLen) * T0; y = 0; }
+    else { const u = (t - hopLen - p) / hopLen; x = x1 + xp + base * (t - hopLen - p) * T0; y = Math.sin(u * Math.PI) * hop; }
+    pts.push([x, y, t]);
+  }
+  const iF = num(d.rollInvulnerableFrom), iT = num(d.rollInvulnerableTo);
+  const inv = pts.filter(q => q[2] >= iF && q[2] <= iT);
+  if (inv.length > 1) g += `<polyline fill="none" stroke="${C.green}" stroke-width="10" stroke-linecap="round" opacity=".18" points="${inv.map(q => `${sc.X(0.5 + q[0]).toFixed(1)},${sc.Y(0.5 + q[1]).toFixed(1)}`).join(' ')}"/>`;
+  g += `<polyline fill="none" stroke="${C.blue}" stroke-width="2" points="${pts.map(q => `${sc.X(0.5 + q[0]).toFixed(1)},${sc.Y(0.5 + q[1]).toFixed(1)}`).join(' ')}"/>`;
+  g += playerCube(sc, 0.5, 0, 1, 1, { foot: '#555' });
+  g += playerCube(sc, 0.5 + x1, 0, 1, 1, { foot: '#555', footTop: true, op: .55 }) + T(sc.X(0.5 + x1), sc.Y(1) - 5, 'на «голове»', { anchor: 'middle', size: 10 });
+  if (xp > 0.05) g += playerCube(sc, 0.5 + x1 + xp, 0, 1, 1, { foot: '#555', footTop: true, op: .3, dash: true });
+  g += playerCube(sc, 0.5 + D, 0, 1, 1, { foot: '#555', op: .8 }) + T(sc.X(0.5 + D), sc.Y(1) - 5, 'на «ногах»', { anchor: 'middle', size: 10 });
+  g += `<line x1="${sc.X(0.5)}" x2="${sc.X(0.5 + D)}" y1="${sc.Y(-0.25)}" y2="${sc.Y(-0.25)}" stroke="${C.dark}" marker-end="url(#ar)" marker-start="url(#ar)"/>`;
+  const defs = `<defs><marker id="ar" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="${C.dark}"/></marker></defs>`;
+  const H = 70 + yMax * 50;
+  // таймлайн
+  const cd = num(d.rollCooldown); const tot = 1 + cd / T0; const W = 560, L = 10, R = 10, bw = (W - L - R) / tot;
+  let tl = `<rect x="${L}" y="16" width="${hopLen * bw}" height="22" fill="${C.blue}" opacity=".75"/><rect x="${L + hopLen * bw}" y="16" width="${p * bw}" height="22" fill="${C.lilac}" opacity=".8"/><rect x="${L + (hopLen + p) * bw}" y="16" width="${hopLen * bw}" height="22" fill="${C.blue}" opacity=".75"/>`;
+  if (cd > 0) tl += `<rect x="${L + bw}" y="16" width="${cd / T0 * bw}" height="22" fill="${C.grid2}"/>` + T(L + bw + cd / T0 * bw / 2, 31, 'перезарядка', { anchor: 'middle', size: 10, fill: C.dark });
+  tl += `<rect x="${L + iF * bw}" y="42" width="${Math.max(0, iT - iF) * bw}" height="7" rx="3" fill="${C.green}"/>` + T(L + iF * bw, 62, `неуязвим ${r2(iF * T0)}–${r2(iT * T0)} с`, { size: 10, fill: C.green });
+  tl += T(L, 11, '0', { size: 10 }) + T(L + bw, 11, `${r2(T0)} с`, { size: 10, anchor: 'middle' }) + (cd > 0 ? T(W - R, 11, `${r2(T0 + cd)} с`, { size: 10, anchor: 'end' }) : '');
+  tl += T(L + hopLen * bw / 2, 31, 'переворот 1', { anchor: 'middle', size: 10, fill: '#fff' }) + (p > 0.08 ? T(L + (hopLen + p / 2) * bw, 31, 'пауза', { anchor: 'middle', size: 10, fill: '#fff' }) : '') + T(L + (hopLen * 1.5 + p) * bw, 31, 'переворот 2', { anchor: 'middle', size: 10, fill: '#fff' });
+  return `<h4>Перекат сбоку: путь центра куба, полоса — неуязвимость</h4>` + svgWrap(560, H, defs + g)
+    + `<h4>По времени</h4>` + svgWrap(560, 68, tl)
+    + facts([['Длина', `${r2(D)} бл`], ['Каждый переворот', `${r2(x1)} бл за ${r2(hopLen * T0)} с`], ['Скольжение в паузе', `${r2(xp)} бл`], ['Скорость в полёте', `${r2(base)} бл/с`], ['Неуязвимость', `${r2(Math.max(0, iT - iF) * T0)} с`], ['Перекатов в секунду (макс.)', r2(1 / (T0 + cd))]]);
+}
+
+function vizStamina({ d, f }) {
+  const s = d.stamina || {};
+  const max = Math.max(1, num(s.max, 100)), regen = Math.max(0.01, num(s.regenPerSecond, 22)), delay = num(s.regenDelay, 0.9), roll = num(s.rollCost, 22);
+  const sword = itemsData().sword?.combo?.map(x => num(x.staminaCost, 12)) || [];
+  const W = 560, L = 10, bw = W - 20;
+  let g = `<rect x="${L}" y="14" width="${bw}" height="20" rx="4" fill="#eef0f3" stroke="${C.grid2}"/>`;
+  // засечки перекатов
+  let acc = 0, i = 0;
+  while (roll > 0 && acc + roll <= max + 1e-6 && i < 40) { g += `<rect x="${L + acc / max * bw + 1}" y="16" width="${roll / max * bw - 2}" height="16" rx="3" fill="${C.green}" opacity=".75"/>`; acc += roll; i++; }
+  const rolls = i;
+  g += T(L, 10, `перекаты подряд: ${rolls}`, { size: 10 });
+  // засечки серии меча
+  let acc2 = 0, k = 0; const yy = 44;
+  g += `<rect x="${L}" y="${yy}" width="${bw}" height="20" rx="4" fill="#eef0f3" stroke="${C.grid2}"/>`;
+  if (sword.length) {
+    while (acc2 + sword[k % sword.length] <= max + 1e-6 && k < 60) { const c = sword[k % sword.length]; g += `<rect x="${L + acc2 / max * bw + 1}" y="${yy + 2}" width="${c / max * bw - 2}" height="16" rx="3" fill="${C.blue}" opacity="${0.55 + 0.2 * (k % sword.length)}"/>`; acc2 += c; k++; }
+    g += T(L, yy + 32, `ударов мечом подряд (серия ${sword.join('+')}): ${k}`, { size: 10 });
+  } else g += T(L, yy + 32, 'нет меча в Items.json', { size: 10 });
+  const full = delay + max / regen, fullBlock = delay + max / (regen * Math.max(0.01, num(s.blockRegenMultiplier, 0.3)));
+  const pts = [[0, 0], [delay, 0], [full, max], [full + 0.5, max]];
+  const ptsB = [[0, 0], [delay, 0], [Math.min(fullBlock, full * 2), Math.min(max, regen * num(s.blockRegenMultiplier, 0.3) * (Math.min(fullBlock, full * 2) - delay))]];
+  return `<h4>Шкала ${r2(max, 0)} ед.</h4>` + svgWrap(W, 86, g)
+    + `<h4>Восстановление с нуля</h4>` + chart(560, 160, [{ pts, c: C.green, name: 'обычно' }, { pts: ptsB, c: C.lilac, name: 'со щитом', dash: true }], { xl: 'секунды', legend: true, x0: 0, x1: full + 0.5, y0: 0, y1: max, marks: [{ x: delay, l: 'задержка' }] })
+    + facts([['Полное восстановление', `${r2(full)} с`], ['Со щитом', `${r2(fullBlock)} с`], ['Один перекат восстанавливается', `${r2(delay + roll / regen)} с`]]);
+}
+
+function springSim(k, c, x0, v0, T, n = 300) { const pts = []; let x = x0, v = v0; const dt = T / n; for (let i = 0; i <= n; i++) { pts.push([i * dt, x]); for (let j = 0; j < 4; j++) { const a = -k * x - c * v; v += a * dt / 4; x += v * dt / 4; } } return pts; }
+function settleTime(pts, x0) { const eps = Math.abs(x0) * 0.05; for (let i = pts.length - 1; i >= 0; i--) if (Math.abs(pts[i][1]) > eps) return pts[Math.min(pts.length - 1, i + 1)][0]; return 0; }
+
+function cubeShape(cx, by, size, squash, bend = 0, color = '#b3b6bd') {
+  const sy = 1 + squash, sx = 1 / Math.sqrt(Math.max(0.1, sy));
+  const w = size * sx, h = size * sy, x0 = cx - w / 2, top = by - h, b = bend * size;
+  return `<path d="M${x0},${by} Q${x0 + b * 0.6},${by - h / 2} ${x0 + b},${top} L${x0 + w + b},${top} Q${x0 + w + b * 0.6},${by - h / 2} ${x0 + w},${by} Z" fill="${color}" stroke="#7d818a" stroke-width="1.2" stroke-linejoin="round"/>`;
+}
+function vizDeform({ d }) {
+  const df = d.deformation || {};
+  const k = num(df.stiffness, 220), c = num(df.damping, 9);
+  const J = jumpModel(d);
+  const landSq = Math.max(num(df.maxLandSquash, -0.4), num(df.landSquashPerSpeed, -0.035) * J.landV);
+  const shapes = [['покой', 0, 0], ['замах', num(df.jumpWindupSquash), 0], ['отрыв', num(df.jumpTakeoffStretch), 0], ['приземление', landSq, 0], ['перекат', num(df.rollLandSquash), num(df.rollBend)], ['удар', num(df.hitSquash), 0], ['ходьба', 0, num(df.walkBend)]];
+  const W = 560, H = 120, step = W / shapes.length; let g = `<line x1="0" x2="${W}" y1="${H - 26}" y2="${H - 26}" stroke="${C.grid2}"/>`;
+  shapes.forEach(([n, sq, b], i) => { const cx = step * (i + 0.5); g += cubeShape(cx, H - 26, 44, sq, b) + T(cx, H - 12, n, { anchor: 'middle', size: 10 }) + T(cx, H - 1, sq ? (sq > 0 ? '+' : '') + r2(sq) : b ? `изгиб ${r2(b)}` : '', { anchor: 'middle', size: 9 }); });
+  const resp = springSim(k, c, landSq, 0, 1.2);
+  const zeta = c / (2 * Math.sqrt(k));
+  return `<h4>Формы куба</h4>` + svgWrap(W, H, g)
+    + `<h4>Возврат формы после приземления с прыжка (wobble)</h4>` + chart(560, 160, [{ pts: resp, c: C.blue }], { xl: 'секунды' })
+    + facts([['Успокаивается за', `${r2(settleTime(resp, landSq))} с`], ['Колебаний', zeta >= 1 ? 'нет (переторможено)' : zeta > 0.6 ? 'почти нет' : zeta > 0.3 ? 'одно-два' : 'много'], ['Приземление с прыжка', `${r2(J.landV)} бл/с → сжатие ${r2(landSq)}`], ['Период покачивания ходьбы', `${r2(2 / Math.max(0.01, num(df.walkSwayPerMeter, 1.6)))} бл`]]);
+}
+
+function vizCamera({ d }) {
+  const P = num(d.pitch, 35) * Math.PI / 180, dist = num(d.distance, 26), fov = num(d.fieldOfView, 25) * Math.PI / 180;
+  const minD = num(d.minDistance, 14), maxD = num(d.maxDistance, 40);
+  const W = 560, H = 230;
+  const span = Math.max(maxD, dist) * 1.05;
+  const s = Math.min((W - 60) / (span * Math.cos(P) + span * 0.35), (H - 40) / (span * Math.sin(P) + 2));
+  const ox = W - 40 - span * 0.3 * s, oy = H - 22;
+  const X = x => ox + x * s, Y = y => oy - y * s;
+  let g = `<rect x="0" y="${oy}" width="${W}" height="${H - oy}" fill="${C.ground}"/>`;
+  // зона зума
+  const arc = (r, col, dash) => `<path d="M${X(-r)},${Y(0)} A${r * s},${r * s} 0 0 1 ${X(0)},${Y(r)}" fill="none" stroke="${col}" ${dash ? 'stroke-dasharray="3 3"' : ''}/>`;
+  g += arc(minD, C.grid2, true) + arc(maxD, C.grid2, true);
+  const cam = [-dist * Math.cos(P), dist * Math.sin(P)];
+  // лучи FOV до земли
+  const ray = a => { const dx = Math.cos(a), dy = -Math.sin(a); const t = dy < -1e-4 ? -cam[1] / dy : null; return t && t < span * 4 ? [cam[0] + dx * t, 0] : [cam[0] + dx * span * 2, cam[1] + dy * span * 2]; };
+  const near = ray(P + fov / 2), far = ray(P - fov / 2);
+  g += `<polygon points="${X(cam[0])},${Y(cam[1])} ${X(near[0])},${Y(near[1])} ${X(far[0])},${Y(far[1])}" fill="${C.blue}" opacity=".08"/>`;
+  g += `<line x1="${X(cam[0])}" y1="${Y(cam[1])}" x2="${X(near[0])}" y2="${Y(near[1])}" stroke="${C.blue}" opacity=".5"/><line x1="${X(cam[0])}" y1="${Y(cam[1])}" x2="${X(far[0])}" y2="${Y(far[1])}" stroke="${C.blue}" opacity=".5"/>`;
+  g += `<line x1="${X(cam[0])}" y1="${Y(cam[1])}" x2="${X(0)}" y2="${Y(0.5)}" stroke="${C.dark}" stroke-dasharray="5 3"/>`;
+  g += `<rect x="${X(-0.5)}" y="${Y(1)}" width="${Math.max(3, s)}" height="${Math.max(3, s)}" fill="#7d818a"/>`;
+  g += `<g transform="translate(${X(cam[0])},${Y(cam[1])}) rotate(${P * 180 / Math.PI})"><rect x="-12" y="-7" width="18" height="14" rx="2" fill="${C.dark}"/><path d="M6,-5 L14,-9 L14,9 L6,5 Z" fill="${C.dark}"/></g>`;
+  g += `<path d="M${X(-Math.min(6, dist * 0.25))},${Y(0)} A${Math.min(6, dist * 0.25) * s},${Math.min(6, dist * 0.25) * s} 0 0 1 ${X(-Math.min(6, dist * 0.25) * Math.cos(P))},${Y(Math.min(6, dist * 0.25) * Math.sin(P))}" fill="none" stroke="${C.orange}" stroke-width="1.5"/>`;
+  g += T(X(-Math.min(6, dist * 0.25)) - 4, Y(0) - 6, `${r2(num(d.pitch), 0)}°`, { anchor: 'end', fill: C.orange, size: 11 });
+  g += T(X(-minD) + 4, Y(0) - 4, `мин ${r2(minD)}`, { size: 10 }) + T(X(-maxD) + 4, Y(0) - 4, `макс ${r2(maxD)}`, { size: 10 });
+  const visH = 2 * dist * Math.tan(fov / 2), visW = visH * 16 / 9;
+  const groundDepth = far[1] === 0 && near[1] === 0 ? Math.abs(far[0] - near[0]) : Infinity;
+  // вид сверху: yaw
+  const yaw = num(d.startYaw, 45), stp = num(d.fixedAngleStep, 90);
+  const R = 46; let top = `<circle cx="60" cy="60" r="${R}" fill="#fff" stroke="${C.grid2}"/><rect x="52" y="52" width="16" height="16" fill="#b3b6bd" stroke="#7d818a" transform="rotate(${-0} 60 60)"/>`;
+  if (d.scheme === 'FixedAngles' && stp > 0) for (let a = yaw; a < yaw + 360 - 1e-6; a += stp) { const r = (a - 90) * Math.PI / 180; top += `<circle cx="${60 - Math.cos(r) * R}" cy="${60 + Math.sin(r) * R}" r="3" fill="${C.grid2}"/>`; }
+  const yr = (yaw - 90) * Math.PI / 180; const cx = 60 - Math.cos(yr) * R, cy = 60 + Math.sin(yr) * R;
+  top += `<line x1="${cx}" y1="${cy}" x2="60" y2="60" stroke="${C.blue}" stroke-width="2"/><circle cx="${cx}" cy="${cy}" r="6" fill="${C.dark}"/>` + T(60, 10, 'С', { anchor: 'middle', size: 9 }) + T(60, 118, '', {});
+  return `<h4>Сбоку: камера, наклон и поле зрения (масштаб общий)</h4>` + svgWrap(W, H, g)
+    + facts([['В кадре по вертикали у куба', `≈ ${r2(visH, 1)} бл`], ['По горизонтали (16:9)', `≈ ${r2(visW, 1)} бл`], ['Глубина видимой земли', Number.isFinite(groundDepth) ? `≈ ${r2(groundDepth, 1)} бл` : 'до горизонта'], ['Высота камеры', `${r2(cam[1], 1)} бл`], ['Щелчков колеса от мин. до макс.', r2(Math.ceil((maxD - minD) / Math.max(0.01, num(d.zoomStep, 2))), 0)]])
+    + `<div style="display:flex;gap:16px;align-items:center;margin-top:8px">${svgWrap(120, 122, top)}<div style="font-size:12.5px;color:var(--muted)">Вид сверху: камера (●) смотрит на куб под углом <b style="color:var(--text)">${r2(yaw, 0)}°</b>.${d.scheme === 'FixedAngles' ? ` Точки — фиксированные углы через ${r2(stp, 0)}°.` : ' FreeOrbit: поворот свободный.'}</div></div>`;
+}
+
+function itemDamage(it, step, combat) { return num(it.damage) * num(step.damageMultiplier, 1); }
+function vizCombat({ d }) {
+  const m = num(d.sameColorMultiplier, 1.5);
+  const rows = Object.entries(itemsData()).filter(([, it]) => it.combo?.length).map(([id, it]) => {
+    const hits = it.combo.map(s => itemDamage(it, s));
+    const total = hits.reduce((a, b) => a + b, 0);
+    return `<tr><td><span class="swatch" style="background:${esc(colorHex(it.color))}"></span> ${esc(it.name || id)}</td><td>${hits.map(h => r2(h, 1)).join(' / ')}</td><td>${r2(total, 1)}</td><td><b>${r2(total * m, 1)}</b></td></tr>`;
+  }).join('');
+  const hs = num(d.hitStop);
+  return `<h4>Урон серии: обычный враг / враг того же цвета</h4><table class="dmg"><tr><th>Оружие</th><th>Удары</th><th>Серия</th><th>Тот же цвет ×${r2(m)}</th></tr>${rows || '<tr><td colspan="4">Нет оружия с комбо</td></tr>'}</table>`
+    + facts([['Хит-стоп', hs ? `${r2(hs * 1000, 0)} мс ≈ ${r2(hs * 60, 1)} кадра при 60 FPS` : 'выключен'], ['Тряска', num(d.hitShake) ? r2(num(d.hitShake)) : 'выключена']])
+    + `<h4>Свечение оружия</h4><div style="display:flex;gap:10px">${Object.values(itemsData()).filter(it => it.color && it.color !== 'none').map(it => { const g = num(d.heldWeaponGlow); return `<div style="text-align:center;font-size:11px;color:var(--muted)"><div style="width:34px;height:34px;border-radius:6px;background:${esc(colorHex(it.color))};box-shadow:0 0 ${r2(g * 30, 0)}px ${r2(g * 10, 0)}px ${esc(colorHex(it.color))}55;margin:6px auto"></div>${esc(it.name)}</div>`; }).join('')}</div>`;
+}
+
+function vizDummy({ d }) {
+  const k = num(d.stiffness, 120), c = num(d.damping, 7), push = num(d.tiltPerHit, 9) * 12, mx = num(d.maxTilt, 20);
+  const pts = []; let x = 0, v = push; const dt = 1.5 / 300;
+  for (let i = 0; i <= 300; i++) { pts.push([i * dt, x]); v += (-x * k - v * c) * dt; x += v * dt; x = clamp(x, -mx, mx); }
+  const peak = Math.max(...pts.map(p => Math.abs(p[1])));
+  const fd = num(d.flashDuration);
+  return `<h4>Наклон после одного удара (отбрасывание 1)</h4>` + chart(560, 170, [{ pts, c: colorHex(d.color) }], { xl: 'секунды', marks: [{ x: fd, l: 'конец вспышки', c: d.flashColor }] })
+    + facts([['Пик наклона', `${r2(peak, 1)}°`], ['Успокаивается за', `${r2(settleTime(pts, peak))} с`], ['Вспышка', `${r2(fd)} с`]])
+    + `<div style="display:flex;gap:14px;align-items:center;margin-top:8px"><div style="width:44px;height:44px;border-radius:6px;background:${esc(colorHex(d.color))}"></div><div style="width:44px;height:44px;border-radius:6px;background:${esc(d.flashColor || '#fff')};box-shadow:0 0 ${r2(num(d.flashIntensity) * 8, 0)}px ${esc(d.flashColor || '#fff')}"></div><span style="font-size:12px;color:var(--muted)">цвет манекена → вспышка при ударе</span></div>`;
+}
+
+function vizInventory({ d }) {
+  const cols = clamp(Math.round(num(d.columns, 5)), 1, 12), rows = clamp(Math.round(num(d.rows, 5)), 1, 12), q = clamp(Math.round(num(d.quickSlots, 4)), 0, 12);
+  const cs = 38, gap = 5, W = 560;
+  const gw = cols * (cs + gap);
+  let g = '';
+  // окно персонажа: 2 слота рук
+  g += `<rect x="10" y="10" width="${cs}" height="${cs}" rx="5" fill="#fff" stroke="${C.green}" stroke-width="2"/>` + T(10 + cs / 2, 10 + cs + 13, 'левая', { anchor: 'middle', size: 10 });
+  g += `<rect x="${10 + cs + 24}" y="${10 + cs * 0.1}" width="${cs * 0.8}" height="${cs * 0.8}" fill="#b3b6bd" stroke="#7d818a"/>`;
+  g += `<rect x="${10 + cs * 2 + 34}" y="10" width="${cs}" height="${cs}" rx="5" fill="#fff" stroke="${C.grid2}" stroke-width="1.5"/>` + T(10 + cs * 2.5 + 34, 10 + cs + 13, 'правая', { anchor: 'middle', size: 10 });
+  const gx = 190;
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) g += `<rect x="${gx + c * (cs + gap)}" y="${10 + r * (cs + gap)}" width="${cs}" height="${cs}" rx="5" fill="#fff" stroke="${C.grid2}"/>`;
+  const qy = 10 + rows * (cs + gap) + 10;
+  for (let i = 0; i < q; i++) g += `<rect x="${gx + i * (cs + gap)}" y="${qy}" width="${cs}" height="${cs}" rx="5" fill="#f5f6f8" stroke="${C.dark}" stroke-opacity=".4"/>` + T(gx + i * (cs + gap) + 5, qy + 13, String(i + 1), { size: 11, fill: C.dark });
+  const H = qy + (q ? cs : 0) + 12;
+  return `<h4>Окно инвентаря (слева — руки, зелёным — куда можно надеть)</h4>` + svgWrap(Math.max(W, gx + gw + 10), H, g)
+    + facts([['Ячеек', String(cols * rows)], ['Быстрых слотов', String(q)]]);
+}
+
+function vizItem({ id, it }) {
+  const col = colorHex(it.color);
+  const combo = it.combo || [];
+  if (it.kind === 'Shield') {
+    const a = num(it.blockAngle, 120); const W = 260, H = 200, cx = W / 2, cy = 130, R = 90;
+    const p = ang => [cx + Math.sin(ang * Math.PI / 180) * R, cy - Math.cos(ang * Math.PI / 180) * R];
+    const [x1, y1] = p(-a / 2), [x2, y2] = p(a / 2);
+    const g = `<path d="M${cx},${cy} L${x1},${y1} A${R},${R} 0 ${a > 180 ? 1 : 0} 1 ${x2},${y2} Z" fill="${col}" opacity=".25" stroke="${col}"/><rect x="${cx - 12}" y="${cy - 12}" width="24" height="24" fill="#b3b6bd" stroke="#7d818a"/><line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - R - 8}" stroke="${C.dark}" stroke-dasharray="3 3"/>` + T(cx, 12, 'вперёд', { anchor: 'middle', size: 10 });
+    return `<h4>Сверху: сектор блока ${r2(a, 0)}°</h4>` + svgWrap(W, H, g) + facts([['Рука', it.hand || 'Any'], ['Блок гасит удары', `в секторе ${r2(a, 0)}° перед кубом`]]);
+  }
+  if (!combo.length) return '<div style="color:var(--muted)">Нет серии ударов.</div>';
+  // сверху: дальность и сектор каждого удара
+  const maxR = Math.max(1.5, ...combo.map(s => num(s.range, 1.3) + num(s.lunge, 0)));
+  const W = 260, H = 240, cx = W / 2, cy = H - 40, s = (H - 60) / maxR;
+  let g = '';
+  for (let r = 1; r <= Math.floor(maxR); r++) g += `<circle cx="${cx}" cy="${cy}" r="${r * s}" fill="none" stroke="${C.grid}"/>` + T(cx + 3, cy - r * s - 2, `${r} бл`, { size: 9 });
+  combo.forEach((st, i) => {
+    const a = clamp(num(st.arc, 150), 1, 360), R = num(st.range, 1.3) * s, ly = num(st.lunge, 0) * s;
+    const pt = ang => [cx + Math.sin(ang * Math.PI / 180) * R, cy - ly - Math.cos(ang * Math.PI / 180) * R];
+    const [x1, y1] = pt(-a / 2), [x2, y2] = pt(a / 2);
+    g += a >= 359 ? `<circle cx="${cx}" cy="${cy - ly}" r="${R}" fill="${col}" fill-opacity=".12" stroke="${col}" stroke-opacity=".8"/>`
+      : `<path d="M${cx},${cy - ly} L${x1},${y1} A${R},${R} 0 ${a > 180 ? 1 : 0} 1 ${x2},${y2} Z" fill="${col}" fill-opacity=".12" stroke="${col}" stroke-opacity="${0.4 + 0.6 * (i + 1) / combo.length}" stroke-width="1.3"/>`;
+  });
+  g += `<rect x="${cx - s / 2}" y="${cy - s / 2}" width="${s}" height="${s}" fill="#b3b6bd" stroke="#7d818a"/>` + T(cx, cy + s / 2 + 14, 'куб 1×1', { anchor: 'middle', size: 10 });
+  // таймлайн
+  const cw = num(it.comboWindow, 0.35);
+  const total = combo.reduce((a, st) => a + num(st.duration, 0.38), 0) + cw;
+  const TW = 290, L = 4, sx = (TW - L * 2) / total; let x = L, tl = '';
+  combo.forEach((st, i) => {
+    const dur = num(st.duration, 0.38), af = num(st.activeFrom, 0.3), at = num(st.activeTo, 0.65);
+    tl += `<rect x="${x}" y="18" width="${dur * sx - 2}" height="20" rx="3" fill="${C.grid2}"/><rect x="${x + af * dur * sx}" y="18" width="${Math.max(0, (at - af) * dur * sx)}" height="20" fill="${col}"/>` + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 });
+    x += dur * sx;
+  });
+  tl += `<rect x="${x}" y="24" width="${cw * sx}" height="8" rx="3" fill="${C.grid}" stroke="${C.grid2}" stroke-dasharray="2 2"/>` + T(x + 2, 13, 'окно', { size: 9 });
+  tl += T(L, 52, '0', { size: 9 }) + T(TW - L, 52, `${r2(total)} с`, { size: 9, anchor: 'end' });
+  const dmg = combo.map(st => itemDamage(it, st));
+  const sta = combo.reduce((a, st) => a + num(st.staminaCost, 12), 0);
+  const cm = num(S.files.Combat?.data?.sameColorMultiplier, 1.5);
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени (цвет — попадание)</h4>${svgWrap(TW, 56, tl)}
+    <table class="dmg" style="margin-top:8px"><tr><th>#</th><th>Движение</th><th>Урон</th><th>Цвет ×${r2(cm)}</th><th>Выносл.</th></tr>${combo.map((st, i) => `<tr><td>${i + 1}</td><td>${esc((MOTIONS.find(m => m[0] === st.motion) || [, st.motion])[1])}</td><td>${r2(dmg[i], 1)}</td><td>${r2(dmg[i] * cm, 1)}</td><td>${r2(num(st.staminaCost, 12), 0)}</td></tr>`).join('')}
+    <tr><th></th><th>Серия</th><th>${r2(dmg.reduce((a, b) => a + b, 0), 1)}</th><th>${r2(dmg.reduce((a, b) => a + b, 0) * cm, 1)}</th><th>${r2(sta, 0)}</th></tr></table>
+    ${facts([['Урон в секунду', r2(dmg.reduce((a, b) => a + b, 0) / Math.max(0.01, total - cw), 1)], ['Рука', ({ Any: 'любая', Left: 'левая', Right: 'правая' })[it.hand || 'Any'] || it.hand], ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']])}</div></div>`;
+}
+
+function vizColors({ d }) {
+  const ids = Object.keys(d);
+  const users = id => Object.values(itemsData()).filter(it => it.color === id).map(it => it.name);
+  return `<h4>Палитра на фоне мира</h4><div style="background:#e6e7ea;border-radius:10px;padding:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:12px">${ids.map(id => `<div style="text-align:center;font-size:12px"><div style="width:54px;height:54px;margin:0 auto 6px;border-radius:7px;background:${esc(d[id].hex)};box-shadow:inset 0 -10px 0 rgba(0,0,0,.12), 0 2px 0 rgba(0,0,0,.08)"></div><b>${esc(d[id].name || id)}</b><div style="color:var(--muted);font-family:ui-monospace,Consolas,monospace;font-size:11px">${esc(id)} · ${esc(d[id].hex)}</div><div style="color:var(--muted);font-size:11px">${esc(users(id).join(', '))}</div></div>`).join('')}</div>`;
+}
+
+function vizMoveProfile({ p }) {
+  const st = num(p.stepHeight, 0.3), jh = num(p.jumpHeight, 0), md = num(p.maxDrop, 1), h = num(p.height, 1);
+  const yMax = Math.max(3, Math.ceil(Math.max(jh, h) + 1)), yMin = -Math.max(1, Math.ceil(md + 0.5));
+  const sc = scene(560, Math.min(320, 40 + (yMax - yMin) * 34), -1, 13, yMin, yMax);
+  let g = sc.g;
+  g += cubes(sc, -1, 6, yMin, 0) + cubes(sc, 2, 6, 0, st, '#d6d9de') + T(sc.X(2) + 2, sc.Y(st) - 3, `шаг ${r2(st)}`, { size: 10 });
+  const jl = jh > st ? jh : 0;
+  if (jl > 0) g += cubes(sc, 4, 6, st, jl, '#cfd3d9') + `<line x1="${sc.X(4)}" x2="${sc.X(6)}" y1="${sc.Y(jl)}" y2="${sc.Y(jl)}" stroke="${C.green}" stroke-width="2"/>` + T(sc.X(4) + 2, sc.Y(jl) - 4, `прыжок ${r2(jl)}`, { size: 10, fill: C.green });
+  else g += T(sc.X(4), sc.Y(st) - 16, 'не прыгает', { size: 10 });
+  g += cubes(sc, 6, 13, yMin, -md, C.ground) + `<line x1="${sc.X(6)}" x2="${sc.X(13)}" y1="${sc.Y(-md)}" y2="${sc.Y(-md)}" stroke="${C.orange}" stroke-width="2"/>` + T(sc.X(6) + 4, sc.Y(-md) - 4, `спрыгивает с ${r2(md)}`, { size: 10, fill: C.orange });
+  g += playerCube(sc, 0.5, 0, 0.9, h) + T(sc.X(0.5), sc.Y(h) - 4, `рост ${r2(h)}`, { anchor: 'middle', size: 10 });
+  return `<h4>Что проходит этот профиль</h4>` + svgWrap(560, Math.min(320, 40 + (yMax - yMin) * 34), g)
+    + facts([['Диагонали', p.diagonal === false ? 'нет' : 'да'], ['Особые связи', (p.specials || []).map(s => (SPECIALS.find(x => x[0] === s) || [, s])[1]).join(', ') || 'нет']]);
+}
+
+/* =====================================================================
+   Запуск
+   ===================================================================== */
+$('#btnOpen').onclick = pickDir;
+$('#btnSaveAll').onclick = saveAll;
+$('#fileInput').onchange = async e => {
+  const list = [...e.target.files]; if (!list.length) return;
+  S.files = {}; S.dir = null; S.mode = 'files';
+  for (const file of list) addFile(file.name.replace(/\.json$/i, ''), await file.text(), null);
+  S.current = firstFile(); renderAll(); e.target.value = '';
+};
+window.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveAll(); } });
+window.addEventListener('beforeunload', e => { if (Object.keys(S.files).some(isDirty)) { e.preventDefault(); e.returnValue = ''; } });
+
+(async function init() {
+  renderAll();
+  // Запомненная папка: браузер попросит подтвердить доступ одним нажатием.
+  try {
+    const dir = window.showDirectoryPicker && await IDB.get('dir');
+    if (dir) {
+      const b = $('#btnReopen'); b.style.display = ''; b.textContent = `Открыть снова: ${dir.name}`;
+      b.onclick = async () => { try { if (await ensureWrite(dir)) { b.style.display = 'none'; await openDir(dir); } } catch (e) { toast('Папка недоступна: ' + e.message); } };
+    }
+  } catch { /* нет IndexedDB */ }
+  // Если страницу отдаёт локальный сервер из корня проекта — подхватить конфиги для просмотра.
+  if (location.protocol.startsWith('http')) {
+    const base = new URL('../../Assets/StreamingAssets/Configs/', location.href);
+    for (const n of FILE_ORDER) { try { const r = await fetch(new URL(n + '.json', base)); if (r.ok) addFile(n, await r.text(), null); } catch { } }
+    if (Object.keys(S.files).length) { S.mode = 'fetch'; S.current = firstFile(); renderAll(); }
+  }
+})();
+</script>
+</body>
+</html>
