@@ -237,9 +237,10 @@ const SCHEMA = {
         { k: 'deformation.rollLandSquash', l: 'Сжатие при перекате', d: 'Сплющивание при приземлении на «голову» и на «ноги».', u: U.frac, min: -0.8, max: 0, step: 0.01 },
         { k: 'deformation.hitSquash', l: 'Сжатие от удара', d: 'Реакция куба на полученный удар.', u: U.frac, min: -0.8, max: 0, step: 0.01 },
         { k: 'deformation.attackTwist', l: 'Скручивание при ударе', d: 'На сколько градусов закручивается верх куба при взмахе мечом: на замахе против взмаха, на ударе по взмаху.', u: U.deg, min: 0, max: 60, step: 1, def: 24 },
-        { k: 'deformation.swingLeanBack', l: 'Отклон назад на замахе', d: 'Насколько верх куба уходит назад во время замаха любого удара.', u: U.bl, min: 0, max: 0.5, step: 0.01, def: 0.12 },
-        { k: 'deformation.swingLeanForward', l: 'Наклон вперёд при ударе', d: 'Насколько верх куба подаётся вперёд в момент горизонтального взмаха.', u: U.bl, min: 0, max: 0.5, step: 0.01, def: 0.14 },
-        { k: 'deformation.chopLean', l: 'Наклон при рубящем', d: 'Насколько верх куба уходит вперёд при ударе сверху вниз.', u: U.bl, min: 0, max: 0.5, step: 0.01, def: 0.16 },
+        { k: 'deformation.swingPitchBack', l: 'Отклон назад на замахе', d: 'Куб отклоняется назад во время замаха горизонтального взмаха, градусы у верха.', u: U.deg, min: 0, max: 45, step: 1, def: 8 },
+        { k: 'deformation.swingPitchForward', l: 'Поклон при взмахе', d: 'Куб кланяется вперёд в момент горизонтального взмаха, градусы у верха.', u: U.deg, min: 0, max: 45, step: 1, def: 10 },
+        { k: 'deformation.chopPitchBack', l: 'Отклон назад перед рубящим', d: 'Отклонение назад на замахе удара сверху, градусы.', u: U.deg, min: 0, max: 45, step: 1, def: 14 },
+        { k: 'deformation.chopPitch', l: 'Поклон при рубящем', d: 'Куб изгибается вперёд-вниз в ударе сверху: верх загибается над передней гранью, низ стоит. Градусы у верха.', u: U.deg, min: 0, max: 60, step: 1, def: 30 },
       ] },
     ],
     validate(d) {
@@ -364,7 +365,9 @@ const MOTIONS = [['SlashRight', 'Горизонтальный справа на�
 const STEP_FIELDS = [
   { k: 'motion', l: 'Движение', t: 'enum', opts: MOTIONS, def: 'SlashRight', d: 'Анимация удара.' },
   { k: 'windup', l: 'Замах', u: U.s, min: 0, max: 1, step: 0.01, def: 0.18, d: 'Время замаха: рука уходит в начало дуги, куб отклоняется назад. Меняет только замах.' },
-  { k: 'strike', l: 'Удар', u: U.s, min: 0.02, max: 0.6, step: 0.01, def: 0.08, d: 'Время прохода клинка по дуге; в это время засчитываются попадания.' },
+  { k: 'strike', l: 'Удар', u: U.s, min: 0.02, max: 0.6, step: 0.01, def: 0.08, d: 'Время прохода клинка по дуге.' },
+  { k: 'hitFrom', l: 'Урон с', u: U.frac, min: 0, max: 1, step: 0.05, def: 0, d: 'Начало окна урона, доля фазы удара. Например 0.6 — урон только в конце спуска клинка.' },
+  { k: 'hitTo', l: 'Урон до', u: U.frac, min: 0, max: 1, step: 0.05, def: 1, d: 'Конец окна урона, доля фазы удара.' },
   { k: 'recovery', l: 'Возврат', u: U.s, min: 0, max: 1, step: 0.01, def: 0.14, d: 'Возврат в стойку после фиксации позы.' },
   { k: 'damageMultiplier', l: 'Множитель урона', u: U.x, min: 0, max: 5, step: 0.05, def: 1, d: '' },
   { k: 'lunge', l: 'Выпад', u: U.bl, min: 0, max: 3, step: 0.05, def: 0.25, d: 'Насколько куб продвигается вперёд при ударе.' },
@@ -1099,7 +1102,8 @@ function vizItem({ id, it }) {
   combo.forEach((st, i) => {
     const p = phases(st), dur = p.w + p.s + p.h + p.r;
     tl += `<rect x="${x}" y="18" width="${Math.max(0, dur * sx - 2)}" height="20" rx="3" fill="${C.grid2}"/>`
-      + `<rect x="${x + p.w * sx}" y="18" width="${p.s * sx}" height="20" fill="${col}"/>`
+      + `<rect x="${x + p.w * sx}" y="18" width="${p.s * sx}" height="20" fill="${col}" fill-opacity=".55"/>`
+      + `<rect x="${x + (p.w + p.s * num(st.hitFrom, 0)) * sx}" y="18" width="${Math.max(0, p.s * (num(st.hitTo, 1) - num(st.hitFrom, 0))) * sx}" height="20" fill="${col}"/>`
       + `<rect x="${x + (p.w + p.s) * sx}" y="18" width="${p.h * sx}" height="20" fill="${col}" fill-opacity=".35"/>`
       + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 });
     x += dur * sx;
@@ -1109,7 +1113,7 @@ function vizItem({ id, it }) {
   const dmg = combo.map(st => itemDamage(it, st));
   const sta = combo.reduce((a, st) => a + num(st.staminaCost, 12), 0);
   const cm = num(S.files.Combat?.data?.sameColorMultiplier, 1.5);
-  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени: серый — замах и возврат, цвет — удар, светлый — пауза (окно комбо)</h4>${svgWrap(TW, 56, tl)}
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени: серый — замах и возврат, цвет — удар (ярко — окно урона), светлый — пауза (окно комбо)</h4>${svgWrap(TW, 56, tl)}
     <table class="dmg" style="margin-top:8px"><tr><th>#</th><th>Движение</th><th>Урон</th><th>Цвет ×${r2(cm)}</th><th>Выносл.</th></tr>${combo.map((st, i) => `<tr><td>${i + 1}</td><td>${esc((MOTIONS.find(m => m[0] === st.motion) || [, st.motion])[1])}</td><td>${r2(dmg[i], 1)}</td><td>${r2(dmg[i] * cm, 1)}</td><td>${r2(num(st.staminaCost, 12), 0)}</td></tr>`).join('')}
     <tr><th></th><th>Серия</th><th>${r2(dmg.reduce((a, b) => a + b, 0), 1)}</th><th>${r2(dmg.reduce((a, b) => a + b, 0) * cm, 1)}</th><th>${r2(sta, 0)}</th></tr></table>
     ${facts([['Урон в секунду', r2(dmg.reduce((a, b) => a + b, 0) / Math.max(0.01, total - cw), 1)], ['Рука', ({ Any: 'любая', Left: 'левая', Right: 'правая' })[it.hand || 'Any'] || it.hand], ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']])}</div></div>`;

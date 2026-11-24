@@ -141,14 +141,17 @@ namespace ColorsAction.Configs
         /// <summary>Скручивание куба при взмахе, градусы у верха: замах — против взмаха, удар — по взмаху.</summary>
         public float AttackTwist { get; set; } = 24f;
 
-        /// <summary>Наклон верха вперёд при рубящем ударе сверху вниз, метры.</summary>
-        public float ChopLean { get; set; } = 0.16f;
+        /// <summary>Поклон куба вперёд-вниз при рубящем ударе, градусы у верха.</summary>
+        public float ChopPitch { get; set; } = 30f;
 
-        /// <summary>Отклонение верха назад на замахе любого удара, метры.</summary>
-        public float SwingLeanBack { get; set; } = 0.12f;
+        /// <summary>Отклонение назад на замахе рубящего удара, градусы.</summary>
+        public float ChopPitchBack { get; set; } = 14f;
 
-        /// <summary>Наклон верха вперёд в момент удара (горизонтальные взмахи), метры.</summary>
-        public float SwingLeanForward { get; set; } = 0.14f;
+        /// <summary>Отклонение назад на замахе горизонтальных взмахов, градусы.</summary>
+        public float SwingPitchBack { get; set; } = 8f;
+
+        /// <summary>Поклон вперёд в момент горизонтального взмаха, градусы.</summary>
+        public float SwingPitchForward { get; set; } = 10f;
     }
 
     /// <summary>Схема управления камерой и направлением взгляда.</summary>
@@ -250,6 +253,12 @@ namespace ColorsAction.Configs
         public float Recovery { get; set; } = -1f;
 
         /// <summary>
+        /// Окно урона внутри фазы удара, доли Strike (0..1). Например 0.6–1 — урон только в конце спуска клинка.
+        /// </summary>
+        public float HitFrom { get; set; }
+        public float HitTo { get; set; } = 1f;
+
+        /// <summary>
         /// Устаревшее описание тайминга (вся длительность и окно попадания долями). Используется, только если
         /// фазы Windup/Strike/Recovery не заданы; после загрузки всегда пересчитано из фаз.
         /// </summary>
@@ -306,6 +315,8 @@ namespace ColorsAction.Configs
             step.Strike = Math.Max(0.01f, step.Strike);
             step.Recovery = Math.Max(0f, step.Recovery);
             step.Hold = Math.Max(0f, step.Hold);
+            step.HitFrom = Math.Max(0f, Math.Min(1f, step.HitFrom));
+            step.HitTo = Math.Max(step.HitFrom, Math.Min(1f, step.HitTo));
             step.Duration = step.Windup + step.Strike + step.Recovery;
             step.ActiveFrom = step.Windup / step.Duration;
             step.ActiveTo = (step.Windup + step.Strike) / step.Duration;

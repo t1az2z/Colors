@@ -253,6 +253,9 @@ namespace ColorsAction.Unity
             holdAccented = false;
             lungeDone = 0f;
             hitThisSwing.Clear();
+            // Замах начинается оттуда, где рука сейчас (например, из финальной позы прошлого удара серии),
+            // а не из стойки — иначе следующий удар делал лишний взмах через стойку.
+            hand.WindupFrom = hand.Current;
             controller.Deformer.Impulse(-0.6f, new Vector2(0f, 0.6f));
         }
 
@@ -270,7 +273,12 @@ namespace ColorsAction.Unity
             attackTime += dt;
             var t = StepT;
             if (attackTime < StrikeEnd && t >= step.ActiveFrom && t <= step.ActiveTo)
-                DetectHits();
+            {
+                // Окно урона внутри удара (HitFrom..HitTo от длительности Strike).
+                var strikeT = (t - step.ActiveFrom) / Mathf.Max(0.0001f, step.ActiveTo - step.ActiveFrom);
+                if (strikeT >= step.HitFrom - 1e-4f && strikeT <= step.HitTo + 1e-4f)
+                    DetectHits();
+            }
 
             if (InHold)
             {
@@ -335,7 +343,7 @@ namespace ColorsAction.Unity
             if (attacking == null || step == null)
             {
                 deformer.TwistTarget = 0f;
-                deformer.AttackLeanTarget = 0f;
+                deformer.PitchTarget = 0f;
                 return;
             }
 
@@ -369,16 +377,17 @@ namespace ColorsAction.Unity
                     var sign = step.Motion == AttackMotion.SlashLeft ? 1f : -1f;
                     deformer.TwistTarget = sign * d.AttackTwist * (strike - wind * 0.7f);
                     // Замах — верх отклоняется назад, удар — подаётся вперёд.
-                    deformer.AttackLeanTarget = d.SwingLeanForward * strike - d.SwingLeanBack * wind;
+                    deformer.PitchTarget = d.SwingPitchForward * strike - d.SwingPitchBack * wind;
                     break;
                 }
                 case AttackMotion.Chop:
                     deformer.TwistTarget = 0f;
-                    deformer.AttackLeanTarget = d.ChopLean * strike - Mathf.Max(d.SwingLeanBack, d.ChopLean * 0.8f) * wind;
+                    // Рубящий: на замахе отклон назад, в ударе — поклон вперёд-вниз (верх загибается над передней гранью).
+                    deformer.PitchTarget = d.ChopPitch * strike - d.ChopPitchBack * wind;
                     break;
                 default:
                     deformer.TwistTarget = 0f;
-                    deformer.AttackLeanTarget = d.SwingLeanForward * strike - d.SwingLeanBack * 0.5f * wind;
+                    deformer.PitchTarget = d.SwingPitchForward * strike - d.SwingPitchBack * 0.5f * wind;
                     break;
             }
         }
@@ -540,7 +549,7 @@ namespace ColorsAction.Unity
             {
                 var start = ArcPose(hand, 0f);
                 var u = EaseOut(t / Mathf.Max(0.0001f, a));
-                return AroundBody(rest, start, u);
+                return AroundBody(hand.WindupFrom, start, u);
             }
 
             // Удар резкий: быстро набирает ход и жёстко встаёт в финальную позу (её держит Hold).
@@ -625,9 +634,12 @@ namespace ColorsAction.Unity
                 {
                     // Высоко над головой и вниз перед кубом: ось дуги над передним верхним ребром,
                     // поэтому рукоять всё время снаружи тела.
-                    var angle = Mathf.Lerp(-35f, 115f, p) * Mathf.Deg2Rad;
-                    var dir = new Vector3(0f, Mathf.Cos(angle), Mathf.Sin(angle));
-                    var pos = new Vector3(0.18f * s, 1.2f, 0.42f) + dir * 0.5f;
+                    // Рукоять идёт по дуге вокруг точки перед верхом куба: от высоко над головой до ~0.25 над полом
+                    // впереди. Клинок поворачивается быстрее рукояти и в конце смотрит вперёд, чуть вниз.
+                    var gripAngle = Mathf.Lerp(-30f, 135f, p) * Mathf.Deg2Rad;
+                    var pos = new Vector3(0.18f * s, 0.8f, 0.45f) + new Vector3(0f, Mathf.Cos(gripAngle), Mathf.Sin(gripAngle)) * 0.75f;
+                    var bladeAngle = Mathf.Lerp(-10f, 100f, p) * Mathf.Deg2Rad;
+                    var dir = new Vector3(0f, Mathf.Cos(bladeAngle), Mathf.Sin(bladeAngle));
                     return new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir));
                 }
                 case AttackMotion.Thrust:
@@ -656,6 +668,7 @@ namespace ColorsAction.Unity
             public ItemConfig Item;
             public GameObject Visual;
             public WeaponTrail Trail;
+            public Pose WindupFrom;
             public bool Holding;
             public bool ResetPose = true;
             public Pose Current = new Pose(Vector3.zero, Quaternion.identity);
