@@ -316,33 +316,42 @@ namespace ColorsAction.Unity.Editor
             {
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
-                if (data == null || data.rendererFeatures.Exists(f => f != null && f.name == "PlayerSilhouette"))
+                if (data == null)
                     continue;
-
-                var feature = ScriptableObject.CreateInstance<RenderObjects>();
-                feature.name = "PlayerSilhouette";
-                feature.settings.Event = RenderPassEvent.AfterRenderingTransparents;
-                feature.settings.filterSettings.RenderQueueType = RenderQueueType.Opaque;
-                feature.settings.filterSettings.LayerMask = 1 << playerLayer;
-                feature.settings.overrideMode = RenderObjects.RenderObjectsSettings.OverrideMaterialMode.Material;
-                feature.settings.overrideMaterial = mat;
-                feature.settings.overrideMaterialPassIndex = 0;
-                AssetDatabase.AddObjectToAsset(feature, data);
-
-                var so = new SerializedObject(data);
-                var features = so.FindProperty("m_RendererFeatures");
-                var map = so.FindProperty("m_RendererFeatureMap");
-                features.arraySize++;
-                features.GetArrayElementAtIndex(features.arraySize - 1).objectReferenceValue = feature;
-                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out _, out long localId);
-                map.arraySize++;
-                map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
-                so.ApplyModifiedPropertiesWithoutUndo();
-                EditorUtility.SetDirty(data);
-                Debug.Log("ColorsAction: player silhouette added to " + path);
+                // Сначала метка видимых пикселей игрока, потом сам силуэт: иначе части игрока,
+                // закрытые его же кубом (глаза сзади, оружие за спиной), просвечивают сквозь него.
+                AddRenderObjects(data, "PlayerStencilMark", RenderPassEvent.AfterRenderingOpaques, playerLayer, mat, 1);
+                AddRenderObjects(data, "PlayerSilhouette", RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 0);
             }
 
             AssetDatabase.SaveAssets();
+        }
+
+        private static void AddRenderObjects(UniversalRendererData data, string name, RenderPassEvent evt, int layer, Material mat, int pass)
+        {
+            if (data.rendererFeatures.Exists(f => f != null && f.name == name))
+                return;
+            var feature = ScriptableObject.CreateInstance<RenderObjects>();
+            feature.name = name;
+            feature.settings.Event = evt;
+            feature.settings.filterSettings.RenderQueueType = RenderQueueType.Opaque;
+            feature.settings.filterSettings.LayerMask = 1 << layer;
+            feature.settings.overrideMode = RenderObjects.RenderObjectsSettings.OverrideMaterialMode.Material;
+            feature.settings.overrideMaterial = mat;
+            feature.settings.overrideMaterialPassIndex = pass;
+            AssetDatabase.AddObjectToAsset(feature, data);
+
+            var so = new SerializedObject(data);
+            var features = so.FindProperty("m_RendererFeatures");
+            var map = so.FindProperty("m_RendererFeatureMap");
+            features.arraySize++;
+            features.GetArrayElementAtIndex(features.arraySize - 1).objectReferenceValue = feature;
+            AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feature, out _, out long localId);
+            map.arraySize++;
+            map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(data);
+            Debug.Log("ColorsAction: " + name + " added to " + AssetDatabase.GetAssetPath(data));
         }
 
         /// <summary>Материал следа оружия (Resources/Materials/WeaponTrail), шейдер ColorsAction/WeaponTrail.</summary>
