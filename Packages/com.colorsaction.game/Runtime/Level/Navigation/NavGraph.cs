@@ -44,6 +44,12 @@ namespace ColorsAction.Level.Navigation
         /// <summary>Барьер, стоящий в клетке, — узел закрыт, пока барьер не открыт.</summary>
         public string Barrier;
 
+        /// <summary>Верх сглажен (наклонён к соседу, который выше не больше чем на шаг).</summary>
+        public bool Smoothed;
+
+        /// <summary>Высоты углов верха, если <see cref="Smoothed"/>.</summary>
+        public SurfaceSmoothing.Corners Corners;
+
         public readonly List<NavLink> Links = new List<NavLink>();
 
         public float Ceiling => Surface + Clearance;
@@ -180,7 +186,8 @@ namespace ColorsAction.Level.Navigation
                 {
                     var cell = new Int3(kv.Key.Item1, ys[i], kv.Key.Item2);
                     var block = level.Blocks[cell];
-                    var surface = cell.Y + BlockShapes.CenterTop(block.Shape);
+                    var smoothed = SurfaceSmoothing.TryGetCorners(level, cell, out var corners);
+                    var surface = smoothed ? corners.Center : cell.Y + BlockShapes.CenterTop(block.Shape);
                     var ceiling = i + 1 < ys.Count ? ys[i + 1] : surface + MaxClearance;
                     var clearance = Math.Min(MaxClearance, ceiling - surface);
                     if (clearance < s.MinClearance)
@@ -192,7 +199,9 @@ namespace ColorsAction.Level.Navigation
                         Stand = new Int3(cell.X, (int)Math.Floor(surface + 1e-3), cell.Z),
                         Surface = surface,
                         Clearance = clearance,
-                        Steep = block.Shape == BlockShape.SteepSlope
+                        Steep = block.Shape == BlockShape.SteepSlope,
+                        Smoothed = smoothed,
+                        Corners = corners
                     };
                     node.Barrier = level.BarrierAt(node.Stand)?.Id;
                     nodes.Add(node);
@@ -216,8 +225,8 @@ namespace ColorsAction.Level.Navigation
                         if (other.Steep)
                             continue;
                         var b = level.Blocks[other.Block];
-                        var edgeA = node.Block.Y + BlockShapes.EdgeTop(a.Shape, a.Rotation, dx, dz);
-                        var edgeB = other.Block.Y + BlockShapes.EdgeTop(b.Shape, b.Rotation, -dx, -dz);
+                        var edgeA = EdgeHeight(node, a, dx, dz);
+                        var edgeB = EdgeHeight(other, b, -dx, -dz);
                         var rise = edgeB - edgeA;
                         if (rise > s.MaxRise || -rise > s.MaxDrop)
                             continue;
@@ -284,6 +293,18 @@ namespace ColorsAction.Level.Navigation
                 if (point.TwoWay)
                     AddSpecial(to, from, point);
             }
+        }
+
+        /// <summary>Высота верха на краю клетки в сторону (dx, dz): середина края.</summary>
+        private static float EdgeHeight(NavNode node, Block block, int dx, int dz)
+        {
+            if (!node.Smoothed)
+                return node.Block.Y + BlockShapes.EdgeTop(block.Shape, block.Rotation, dx, dz);
+            var c = node.Corners;
+            if (dx < 0) return (c.X0Z0 + c.X0Z1) * 0.5f;
+            if (dx > 0) return (c.X1Z0 + c.X1Z1) * 0.5f;
+            if (dz < 0) return (c.X0Z0 + c.X1Z0) * 0.5f;
+            return (c.X0Z1 + c.X1Z1) * 0.5f;
         }
 
         private NavLink WalkNeighbour(NavNode node, int dx, int dz, float maxStep)

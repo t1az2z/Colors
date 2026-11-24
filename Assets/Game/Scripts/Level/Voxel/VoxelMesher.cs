@@ -98,6 +98,12 @@ namespace ColorsAction.Unity.Voxel
                 case BlockShape.Step:
                 {
                     var h = BlockShapes.CenterTop(block.Shape);
+                    if (SurfaceSmoothing.TryGetCorners(level, c, out var corners))
+                    {
+                        AddSmoothBox(level, c, corners, sameBand, tris);
+                        return;
+                    }
+
                     AddBox(o, new Vector3(1, h, 1), dir =>
                     {
                         if (dir == Vector3Int.up)
@@ -134,6 +140,62 @@ namespace ColorsAction.Unity.Voxel
                 else { a = new Vector3(x1, y0, z1); b = new Vector3(x1, y1, z1); cc = new Vector3(x0, y1, z1); e = new Vector3(x0, y0, z1); }
                 Quad(a, b, cc, e, d, tris);
             }
+        }
+
+        /// <summary>Плоский блок с наклонённым верхом (сглаженная ступенька): верх по четырём углам, бока до углов.</summary>
+        private static void AddSmoothBox(VoxelLevel level, Int3 c, SurfaceSmoothing.Corners k, Func<Int3, bool> sameBand, List<int> tris)
+        {
+            float x0 = c.X, z0 = c.Z, x1 = c.X + 1, z1 = c.Z + 1, y0 = c.Y;
+            var a = new Vector3(x0, k.X0Z0, z0);
+            var b = new Vector3(x0, k.X0Z1, z1);
+            var d = new Vector3(x1, k.X1Z1, z1);
+            var e = new Vector3(x1, k.X1Z0, z0);
+            // Верх: диагональ выбирается так, чтобы складка шла вдоль перепада.
+            if (Mathf.Abs(k.X0Z0 - k.X1Z1) <= Mathf.Abs(k.X0Z1 - k.X1Z0))
+            {
+                Tri(a, b, d, tris);
+                Tri(a, d, e, tris);
+            }
+            else
+            {
+                Tri(b, d, e, tris);
+                Tri(b, e, a, tris);
+            }
+
+            if (!(level.TryGet(c.Below, out var below) && BlockShapes.FillsCell(below.Shape) && sameBand(c.Below)))
+                Quad(new Vector3(x0, y0, z0), new Vector3(x1, y0, z0), new Vector3(x1, y0, z1), new Vector3(x0, y0, z1), Vector3Int.down, tris);
+            if (!Hides(level, c + new Int3(-1, 0, 0), sameBand, k.EdgeMax(-1, 0)))
+                Quad(new Vector3(x0, y0, z1), new Vector3(x0, k.X0Z1, z1), new Vector3(x0, k.X0Z0, z0), new Vector3(x0, y0, z0), Vector3Int.left, tris);
+            if (!Hides(level, c + new Int3(1, 0, 0), sameBand, k.EdgeMax(1, 0)))
+                Quad(new Vector3(x1, y0, z0), new Vector3(x1, k.X1Z0, z0), new Vector3(x1, k.X1Z1, z1), new Vector3(x1, y0, z1), Vector3Int.right, tris);
+            if (!Hides(level, c + new Int3(0, 0, -1), sameBand, k.EdgeMax(0, -1)))
+                Quad(new Vector3(x0, y0, z0), new Vector3(x0, k.X0Z0, z0), new Vector3(x1, k.X1Z0, z0), new Vector3(x1, y0, z0), new Vector3Int(0, 0, -1), tris);
+            if (!Hides(level, c + new Int3(0, 0, 1), sameBand, k.EdgeMax(0, 1)))
+                Quad(new Vector3(x1, y0, z1), new Vector3(x1, k.X1Z1, z1), new Vector3(x0, k.X0Z1, z1), new Vector3(x0, y0, z1), new Vector3Int(0, 0, 1), tris);
+        }
+
+        /// <summary>Треугольник верха (нормаль своя у каждого, чтобы свет на складке был честным).</summary>
+        private static void Tri(Vector3 a, Vector3 b, Vector3 c, List<int> tris)
+        {
+            var normal = Vector3.Cross(b - a, c - a).normalized;
+            if (normal.y < 0)
+            {
+                (b, c) = (c, b);
+                normal = -normal;
+            }
+
+            var i = Verts.Count;
+            Verts.Add(a);
+            Verts.Add(b);
+            Verts.Add(c);
+            for (int k = 0; k < 3; k++)
+                Normals.Add(normal);
+            Uvs.Add(new Vector2(a.x, a.z));
+            Uvs.Add(new Vector2(b.x, b.z));
+            Uvs.Add(new Vector2(c.x, c.z));
+            tris.Add(i);
+            tris.Add(i + 1);
+            tris.Add(i + 2);
         }
 
         /// <summary>

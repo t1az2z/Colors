@@ -258,5 +258,46 @@ namespace ColorsAction.Tests
             var reachable = new PathFinder(graph).Reachable(start, profiles.Get("player"), new NavContext());
             Assert.That(reachable.Count, Is.GreaterThan(graph.Nodes.Count / 2));
         }
-    }
+    
+        [Test]
+        public void SmallSteps_BecomeSlopes_BigOnesStayWalls()
+        {
+            var level = Flat(4);
+            // Ступенька 0.25 в (2,1,1): соседи на высоте 1.0 наклоняются к ней.
+            level.Set(new Int3(2, 1, 1), new Block(BlockShape.Step));
+            Assert.That(SurfaceSmoothing.TryGetCorners(level, new Int3(1, 0, 1), out var c), Is.True);
+            Assert.That(c.X1Z0, Is.EqualTo(1.25f).Within(1e-4));
+            Assert.That(c.X1Z1, Is.EqualTo(1.25f).Within(1e-4));
+            Assert.That(c.X0Z0, Is.EqualTo(1f).Within(1e-4));
+            Assert.That(SurfaceSmoothing.HeightAt(c, 0.5f, 0.5f), Is.EqualTo(1.125f).Within(1e-4));
+
+            // Сама ступенька — самый верх, ей тянуться некуда.
+            Assert.That(SurfaceSmoothing.TryGetCorners(level, new Int3(2, 1, 1), out _), Is.False);
+
+            // Полублок (перепад 0.5) — стенка, не слоп.
+            level.Set(new Int3(2, 1, 1), new Block(BlockShape.Half));
+            Assert.That(SurfaceSmoothing.TryGetCorners(level, new Int3(1, 0, 1), out _), Is.False);
+
+            // Над клеткой блок — это не поверхность, не сглаживается.
+            level.Set(new Int3(2, 1, 1), new Block(BlockShape.Step));
+            level.Set(new Int3(1, 1, 1), Block.Cube());
+            level.Set(new Int3(1, 2, 1), Block.Cube());
+            Assert.That(SurfaceSmoothing.TryGetCorners(level, new Int3(1, 0, 1), out _), Is.False);
+        }
+
+        [Test]
+        public void SmoothedRamp_IsWalkable_WithoutRise()
+        {
+            var level = Flat(6);
+            for (int z = 0; z < 6; z++)
+            for (int x = 3; x < 6; x++)
+                level.Set(new Int3(x, 1, z), new Block(BlockShape.Step));
+            var graph = NavGraph.Build(level);
+            var low = graph.NodeOnBlock(new Int3(2, 0, 2));
+            Assert.That(low.Smoothed, Is.True);
+            var link = low.Links.First(l => graph.Nodes[l.To].Block == new Int3(3, 1, 2));
+            Assert.That(link.Rise, Is.EqualTo(0f).Within(1e-4), "ramp meets the step at the shared edge");
+            Assert.That(graph.Classify(link, Walker(), new NavContext()), Is.EqualTo(NavMove.Walk));
+        }
+}
 }

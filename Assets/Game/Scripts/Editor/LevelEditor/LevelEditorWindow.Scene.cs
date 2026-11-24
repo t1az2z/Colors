@@ -568,6 +568,17 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     continue;
                 var y = n.Block.Y + (session.Level.TryGet(n.Block, out var b) ? BlockShapes.MaxTop(b.Shape) : 1f) + 0.03f;
                 float x0 = n.Block.X + 0.12f, x1 = n.Block.X + 0.88f, z0 = n.Block.Z + 0.12f, z1 = n.Block.Z + 0.88f;
+                if (n.Smoothed)
+                {
+                    // Сглаженный верх — квадрат лежит на наклоне.
+                    var k = n.Corners;
+                    GL.Vertex3(x0, SurfaceSmoothing.HeightAt(k, 0.12f, 0.12f) + 0.03f, z0);
+                    GL.Vertex3(x0, SurfaceSmoothing.HeightAt(k, 0.12f, 0.88f) + 0.03f, z1);
+                    GL.Vertex3(x1, SurfaceSmoothing.HeightAt(k, 0.88f, 0.88f) + 0.03f, z1);
+                    GL.Vertex3(x1, SurfaceSmoothing.HeightAt(k, 0.88f, 0.12f) + 0.03f, z0);
+                    continue;
+                }
+
                 GL.Vertex3(x0, y, z0);
                 GL.Vertex3(x0, y, z1);
                 GL.Vertex3(x1, y, z1);
