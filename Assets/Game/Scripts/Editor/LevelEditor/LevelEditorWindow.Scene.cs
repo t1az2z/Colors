@@ -400,6 +400,20 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         {
             var pos = new Vector3(o.Cell.X + 0.5f, Surface(o.Cell), o.Cell.Z + 0.5f);
             var c = o.Color != null ? session.ColorOf(o.Color) : KindColor(o.Kind);
+            var enemyName = (string)null;
+            if (o.Kind == LevelObjectKind.EnemySpawn)
+            {
+                // Враг окрашен цветом своего типа из Enemies.json.
+                foreach (var e in session.Enemies)
+                {
+                    if (e.id != o.Item)
+                        continue;
+                    enemyName = e.name;
+                    if (e.color != null)
+                        c = session.ColorOf(e.color);
+                }
+            }
+
             var top = o.Cell.Y + 1f;
             if (o.IsBarrier)
             {
@@ -455,7 +469,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 Handles.DrawWireCube(new Vector3(pos.x, o.Cell.Y + h * 0.5f, pos.z), new Vector3(1.08f, h + 0.08f, 1.08f));
             }
 
-            Handles.Label(new Vector3(pos.x, top + 0.2f, pos.z), o.Item != null ? $"{o.Kind}: {o.Item}" : o.Kind.ToString(), label);
+            var text = enemyName != null ? "Враг: " + enemyName : o.Item != null ? $"{o.Kind}: {o.Item}" : o.Kind.ToString();
+            Handles.Label(new Vector3(pos.x, top + 0.2f, pos.z), text, label);
         }
 
         private void DrawPoint(InteractionPoint p, GUIStyle label)
