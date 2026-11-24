@@ -318,18 +318,16 @@ namespace ColorsAction.Unity.Editor
                 var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
                 if (data == null)
                     continue;
-                // Порядок важен: метка видимых пикселей игрока, затем глубина закрытых частей
-                // (ближайшая часть игрока), затем покраска. Подробно — в шейдере Silhouette.
-                var wanted = new[] { "PlayerStencilMark", "PlayerSilhouetteReset", "PlayerSilhouetteDepth", "PlayerSilhouette" };
+                // Сначала метка видимых пикселей игрока, потом сам силуэт: иначе части игрока,
+                // закрытые его же кубом (глаза сзади, оружие за спиной), просвечивают сквозь него.
+                var wanted = new[] { "PlayerStencilMark", "PlayerSilhouette" };
                 var present = data.rendererFeatures.Where(f => f != null && f.name.StartsWith("PlayerS")).Select(f => f.name);
                 if (present.SequenceEqual(wanted))
                     continue;
-                foreach (var name in wanted)
+                foreach (var name in present.ToArray())
                     RemoveRendererFeature(data, name);
                 AddRenderObjects(data, wanted[0], RenderPassEvent.AfterRenderingOpaques, playerLayer, mat, 1);
-                AddRenderObjects(data, wanted[1], RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 2);
-                AddRenderObjects(data, wanted[2], RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 3);
-                AddRenderObjects(data, wanted[3], RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 0);
+                AddRenderObjects(data, wanted[1], RenderPassEvent.AfterRenderingTransparents, playerLayer, mat, 0);
             }
 
             AssetDatabase.SaveAssets();
