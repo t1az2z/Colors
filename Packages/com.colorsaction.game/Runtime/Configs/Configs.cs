@@ -137,6 +137,12 @@ namespace ColorsAction.Configs
         public float RollLandSquash { get; set; } = -0.25f;
 
         public float HitSquash { get; set; } = -0.15f;
+
+        /// <summary>Скручивание куба при взмахе, градусы у верха: замах — против взмаха, удар — по взмаху.</summary>
+        public float AttackTwist { get; set; } = 24f;
+
+        /// <summary>Наклон верха вперёд при рубящем ударе сверху вниз, метры.</summary>
+        public float ChopLean { get; set; } = 0.16f;
     }
 
     /// <summary>Схема управления камерой и направлением взгляда.</summary>

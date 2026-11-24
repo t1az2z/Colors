@@ -135,7 +135,8 @@ namespace ColorsAction.Unity
 
         private void Update()
         {
-            if (root == null)
+            // session == null — после перекомпиляции во время игры зависимости не восстанавливаются.
+            if (root == null || session == null)
                 return;
             var dt = Time.unscaledDeltaTime;
 

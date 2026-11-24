@@ -193,6 +193,7 @@ namespace ColorsAction.Unity
 
             if (attacking != null)
                 UpdateAttack(dt);
+            UpdateBodyTwist();
         }
 
         private void UpdateHand(HandState hand, bool control, bool pressed, bool held)
@@ -259,6 +260,65 @@ namespace ColorsAction.Unity
                 comboTimer = hand.Item.ComboWindow;
                 if (queued)
                     StartAttack(hand, comboIndex + 1);
+            }
+        }
+
+        /// <summary>
+        /// Куб скручивается вслед за взмахом: на замахе закручивается против взмаха, в ударе — по взмаху
+        /// (пружина даёт перехлёст), потом раскручивается. Рубящий удар — наклон назад на замахе и вперёд в ударе.
+        /// </summary>
+        private void UpdateBodyTwist()
+        {
+            var deformer = controller.Deformer;
+            if (deformer == null)
+                return;
+            if (attacking == null || step == null)
+            {
+                deformer.TwistTarget = 0f;
+                deformer.AttackLeanTarget = 0f;
+                return;
+            }
+
+            var d = playerConfig.Deformation;
+            var t = Mathf.Clamp01(attackTime / step.Duration);
+            var a = Mathf.Max(0.01f, step.ActiveFrom);
+            var b = Mathf.Max(a, step.ActiveTo);
+            // 0..1 замах, 1 удар, затем возврат к 0.
+            float wind, strike;
+            if (t < a)
+            {
+                wind = EaseOut(t / a);
+                strike = 0f;
+            }
+            else if (t <= b)
+            {
+                wind = 0f;
+                strike = 1f;
+            }
+            else
+            {
+                wind = 0f;
+                strike = 1f - EaseInOut((t - b) / Mathf.Max(0.01f, 1f - b));
+            }
+
+            switch (step.Motion)
+            {
+                case AttackMotion.SlashLeft:   // слева направо: замах — верх влево, удар — вправо
+                case AttackMotion.SlashRight:  // справа налево: наоборот
+                {
+                    var sign = step.Motion == AttackMotion.SlashLeft ? 1f : -1f;
+                    deformer.TwistTarget = sign * d.AttackTwist * (strike - wind * 0.7f);
+                    deformer.AttackLeanTarget = d.ChopLean * 0.25f * strike;
+                    break;
+                }
+                case AttackMotion.Chop:
+                    deformer.TwistTarget = 0f;
+                    deformer.AttackLeanTarget = d.ChopLean * (strike - wind * 0.6f);
+                    break;
+                default:
+                    deformer.TwistTarget = 0f;
+                    deformer.AttackLeanTarget = d.ChopLean * 0.5f * strike;
+                    break;
             }
         }
 
@@ -376,7 +436,7 @@ namespace ColorsAction.Unity
                 hand.Current = new Pose(Vector3.Lerp(hand.Current.position, pose.position, k),
                     Quaternion.Slerp(hand.Current.rotation, pose.rotation, k));
                 hand.Socket.localPosition = deformer.DeformPoint(hand.Current.position);
-                hand.Socket.localRotation = hand.Current.rotation;
+                hand.Socket.localRotation = deformer.DeformRotation(hand.Current.position) * hand.Current.rotation;
                 if (hand.Trail != null)
                 {
                     var t = attacking == hand ? attackTime / step.Duration : -1f;

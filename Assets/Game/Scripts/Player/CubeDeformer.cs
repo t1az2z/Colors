@@ -22,6 +22,8 @@ namespace ColorsAction.Unity
         private Spring squash;
         private Spring bendX, bendZ;
         private Spring leanX, leanZ;
+        private Spring twist;
+        private Spring attackLean;
 
         /// <summary>Целевое сжатие: &lt;0 — сплющен, &gt;0 — вытянут.</summary>
         public float SquashTarget { get; set; }
@@ -31,6 +33,12 @@ namespace ColorsAction.Unity
 
         /// <summary>Целевой наклон (сдвиг верха, линейный по высоте).</summary>
         public Vector2 LeanTarget { get; set; }
+
+        /// <summary>Скручивание вокруг вертикали, градусы у верха (низ не крутится). Плюс — верх поворачивает вправо.</summary>
+        public float TwistTarget { get; set; }
+
+        /// <summary>Дополнительный наклон верха вперёд (локальный +Z) от ударов, складывается с остальным.</summary>
+        public float AttackLeanTarget { get; set; }
 
         public float Squash => squash.Value;
         public float Height => height;
@@ -78,7 +86,8 @@ namespace ColorsAction.Unity
         public void ResetShape()
         {
             squash = default;
-            bendX = bendZ = leanX = leanZ = default;
+            bendX = bendZ = leanX = leanZ = twist = attackLean = default;
+            TwistTarget = AttackLeanTarget = 0f;
             SquashTarget = 0;
             BendTarget = LeanTarget = Vector2.zero;
         }
@@ -98,6 +107,8 @@ namespace ColorsAction.Unity
                 bendZ.Step(BendTarget.y, stiffness * 0.8f, damping, h);
                 leanX.Step(LeanTarget.x, stiffness * 0.6f, damping, h);
                 leanZ.Step(LeanTarget.y, stiffness * 0.6f, damping, h);
+                twist.Step(TwistTarget, stiffness * 0.9f, damping * 0.8f, h);
+                attackLean.Step(AttackLeanTarget, stiffness * 0.9f, damping, h);
             }
 
             squash.Value = Mathf.Clamp(squash.Value, -0.6f, 0.8f);
@@ -116,10 +127,31 @@ namespace ColorsAction.Unity
             var sxz = 1f / Mathf.Sqrt(Mathf.Max(0.2f, sy));
             var t = Mathf.Clamp01(p.y / height);
             var t2 = t * t;
+            var x = p.x * sxz;
+            var z = p.z * sxz;
+            // Скручивание: угол растёт от низа к верху (плавно), как у закручиваемого бруска.
+            var angle = twist.Value * Mathf.Deg2Rad * t * (2f - t);
+            if (Mathf.Abs(angle) > 1e-4f)
+            {
+                var cos = Mathf.Cos(angle);
+                var sin = Mathf.Sin(angle);
+                var rx = x * cos + z * sin;
+                var rz = -x * sin + z * cos;
+                x = rx;
+                z = rz;
+            }
+
             return new Vector3(
-                p.x * sxz + bendX.Value * t2 + leanX.Value * t,
+                x + bendX.Value * t2 + leanX.Value * t,
                 p.y * sy,
-                p.z * sxz + bendZ.Value * t2 + leanZ.Value * t);
+                z + bendZ.Value * t2 + (leanZ.Value + attackLean.Value) * t);
+        }
+
+        /// <summary>Поворот, который деформация даёт в точке (для сокетов рук: оружие крутится вместе с кубом).</summary>
+        public Quaternion DeformRotation(Vector3 p)
+        {
+            var t = Mathf.Clamp01(p.y / height);
+            return Quaternion.Euler(0f, twist.Value * t * (2f - t), 0f);
         }
 
         private struct Spring

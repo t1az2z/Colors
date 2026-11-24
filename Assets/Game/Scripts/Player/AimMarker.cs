@@ -38,7 +38,7 @@ namespace ColorsAction.Unity
 
         private void LateUpdate()
         {
-            if (player == null)
+            if (player == null || disc == null)
             {
                 Destroy(gameObject);
                 return;
@@ -60,6 +60,7 @@ namespace ColorsAction.Unity
             transform.localScale = new Vector3(scale, 1f, scale);
             disc.enabled = visible > 0.01f;
 
+            block ??= new MaterialPropertyBlock();
             disc.GetPropertyBlock(block);
             block.SetColor(BaseColorId, new Color(0.16f, 0.16f, 0.19f, 1f));
             disc.SetPropertyBlock(block);
