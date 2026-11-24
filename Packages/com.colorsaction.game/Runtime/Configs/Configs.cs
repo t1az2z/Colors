@@ -293,6 +293,21 @@ namespace ColorsAction.Configs
         public void OnConfigLoaded()
         {
             Combo ??= new List<AttackStepConfig>();
+            // Окно попадания должно идти вперёд по времени: перепутанные границы меняем местами,
+            // иначе удар молча перестаёт наносить урон.
+            foreach (var step in Combo)
+            {
+                if (step == null)
+                    continue;
+                step.ActiveFrom = Math.Max(0f, Math.Min(1f, step.ActiveFrom));
+                step.ActiveTo = Math.Max(0f, Math.Min(1f, step.ActiveTo));
+                if (step.ActiveFrom > step.ActiveTo)
+                {
+                    var t = step.ActiveFrom;
+                    step.ActiveFrom = step.ActiveTo;
+                    step.ActiveTo = t;
+                }
+            }
             if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Combo.Count == 0)
                 throw new InvalidOperationException($"weapon '{Id}' needs at least one combo step");
         }

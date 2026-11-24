@@ -411,7 +411,12 @@ namespace ColorsAction.Unity
                 to.y = 0;
                 if (to.magnitude > step.Range)
                     continue;
-                if (to.sqrMagnitude > 0.0001f && Vector3.Angle(forward, to) > step.Arc * 0.5f)
+                // Угол — на центр цели: у узкого сектора (рубящий удар) угол на ближайшую точку вплотную
+                // к цели "уезжает" вбок, и удар промахивался. Цель почти вплотную задевается всегда.
+                var toCenter = overlap[i].bounds.center - center;
+                toCenter.y = 0;
+                var veryClose = to.magnitude < 0.6f;
+                if (!veryClose && toCenter.sqrMagnitude > 0.0001f && Vector3.Angle(forward, toCenter) > step.Arc * 0.5f)
                     continue;
 
                 hitThisSwing.Add(target);
@@ -493,8 +498,7 @@ namespace ColorsAction.Unity
                     hand.ResetPose = false;
                 }
 
-                hand.Current = new Pose(Vector3.Lerp(hand.Current.position, pose.position, k),
-                    Quaternion.Slerp(hand.Current.rotation, pose.rotation, k));
+                hand.Current = k >= 1f ? pose : AroundBody(hand.Current, pose, k);
                 hand.Socket.localPosition = deformer.DeformPoint(hand.Current.position);
                 hand.Socket.localRotation = deformer.DeformRotation(hand.Current.position) * hand.Current.rotation;
                 if (hand.Trail != null)
@@ -535,7 +539,7 @@ namespace ColorsAction.Unity
             {
                 var start = ArcPose(hand, 0f);
                 var u = EaseOut(t / Mathf.Max(0.0001f, a));
-                return new Pose(Vector3.Lerp(rest.position, start.position, u), Quaternion.Slerp(rest.rotation, start.rotation, u));
+                return AroundBody(rest, start, u);
             }
 
             // Удар резкий: быстро набирает ход и жёстко встаёт в финальную позу (её держит Hold).
@@ -544,7 +548,55 @@ namespace ColorsAction.Unity
 
             var end = ArcPose(hand, 1f);
             var r = EaseInOut((t - b) / Mathf.Max(0.0001f, 1f - b));
-            return new Pose(Vector3.Lerp(end.position, rest.position, r), Quaternion.Slerp(end.rotation, rest.rotation, r));
+            return AroundBody(end, rest, r);
+        }
+
+        /// <summary>
+        /// Для автотестов: насколько глубоко клинок в руке заходит внутрь куба (метры, 0 — не заходит).
+        /// Проверяются точки вдоль клинка в координатах меша куба (без учёта деформации).
+        /// </summary>
+        public float BladePenetration(Hand which)
+        {
+            var hand = hands[(int)which];
+            if (hand?.Visual == null || hand.Socket == null || hand.Socket.parent == null)
+                return 0f;
+            var mesh = hand.Socket.parent;
+            var filter = hand.Visual.GetComponentInChildren<MeshFilter>();
+            var length = filter != null && filter.sharedMesh != null ? filter.sharedMesh.bounds.max.y : 1f;
+            var worst = 0f;
+            for (int i = 0; i <= 10; i++)
+            {
+                var world = hand.Socket.TransformPoint(Vector3.up * (length * i / 10f));
+                var p = mesh.InverseTransformPoint(world);
+                var depth = Mathf.Min(0.5f - Mathf.Abs(p.x), 0.5f - Mathf.Abs(p.z), p.y, 1f - p.y);
+                worst = Mathf.Max(worst, depth);
+            }
+
+            return worst;
+        }
+
+        /// <summary>Радиус вокруг оси куба, ближе которого рука не подходит (куб 1×1, угол — 0.71 от центра).</summary>
+        private const float BodyClearance = 0.74f;
+
+        /// <summary>
+        /// Переход между позами руки по дуге вокруг куба, а не напрямую: угол вокруг вертикальной оси
+        /// интерполируется линейно (путь идёт через перед куба), радиус не меньше <see cref="BodyClearance"/>,
+        /// поэтому меч не проходит сквозь тело на замахе и возврате.
+        /// </summary>
+        private static Pose AroundBody(Pose from, Pose to, float k)
+        {
+            var a0 = Mathf.Atan2(from.position.x, from.position.z) * Mathf.Rad2Deg;
+            var a1 = Mathf.Atan2(to.position.x, to.position.z) * Mathf.Rad2Deg;
+            var r0 = new Vector2(from.position.x, from.position.z).magnitude;
+            var r1 = new Vector2(to.position.x, to.position.z).magnitude;
+            var angle = Mathf.Lerp(a0, a1, k) * Mathf.Deg2Rad;
+            var radius = Mathf.Lerp(r0, r1, k);
+            // Посередине пути держим руку снаружи тела, у концов — как задано позами.
+            var bulge = Mathf.Sin(k * Mathf.PI);
+            radius = Mathf.Max(radius, Mathf.Lerp(Mathf.Min(r0, r1), BodyClearance, bulge));
+            var y = Mathf.Lerp(from.position.y, to.position.y, k);
+            var pos = new Vector3(Mathf.Sin(angle) * radius, y, Mathf.Cos(angle) * radius);
+            return new Pose(pos, Quaternion.Slerp(from.rotation, to.rotation, k));
         }
 
         /// <summary>Траектория удара, p = 0..1 — от начала замаха до конца удара. Координаты меша: +Z вперёд, +X вправо.</summary>
@@ -564,14 +616,17 @@ namespace ColorsAction.Unity
                     var yaw = Mathf.Lerp(from, to, p) * Mathf.Deg2Rad;
                     var tilt = Mathf.Sin(step.Tilt * Mathf.Deg2Rad) * (1f - 2f * p);
                     var dir = new Vector3(Mathf.Sin(yaw), -0.04f + tilt * 0.8f, Mathf.Cos(yaw)).normalized;
-                    var pos = new Vector3(0f, 0.5f + tilt * 0.25f, 0.05f) + new Vector3(dir.x, 0f, dir.z) * 0.55f;
+                    // Радиус дуги больше полудиагонали куба (0.71): рукоять проходит снаружи углов.
+                    var pos = new Vector3(0f, 0.5f + tilt * 0.25f, 0f) + new Vector3(dir.x, 0f, dir.z) * 0.78f;
                     return new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir));
                 }
                 case AttackMotion.Chop:
                 {
-                    var angle = Mathf.Lerp(-25f, 125f, p) * Mathf.Deg2Rad;
+                    // Высоко над головой и вниз перед кубом: ось дуги над передним верхним ребром,
+                    // поэтому рукоять всё время снаружи тела.
+                    var angle = Mathf.Lerp(-35f, 115f, p) * Mathf.Deg2Rad;
                     var dir = new Vector3(0f, Mathf.Cos(angle), Mathf.Sin(angle));
-                    var pos = new Vector3(0.15f * s, 0.6f, 0.1f) + dir * 0.45f;
+                    var pos = new Vector3(0.18f * s, 1.2f, 0.42f) + dir * 0.5f;
                     return new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir));
                 }
                 case AttackMotion.Thrust:

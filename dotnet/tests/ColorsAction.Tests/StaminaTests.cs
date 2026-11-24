@@ -35,6 +35,19 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void SwappedHitWindow_IsNormalized()
+        {
+            var item = new ItemConfig
+            {
+                Id = "sword", Kind = ItemKind.OneHanded,
+                Combo = { new AttackStepConfig { ActiveFrom = 0.6f, ActiveTo = 0.4f } }
+            };
+            item.OnConfigLoaded();
+            Assert.That(item.Combo[0].ActiveFrom, Is.EqualTo(0.4f));
+            Assert.That(item.Combo[0].ActiveTo, Is.EqualTo(0.6f));
+        }
+
+        [Test]
         public void Blocking_SlowsRegen()
         {
             var s = Make();

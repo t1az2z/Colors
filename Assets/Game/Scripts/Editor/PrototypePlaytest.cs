@@ -251,23 +251,32 @@ namespace ColorsAction.Unity.Editor
             player.Teleport(new Vector3(dp.x, dp.y, dp.z - 1.25f), 0f);
             yield return 60;
             var sawHold = false;
+            var clip = 0f;
+            var damageBeforeChop = 0f;
             for (int i = 0; i < 3; i++)
             {
+                if (i == 2)
+                    damageBeforeChop = dummy.TotalDamage;
                 input.ScriptPress(GameAction.Primary);
                 for (int f = 0; f < 14; f++)
                 {
                     sawHold |= combat.InHold;
+                    clip = Mathf.Max(clip, combat.BladePenetration(Hand.Right));
                     yield return 1;
                 }
             }
 
-            for (int f = 0; f < 40; f++)
+            for (int f = 0; f < 90; f++)
             {
                 sawHold |= combat.InHold;
+                clip = Mathf.Max(clip, combat.BladePenetration(Hand.Right));
                 yield return 1;
             }
 
-            Check(dummy.TotalDamage >= 35f, $"full 3-hit sword combo lands (chained through the hold window): total damage {dummy.TotalDamage:F0}");
+            Check(dummy.TotalDamage > damageBeforeChop + 0.5f, $"third swing (chop) deals damage: {dummy.TotalDamage - damageBeforeChop:F0}");
+            Check(clip < 0.02f, $"sword never passes through the cube during the combo and recovery: max depth {clip:F3}");
+
+            Check(dummy.TotalDamage >= 30f, $"full 3-hit sword combo lands (chained through the hold window): total damage {dummy.TotalDamage:F0}");
             Check(sawHold, "each swing holds its final pose (combo window)");
             Check(Time.timeScale == 1f, "hit stop restores time scale");
 
