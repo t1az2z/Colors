@@ -8,7 +8,7 @@ namespace ColorsAction.UI
     /// <summary>
     /// Модель экрана инвентаря (TAB / View): сетка, руки, быстрые слоты, курсор для геймпада,
     /// перетаскивание мышью и зелёная подсветка слотов, куда можно надеть выбранный предмет.
-    /// <para>Раскладка для навигации (столбец, ряд): левая рука (0,1), правая (3,1), быстрые слоты (0..3, 3),
+    /// <para>Раскладка для навигации (столбец, ряд): правая рука (0,1), левая (3,1), быстрые слоты (0..3, 3),
     /// сетка — столбцы 5.., ряды 0... Вью рисует то же расположение.</para>
     /// </summary>
     public sealed class InventoryScreenViewModel : ViewModel, IExclusiveScreen
@@ -42,8 +42,9 @@ namespace ColorsAction.UI
             this.inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
             Close = Own(new ReactiveCommand(close));
 
-            layout[SlotRef.Of(Hand.Left)] = (0, 1);
-            layout[SlotRef.Of(Hand.Right)] = (3, 1);
+            // Персонаж смотрит на игрока, поэтому его правая рука — слева, левая — справа.
+            layout[SlotRef.Of(Hand.Right)] = (0, 1);
+            layout[SlotRef.Of(Hand.Left)] = (3, 1);
             for (int i = 0; i < inventory.QuickCount; i++)
                 layout[SlotRef.Quick(i)] = (i, 3);
             for (int i = 0; i < inventory.GridSize; i++)

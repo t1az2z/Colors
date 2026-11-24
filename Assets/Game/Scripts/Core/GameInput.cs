@@ -24,7 +24,7 @@ namespace ColorsAction.Unity
     /// <summary>
     /// Весь ввод игры по GDD: клавиатура+мышь и геймпад. Привязки описаны здесь, в одном месте.
     /// <para>Геймплей: WASD/левый стик — ходьба, LShift/L3 — бег, Пробел/A — прыжок, Alt/B — перекат,
-    /// ЛКМ/RT — правая рука, ПКМ/LT — левая рука, F/X — взаимодействие, TAB/View — инвентарь,
+    /// ЛКМ/RT — правая рука, ПКМ/LT — левая рука, F/X — взаимодействие, TAB/Y — инвентарь,
     /// 1–4/D-pad — предметы, мышь/правый стик — вращение камеры (FreeOrbit), Q/E и LB/RB — поворот камеры на 90° (FixedAngles), колесо — зум.</para>
     /// <para>Интерфейс: стрелки/D-pad/левый стик — навигация, Enter/A — выбрать, Esc/B — назад.</para>
     /// </summary>
@@ -46,7 +46,7 @@ namespace ColorsAction.Unity
         public InputAction CameraLeft { get; private set; }
         public InputAction CameraRight { get; private set; }
 
-        /// <summary>Переключение схемы управления А/Б для сравнения в прототипе: F1 / Start.</summary>
+        /// <summary>Переключение схемы управления А/Б для сравнения в прототипе: F1 / Select (View).</summary>
         public InputAction SwitchScheme { get; private set; }
         public InputAction Zoom { get; private set; }
         public InputAction[] QuickItems { get; private set; }
@@ -199,7 +199,7 @@ namespace ColorsAction.Unity
 
             SwitchScheme = player.AddAction("SwitchScheme", InputActionType.Button);
             SwitchScheme.AddBinding("<Keyboard>/f1");
-            SwitchScheme.AddBinding("<Gamepad>/start");
+            SwitchScheme.AddBinding("<Gamepad>/select");
 
             Zoom = player.AddAction("Zoom", InputActionType.Value, expectedControlLayout: "Vector2");
             Zoom.AddBinding("<Mouse>/scroll");
@@ -216,7 +216,7 @@ namespace ColorsAction.Unity
             ui = new InputActionMap("UI");
             Inventory = ui.AddAction("Inventory", InputActionType.Button);
             Inventory.AddBinding("<Keyboard>/tab");
-            Inventory.AddBinding("<Gamepad>/select");
+            Inventory.AddBinding("<Gamepad>/buttonNorth");
 
             Navigate = ui.AddAction("Navigate", InputActionType.Value, expectedControlLayout: "Vector2");
             Navigate.AddCompositeBinding("2DVector")
@@ -284,12 +284,12 @@ namespace ColorsAction.Unity
                 case "interact": return UsingGamepad ? "X" : "F";
                 case "jump": return UsingGamepad ? "A" : "Пробел";
                 case "roll": return UsingGamepad ? "B" : "Alt";
-                case "inventory": return UsingGamepad ? "View" : "TAB";
+                case "inventory": return UsingGamepad ? "Y" : "TAB";
                 case "attack": return UsingGamepad ? "RT" : "ЛКМ";
                 case "secondary": return UsingGamepad ? "LT" : "ПКМ";
                 case "run": return UsingGamepad ? "L3" : "Shift";
                 case "cameraTurn": return UsingGamepad ? "LB / RB" : "Q / E";
-                case "switchScheme": return UsingGamepad ? "Start" : "F1";
+                case "switchScheme": return UsingGamepad ? "Select" : "F1";
                 default: return action;
             }
         }

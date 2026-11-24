@@ -223,9 +223,9 @@ namespace ColorsAction.Tests
             Assert.That(vm.Cursor.Value, Is.EqualTo(SlotRef.Grid(1)));
             vm.Navigate(-1, 0);
             vm.Navigate(-1, 0);
-            Assert.That(vm.Cursor.Value, Is.EqualTo(SlotRef.Of(Hand.Right)));
+            Assert.That(vm.Cursor.Value, Is.EqualTo(SlotRef.Of(Hand.Left)), "left hand slot is next to the grid");
             vm.Navigate(-1, 0);
-            Assert.That(vm.Cursor.Value, Is.EqualTo(SlotRef.Of(Hand.Left)));
+            Assert.That(vm.Cursor.Value, Is.EqualTo(SlotRef.Of(Hand.Right)), "right hand slot is on the far left");
             vm.Navigate(0, 1);
             Assert.That(vm.Cursor.Value.Kind, Is.EqualTo(SlotKind.Quick));
         }

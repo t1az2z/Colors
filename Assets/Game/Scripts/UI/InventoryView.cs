@@ -68,7 +68,8 @@ namespace ColorsAction.Unity
                 switch (slot.Kind)
                 {
                     case SlotKind.Hand:
-                        pos = slot.Hand == Hand.Left ? new Vector2(40, -170) : new Vector2(440, -170);
+                        // Как в зеркале: правая рука персонажа — слева от портрета, левая — справа.
+                        pos = slot.Hand == Hand.Right ? new Vector2(40, -170) : new Vector2(440, -170);
                         caption = slot.Hand == Hand.Left ? "Левая рука" : "Правая рука";
                         break;
                     case SlotKind.Quick:

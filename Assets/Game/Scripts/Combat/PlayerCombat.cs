@@ -60,7 +60,8 @@ namespace ColorsAction.Unity
         private bool queued;
         private float comboTimer;
         private float lungeDone;
-        private bool hitStopRunning;
+        private float hitStopTimer;
+        private float timeScaleBeforeHitStop = 1f;
 
         public bool IsBusy => attacking != null;
         public bool Blocking { get; private set; }
@@ -101,6 +102,9 @@ namespace ColorsAction.Unity
             hands[(int)Hand.Right] = new HandState(Hand.Right, rightSocket, 1f);
             session.Inventory.Changed += RebuildVisuals;
             RebuildVisuals();
+            // Тряска камеры идёт и во время фриз-кадров (time scale = 0).
+            if (global::Unity.Cinemachine.CinemachineImpulseManager.Instance != null)
+                global::Unity.Cinemachine.CinemachineImpulseManager.Instance.IgnoreTimeScale = true;
         }
 
         private void OnDestroy()
@@ -138,6 +142,10 @@ namespace ColorsAction.Unity
 
                 // Пустая рука ничего не держит: удар "кулаком" идёт самим кубом, без отдельной модели.
                 hand.Visual = item != null ? SpawnItem(item.Config, hand.Socket) : null;
+                hand.Trail = null;
+                if (hand.Visual != null && (item.Config.Kind == ItemKind.OneHanded || item.Config.Kind == ItemKind.TwoHanded))
+                    hand.Trail = WeaponTrail.Attach(hand.Visual, hand.Socket.parent != null ? hand.Socket.parent.parent : transform,
+                        palette.Get(item.Config.Color));
             }
         }
 
@@ -166,6 +174,7 @@ namespace ColorsAction.Unity
         {
             if (playerConfig == null)
                 return;
+            UpdateHitStop();
             var dt = Time.deltaTime;
             comboTimer -= dt;
             var control = controller.HasControl && !controller.Rolling;
@@ -299,21 +308,41 @@ namespace ColorsAction.Unity
                     Knockback = step.Knockback
                 });
                 events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.ColorBonus, color));
+                // Импакт: толчок камеры по направлению удара и фриз-кадры, у финального удара сильнее.
+                var weight = Mathf.Max(1f, step.Knockback);
                 if (impulse != null && combatConfig.HitShake > 0f)
-                    impulse.GenerateImpulseWithVelocity(controller.Forward * (combatConfig.HitShake * Mathf.Max(0.5f, step.Knockback)));
-                if (combatConfig.HitStop > 0f && !hitStopRunning)
-                    StartCoroutine(HitStop(combatConfig.HitStop));
+                    impulse.GenerateImpulseWithVelocity((controller.Forward + Vector3.down * 0.5f) * (combatConfig.HitShake * weight));
+                controller.Deformer.Impulse(-1.2f * weight);
+                if (combatConfig.HitStop > 0f)
+                    StartHitStop(combatConfig.HitStop * weight);
             }
         }
 
-        private IEnumerator HitStop(float duration)
+        /// <summary>Фриз-кадры: время стоит, пока не истечёт таймер по реальному времени кадров.</summary>
+        private void StartHitStop(float duration)
         {
-            hitStopRunning = true;
-            var previous = Time.timeScale;
-            Time.timeScale = 0.05f;
-            yield return new WaitForSecondsRealtime(duration);
-            Time.timeScale = previous <= 0.05f ? 1f : previous;
-            hitStopRunning = false;
+            if (hitStopTimer <= 0f)
+                timeScaleBeforeHitStop = Time.timeScale > 0.05f ? Time.timeScale : 1f;
+            hitStopTimer = Mathf.Max(hitStopTimer, duration);
+            Time.timeScale = 0f;
+        }
+
+        private void UpdateHitStop()
+        {
+            if (hitStopTimer <= 0f)
+                return;
+            hitStopTimer -= Time.unscaledDeltaTime;
+            if (hitStopTimer <= 0f)
+                Time.timeScale = timeScaleBeforeHitStop;
+        }
+
+        private void OnDisable()
+        {
+            if (hitStopTimer > 0f)
+            {
+                hitStopTimer = 0f;
+                Time.timeScale = timeScaleBeforeHitStop;
+            }
         }
 
         // ------------------------------------------------------------------ позы рук
@@ -348,6 +377,11 @@ namespace ColorsAction.Unity
                     Quaternion.Slerp(hand.Current.rotation, pose.rotation, k));
                 hand.Socket.localPosition = deformer.DeformPoint(hand.Current.position);
                 hand.Socket.localRotation = hand.Current.rotation;
+                if (hand.Trail != null)
+                {
+                    var t = attacking == hand ? attackTime / step.Duration : -1f;
+                    hand.Trail.Emitting = t >= step?.ActiveFrom - 0.1f && t <= step?.ActiveTo + 0.12f;
+                }
             }
         }
 
@@ -401,13 +435,15 @@ namespace ColorsAction.Unity
                 case AttackMotion.SlashRight:
                 case AttackMotion.SlashLeft:
                 {
-                    var from = 105f * s;
-                    var to = -80f * s;
-                    if (step.Motion == AttackMotion.SlashLeft)
-                        (from, to) = (to, from);
+                    // Горизонтальный взмах широкой дугой перед кубом. SlashLeft — слева направо, SlashRight — справа налево.
+                    // Tilt наклоняет плоскость: взмах начинается выше и заканчивается ниже.
+                    var leftToRight = step.Motion == AttackMotion.SlashLeft;
+                    var from = leftToRight ? -115f : 115f;
+                    var to = leftToRight ? 100f : -100f;
                     var yaw = Mathf.Lerp(from, to, p) * Mathf.Deg2Rad;
-                    var dir = new Vector3(Mathf.Sin(yaw), -0.12f, Mathf.Cos(yaw)).normalized;
-                    var pos = new Vector3(0f, 0.48f, 0.05f) + new Vector3(dir.x, 0f, dir.z) * 0.5f;
+                    var tilt = Mathf.Sin(step.Tilt * Mathf.Deg2Rad) * (1f - 2f * p);
+                    var dir = new Vector3(Mathf.Sin(yaw), -0.04f + tilt * 0.8f, Mathf.Cos(yaw)).normalized;
+                    var pos = new Vector3(0f, 0.5f + tilt * 0.25f, 0.05f) + new Vector3(dir.x, 0f, dir.z) * 0.55f;
                     return new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir));
                 }
                 case AttackMotion.Chop:
@@ -441,6 +477,7 @@ namespace ColorsAction.Unity
             public readonly float Side;
             public ItemConfig Item;
             public GameObject Visual;
+            public WeaponTrail Trail;
             public bool Holding;
             public bool ResetPose = true;
             public Pose Current = new Pose(Vector3.zero, Quaternion.identity);

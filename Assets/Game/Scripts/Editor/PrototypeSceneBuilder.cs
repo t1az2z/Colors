@@ -42,6 +42,7 @@ namespace ColorsAction.Unity.Editor
             var rim = Lit("ShieldRim", Hex("#52505C"), 0.4f);
             var dummyRed = Lit("DummyBody", Hex("#E8413C"), 0.3f, null, true);
             var dummyBase = Lit("DummyBase", Hex("#5A5A60"), 0.2f);
+            EnsureTrailMaterial();
 
             // Префабы
             CreateItemPrefab("Sword", new[] { colored, handle });
@@ -277,6 +278,20 @@ namespace ColorsAction.Unity.Editor
 
             mat.enableInstancing = true;
             EditorUtility.SetDirty(mat);
+            return mat;
+        }
+
+        /// <summary>Материал следа оружия (Resources/Materials/WeaponTrail), шейдер ColorsAction/WeaponTrail.</summary>
+        public static Material EnsureTrailMaterial()
+        {
+            const string path = Root + "/Resources/Materials/WeaponTrail.mat";
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (mat != null)
+                return mat;
+            if (!AssetDatabase.IsValidFolder(Root + "/Resources/Materials"))
+                AssetDatabase.CreateFolder(Root + "/Resources", "Materials");
+            mat = new Material(Shader.Find("ColorsAction/WeaponTrail")) { name = "WeaponTrail", renderQueue = 3000 };
+            AssetDatabase.CreateAsset(mat, path);
             return mat;
         }
 

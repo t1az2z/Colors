@@ -212,7 +212,10 @@ namespace ColorsAction.Configs
 
     public enum AttackMotion
     {
+        /// <summary>Горизонтальный взмах справа налево.</summary>
         SlashRight,
+
+        /// <summary>Горизонтальный взмах слева направо.</summary>
         SlashLeft,
         Chop,
         Thrust,
@@ -232,6 +235,12 @@ namespace ColorsAction.Configs
         public float Range { get; set; } = 1.3f;
         public float Arc { get; set; } = 150f;
         public float Knockback { get; set; } = 1f;
+
+        /// <summary>
+        /// Наклон плоскости горизонтального взмаха, градусы: 0 — строго горизонтально,
+        /// плюс — взмах начинается выше и заканчивается ниже (диагональ).
+        /// </summary>
+        public float Tilt { get; set; }
         public float StaminaCost { get; set; } = 12f;
     }
 
@@ -281,11 +290,11 @@ namespace ColorsAction.Configs
         /// <summary>Предмет для пустой руки (кулаки).</summary>
         public string UnarmedItem { get; set; } = "fists";
 
-        /// <summary>Короткая остановка времени при попадании, секунды (0 — выключено).</summary>
-        public float HitStop { get; set; } = 0.05f;
+        /// <summary>Фриз-кадры при попадании, секунды (0 — выключено). Умножается на отбрасывание удара.</summary>
+        public float HitStop { get; set; } = 0.07f;
 
         /// <summary>Сила толчка камеры при попадании (0 — выключено).</summary>
-        public float HitShake { get; set; } = 0.12f;
+        public float HitShake { get; set; } = 0.3f;
 
         /// <summary>Свечение цвета оружия в руках (доля эмиссии), чтобы оружие читалось издалека.</summary>
         public float HeldWeaponGlow { get; set; } = 0.25f;

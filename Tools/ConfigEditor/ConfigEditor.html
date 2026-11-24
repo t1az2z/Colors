@@ -352,7 +352,7 @@ const ITEM_FIELDS = [
   { k: 'comboWindow', l: 'Окно комбо', d: 'Сколько секунд после удара следующее нажатие продолжает серию.', u: U.s, min: 0, max: 1.5, step: 0.01, def: 0.35, onlyWeapon: true },
   { k: 'blockAngle', l: 'Угол блока', d: 'Сектор перед игроком, в котором щит гасит удар.', u: U.deg, min: 0, max: 360, step: 5, def: 120, onlyShield: true },
 ];
-const MOTIONS = [['SlashRight', 'Удар справа'], ['SlashLeft', 'Удар слева'], ['Chop', 'Рубящий сверху'], ['Thrust', 'Укол'], ['Punch', 'Тычок']];
+const MOTIONS = [['SlashRight', 'Горизонтальный справа налево'], ['SlashLeft', 'Горизонтальный слева направо'], ['Chop', 'Рубящий сверху вниз'], ['Thrust', 'Укол'], ['Punch', 'Тычок']];
 const STEP_FIELDS = [
   { k: 'motion', l: 'Движение', t: 'enum', opts: MOTIONS, def: 'SlashRight', d: 'Анимация удара.' },
   { k: 'duration', l: 'Длительность', u: U.s, min: 0.05, max: 1.5, step: 0.01, def: 0.38, d: 'Время всего удара.' },
@@ -362,7 +362,8 @@ const STEP_FIELDS = [
   { k: 'lunge', l: 'Выпад', u: U.bl, min: 0, max: 3, step: 0.05, def: 0.25, d: 'Насколько куб продвигается вперёд при ударе.' },
   { k: 'range', l: 'Дальность', u: U.bl, min: 0.2, max: 6, step: 0.05, def: 1.3, d: 'Дальность поражения от центра куба.' },
   { k: 'arc', l: 'Сектор', u: U.deg, min: 5, max: 360, step: 5, def: 150, d: 'Ширина сектора поражения.' },
-  { k: 'knockback', l: 'Отбрасывание', u: U.x, min: 0, max: 5, step: 0.1, def: 1, d: '' },
+  { k: 'tilt', l: 'Наклон взмаха', u: U.deg, min: -60, max: 60, step: 1, def: 0, d: 'Наклон плоскости горизонтального взмаха: 0 — строго горизонтально, плюс — начинается выше, заканчивается ниже.' },
+  { k: 'knockback', l: 'Отбрасывание', u: U.x, min: 0, max: 5, step: 0.1, def: 1, d: 'Сила отбрасывания; ещё усиливает фриз-кадры и тряску камеры при попадании.' },
   { k: 'staminaCost', l: 'Выносливость', u: U.pts, min: 0, max: 100, step: 1, def: 12, d: 'Цена удара.' },
 ];
 const SPECIALS = [
