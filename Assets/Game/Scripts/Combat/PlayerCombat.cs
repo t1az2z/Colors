@@ -58,6 +58,8 @@ namespace ColorsAction.Unity
         private int comboIndex;
         private float attackTime;
         private bool queued;
+        private bool queuedRestart;
+        private bool holdAccented;
         private float comboTimer;
         private float lungeDone;
         private float hitStopTimer;
@@ -68,7 +70,7 @@ namespace ColorsAction.Unity
         public bool LockFacing => attacking != null && attackTime > step.Duration * step.ActiveFrom * 0.5f;
         public Vector3? FacingOverride => null;
 
-        public bool CanInterruptForRoll => attacking == null || attackTime >= step.Duration * step.ActiveTo;
+        public bool CanInterruptForRoll => attacking == null || attackTime >= StrikeEnd;
 
         public float MoveMultiplier
         {
@@ -159,6 +161,8 @@ namespace ColorsAction.Unity
             }
 
             var go = Instantiate(prefab, socket, false);
+            // Хват: поворот модели вокруг оси клинка (например, рубящей кромкой вниз).
+            go.transform.localRotation = Quaternion.Euler(0f, config.GripRoll, 0f);
             if (go.TryGetComponent<ItemVisual>(out var visual))
             {
                 visual.SetColor(palette.Get(config.Color), combatConfig.HeldWeaponGlow);
@@ -209,9 +213,21 @@ namespace ColorsAction.Unity
 
             if (attacking != null)
             {
-                // Следующий удар серии ставится в очередь, если нажали в той же руке до конца удара.
-                if (attacking == actor)
+                if (attacking != actor)
+                    return;
+                // Окно комбо — фиксация финальной позы: нажатие в ней сразу запускает следующий удар.
+                if (InHold)
+                {
+                    StartAttack(actor, comboIndex + 1);
+                    return;
+                }
+
+                // Раньше — буфер: следующий удар начнётся, когда начнётся фиксация (после короткого акцента).
+                // Позже (на возврате) — серия начнётся заново, когда удар закончится.
+                if (attackTime < StrikeEnd)
                     queued = true;
+                else
+                    queuedRestart = true;
                 return;
             }
 
@@ -233,6 +249,8 @@ namespace ColorsAction.Unity
             step = next;
             attackTime = 0f;
             queued = false;
+            queuedRestart = false;
+            holdAccented = false;
             lungeDone = 0f;
             hitThisSwing.Clear();
             controller.Deformer.Impulse(-0.6f, new Vector2(0f, 0.6f));
@@ -242,6 +260,7 @@ namespace ColorsAction.Unity
         {
             attacking = null;
             queued = false;
+            queuedRestart = false;
             foreach (var hand in hands)
                 hand.ResetPose = true;
         }
@@ -249,17 +268,58 @@ namespace ColorsAction.Unity
         private void UpdateAttack(float dt)
         {
             attackTime += dt;
-            var t = attackTime / step.Duration;
-            if (t >= step.ActiveFrom && t <= step.ActiveTo)
+            var t = StepT;
+            if (attackTime < StrikeEnd && t >= step.ActiveFrom && t <= step.ActiveTo)
                 DetectHits();
 
-            if (t >= 1f)
+            if (InHold)
+            {
+                // Акцент на финальной позе: короткое сжатие куба в момент фиксации.
+                if (!holdAccented)
+                {
+                    holdAccented = true;
+                    controller.Deformer.Impulse(-1.4f);
+                }
+
+                // Буферизованное нажатие срабатывает, дав акценту прочитаться.
+                if (queued && attackTime >= StrikeEnd + step.Hold * 0.4f)
+                {
+                    StartAttack(attacking, comboIndex + 1);
+                    return;
+                }
+            }
+
+            if (attackTime >= step.Duration + step.Hold)
             {
                 var hand = attacking;
                 attacking = null;
                 comboTimer = hand.Item.ComboWindow;
                 if (queued)
                     StartAttack(hand, comboIndex + 1);
+                else if (queuedRestart)
+                    StartAttack(hand, 0);
+            }
+        }
+
+        /// <summary>Конец удара (начало фиксации финальной позы), секунды от начала атаки.</summary>
+        private float StrikeEnd => step.Duration * step.ActiveTo;
+
+        /// <summary>Идёт фиксация финальной позы — окно для следующего удара серии.</summary>
+        public bool InHold => attacking != null && attackTime >= StrikeEnd && attackTime < StrikeEnd + step.Hold;
+
+        /// <summary>
+        /// Нормированное время удара для поз и попаданий: замах и удар как есть, на фиксации стоит на конце удара,
+        /// возврат — после фиксации.
+        /// </summary>
+        private float StepT
+        {
+            get
+            {
+                if (attackTime < StrikeEnd)
+                    return attackTime / step.Duration;
+                if (attackTime < StrikeEnd + step.Hold)
+                    return step.ActiveTo;
+                return Mathf.Clamp01((attackTime - step.Hold) / step.Duration);
             }
         }
 
@@ -280,7 +340,7 @@ namespace ColorsAction.Unity
             }
 
             var d = playerConfig.Deformation;
-            var t = Mathf.Clamp01(attackTime / step.Duration);
+            var t = StepT;
             var a = Mathf.Max(0.01f, step.ActiveFrom);
             var b = Mathf.Max(a, step.ActiveTo);
             // 0..1 замах, 1 удар, затем возврат к 0.
@@ -419,7 +479,7 @@ namespace ColorsAction.Unity
                     continue;
                 Pose pose;
                 if (attacking == hand)
-                    pose = AttackPose(hand, Mathf.Clamp01(attackTime / step.Duration));
+                    pose = AttackPose(hand, StepT);
                 else if (Blocking && hand.Item.Kind == ItemKind.Shield && hand.Holding)
                     pose = BlockPose(hand);
                 else
@@ -439,7 +499,7 @@ namespace ColorsAction.Unity
                 hand.Socket.localRotation = deformer.DeformRotation(hand.Current.position) * hand.Current.rotation;
                 if (hand.Trail != null)
                 {
-                    var t = attacking == hand ? attackTime / step.Duration : -1f;
+                    var t = attacking == hand ? StepT : -1f;
                     hand.Trail.Emitting = t >= step?.ActiveFrom - 0.1f && t <= step?.ActiveTo + 0.12f;
                 }
             }

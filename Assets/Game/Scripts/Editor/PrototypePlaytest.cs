@@ -242,14 +242,25 @@ namespace ColorsAction.Unity.Editor
             var dp = dummy.transform.position;
             player.Teleport(new Vector3(dp.x, dp.y, dp.z - 1.25f), 0f);
             yield return 60;
+            var sawHold = false;
             for (int i = 0; i < 3; i++)
             {
                 input.ScriptPress(GameAction.Primary);
-                yield return 14;
+                for (int f = 0; f < 14; f++)
+                {
+                    sawHold |= combat.InHold;
+                    yield return 1;
+                }
             }
 
-            yield return 30;
-            Check(dummy.TotalDamage > 0f, $"sword combo hits the dummy: total damage {dummy.TotalDamage:F0}");
+            for (int f = 0; f < 40; f++)
+            {
+                sawHold |= combat.InHold;
+                yield return 1;
+            }
+
+            Check(dummy.TotalDamage >= 35f, $"full 3-hit sword combo lands (chained through the hold window): total damage {dummy.TotalDamage:F0}");
+            Check(sawHold, "each swing holds its final pose (combo window)");
             Check(Time.timeScale == 1f, "hit stop restores time scale");
 
             // 10. Блок щитом (левая рука, ПКМ).

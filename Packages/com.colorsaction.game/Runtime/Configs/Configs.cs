@@ -248,6 +248,12 @@ namespace ColorsAction.Configs
         /// </summary>
         public float Tilt { get; set; }
         public float StaminaCost { get; set; } = 12f;
+
+        /// <summary>
+        /// Фиксация финальной позы удара, секунды: акцент на позе и окно комбо —
+        /// нажатие в это время сразу запускает следующий удар серии.
+        /// </summary>
+        public float Hold { get; set; } = 0.12f;
     }
 
     /// <summary>Configs/Items.json — предметы и оружие.</summary>
@@ -267,8 +273,14 @@ namespace ColorsAction.Configs
         /// <summary>Путь к префабу в Resources, например "Items/Sword".</summary>
         public string Prefab { get; set; }
 
-        /// <summary>Время после удара, в которое следующее нажатие продолжает серию.</summary>
-        public float ComboWindow { get; set; } = 0.35f;
+        /// <summary>
+        /// Дополнительное время после возврата в стойку, в которое нажатие ещё продолжает серию.
+        /// 0 — серию продолжает только нажатие во время фиксации финальной позы (Hold удара).
+        /// </summary>
+        public float ComboWindow { get; set; } = 0f;
+
+        /// <summary>Поворот модели в руке вокруг оси клинка, градусы (меч — рубящей кромкой вниз).</summary>
+        public float GripRoll { get; set; }
 
         public List<AttackStepConfig> Combo { get; set; } = new List<AttackStepConfig>();
 
