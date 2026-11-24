@@ -101,7 +101,7 @@ namespace ColorsAction.Unity
             var control = HasControl;
 
             var move = control ? ReadMoveInput() : Vector3.zero;
-            var running = control && input.Held(GameAction.Run);
+            var running = control && UpdateRunState(move);
 
             if (control && input.Pressed(GameAction.Jump))
                 jumpBufferTimer = config.JumpBuffer;
@@ -150,6 +150,25 @@ namespace ColorsAction.Unity
             var camYaw = cameraTransform != null ? cameraTransform.eulerAngles.y : 0f;
             return Quaternion.Euler(0, camYaw, 0) * new Vector3(raw.x, 0, raw.y);
         }
+
+        private bool runToggled;
+
+        /// <summary>
+        /// Бег: при RunToggle кнопка (Shift / L3) включает и выключает бег, а остановка (нет ввода движения)
+        /// сбрасывает его. Без RunToggle — бег, пока кнопка зажата.
+        /// </summary>
+        private bool UpdateRunState(Vector3 move)
+        {
+            if (!config.RunToggle)
+                return input.Held(GameAction.Run);
+            if (input.Pressed(GameAction.Run))
+                runToggled = !runToggled;
+            if (move.sqrMagnitude < 0.01f)
+                runToggled = false;
+            return runToggled;
+        }
+
+        public bool Running => runToggled;
 
         private void UpdateWalk(Vector3 move, bool running, float dt)
         {

@@ -41,6 +41,9 @@ namespace ColorsAction.Configs
         // Движение
         public float WalkSpeed { get; set; } = 3.2f;
         public float RunMultiplier { get; set; } = 1.6f;
+
+        /// <summary>Кнопка бега переключает бег (сбрасывается при остановке); false — бег, пока кнопка зажата.</summary>
+        public bool RunToggle { get; set; } = true;
         public float Acceleration { get; set; } = 30f;
         public float Deceleration { get; set; } = 40f;
         public float AirControl { get; set; } = 0.6f;
