@@ -31,6 +31,19 @@ namespace ColorsAction.Unity
         }
     }
 
+    /// <summary>Успешное парирование щитом: сюда цепляются звук и VFX.</summary>
+    public readonly struct ParrySucceeded
+    {
+        public readonly Vector3 Position;
+        public readonly int Count;
+
+        public ParrySucceeded(Vector3 position, int count)
+        {
+            Position = position;
+            Count = count;
+        }
+    }
+
     /// <summary>
     /// Две руки: ЛКМ/RT — правая, ПКМ/LT — левая. Оружие в руке атакует серией ударов из конфига,
     /// щит в руке ставит блок на её кнопку, пустая рука бьёт кулаком. Двуручное оружие отвечает на обе кнопки.
@@ -74,7 +87,8 @@ namespace ColorsAction.Unity
         public bool LockFacing => attacking != null && attackTime > step.Duration * step.ActiveFrom * 0.5f;
         public Vector3? FacingOverride => null;
 
-        public bool CanInterruptForRoll => attacking == null || attackTime >= StrikeEnd;
+        /// <summary>Перекат разрешён: нет удара или удар вне своего окна запрета переката (RollLockFrom..RollLockTo).</summary>
+        public bool CanInterruptForRoll => attacking == null || !step.RollLocked(attackTime);
 
         public float MoveMultiplier
         {
@@ -206,6 +220,9 @@ namespace ColorsAction.Unity
             session.Stamina.Blocking = Blocking;
             if (Blocking && !wasBlocking && !session.Stamina.TrySpend(playerConfig.Stamina.BlockStartCost))
                 Blocking = false;
+            // Парирование: блок поставлен ровно в окно парирования вражеской атаки.
+            if (Blocking && !wasBlocking)
+                TryParry();
 
             if (attacking != null)
                 UpdateAttack(dt);
@@ -402,6 +419,44 @@ namespace ColorsAction.Unity
                     deformer.PitchTarget = d.SwingPitchForward * strike - d.SwingPitchBack * 0.5f * wind;
                     break;
             }
+        }
+
+        /// <summary>Сколько атак парировано за игру (для автотестов).</summary>
+        public int ParryCount { get; private set; }
+
+        private void TryParry()
+        {
+            var shield = hands[(int)Hand.Left].Item?.Kind == ItemKind.Shield ? hands[(int)Hand.Left].Item
+                : hands[(int)Hand.Right].Item?.Kind == ItemKind.Shield ? hands[(int)Hand.Right].Item : null;
+            if (shield == null)
+                return;
+            var count = 0;
+            var point = Vector3.zero;
+            foreach (var enemy in EnemyController.All)
+            {
+                if (enemy == null || enemy.Dead || !enemy.Brain.InParryWindow)
+                    continue;
+                var to = enemy.transform.position - transform.position;
+                to.y = 0f;
+                var reach = (enemy.Brain.Attack?.Range ?? 2f) + 0.8f;
+                if (to.magnitude > reach || Vector3.Angle(controller.Forward, to) > shield.BlockAngle * 0.5f)
+                    continue;
+                if (!enemy.TryParry(transform.position))
+                    continue;
+                count++;
+                point += enemy.HitPoint;
+            }
+
+            if (count == 0)
+                return;
+            ParryCount += count;
+            // Отдача в щит: короткое сжатие, фриз-кадры, толчок камеры.
+            controller.Deformer.SetSquash(-0.2f, -1.2f);
+            controller.Deformer.Impulse(-0.5f, new Vector2(0f, -1.8f));
+            Shake(combatConfig.ParryShake);
+            if (combatConfig.ParryHitStop > 0f)
+                StartHitStop(combatConfig.ParryHitStop);
+            events.Publish(new ParrySucceeded(point / count, count));
         }
 
         /// <summary>Толчок камеры (попадание по игроку, блок).</summary>

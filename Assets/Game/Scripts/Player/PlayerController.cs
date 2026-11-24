@@ -384,13 +384,16 @@ namespace ColorsAction.Unity
                 yaw = Mathf.Atan2(rollDirection.x, rollDirection.z) * Mathf.Rad2Deg;
             rollLocal = Quaternion.Inverse(Quaternion.Euler(0, yaw, 0)) * rollDirection;
             rollLocal.y = 0f;
-            rollLocal = rollLocal.sqrMagnitude > 0.0001f ? rollLocal.normalized : Vector3.forward;
+            // Только через грани куба: вперёд, назад, влево, вправо — без перекатов через рёбра по диагонали.
+            rollLocal = SnapToAxis(rollLocal);
+            rollDirection = Quaternion.Euler(0, yaw, 0) * rollLocal;
             rolling = true;
             rollTime = 0f;
             rollHalvesLanded = 0;
             combat?.CancelAttack();
-            // Изгиб в сторону переката перед прыжком.
+            // Изгиб и сжатие в сторону переката перед прыжком.
             deformer.Impulse(-1.5f, RollPlane * (config.Deformation.RollBend * 12f));
+            deformer.ImpulseDirectional(RollPlane, -config.Deformation.RollDirSquash * 14f);
             return true;
         }
 
@@ -435,6 +438,7 @@ namespace ColorsAction.Unity
                 angle = 180f;
                 hop = 0f;
                 deformer.BendTarget = Vector2.zero;
+                deformer.DirSquashTarget = 0f;
                 deformer.SquashTarget = d.RollLandSquash;
             }
             else
@@ -443,6 +447,9 @@ namespace ColorsAction.Unity
                 hop = Mathf.Sin(u * Mathf.PI) * config.RollHopHeight;
                 deformer.BendTarget = RollPlane * (Mathf.Sin(u * Mathf.PI) * d.RollBend);
                 deformer.SquashTarget = 0f;
+                // В полёте куб чуть сжат вдоль направления переката.
+                deformer.DirSquashAxis = RollPlane;
+                deformer.DirSquashTarget = -Mathf.Sin(u * Mathf.PI) * d.RollDirSquash;
             }
 
             // Переворот вокруг оси, перпендикулярной направлению переката: вперёд — через "лицо",
@@ -471,6 +478,7 @@ namespace ColorsAction.Unity
                 horizontalVelocity *= 0.1f;
                 deformer.BendTarget = Vector2.zero;
                 deformer.SquashTarget = 0f;
+                deformer.DirSquashTarget = 0f;
             }
         }
 
@@ -479,6 +487,16 @@ namespace ColorsAction.Unity
 
         /// <summary>Направление текущего переката в осях куба (для автотестов).</summary>
         public Vector3 RollLocalDirection => rollLocal;
+
+        /// <summary>Ближайшая из четырёх осей куба (±X, ±Z) на плоскости.</summary>
+        private static Vector3 SnapToAxis(Vector3 v)
+        {
+            if (v.sqrMagnitude < 0.0001f)
+                return Vector3.forward;
+            return Mathf.Abs(v.x) > Mathf.Abs(v.z)
+                ? new Vector3(Mathf.Sign(v.x), 0f, 0f)
+                : new Vector3(0f, 0f, Mathf.Sign(v.z));
+        }
 
         private static float EaseInOut(float x) => x * x * (3f - 2f * x);
 

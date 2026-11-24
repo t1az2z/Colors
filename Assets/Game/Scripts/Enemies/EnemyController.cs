@@ -271,6 +271,27 @@ namespace ColorsAction.Unity
         }
 
         private float parryGlint;
+        private Pose parriedFrom;
+
+        /// <summary>
+        /// Игрок поставил блок щитом: если сейчас окно парирования, атака парирована — вспышка у оружия,
+        /// оружие отскакивает, враг отшатывается и стоит с опущенным оружием (<see cref="EnemyConfig.ParriedDuration"/>).
+        /// </summary>
+        /// <returns>true — парировано.</returns>
+        public bool TryParry(Vector3 from)
+        {
+            if (brain == null || Dead || !brain.TryParry())
+                return false;
+            var away = transform.position - from;
+            away.y = 0f;
+            away = away.sqrMagnitude > 0.001f ? away.normalized : -(Quaternion.Euler(0, yaw, 0) * Vector3.forward);
+            push = away * 2.2f;
+            ParryFlash.Spawn(WeaponTip(), 0.9f);
+            return true;
+        }
+
+        /// <summary>Точка у головы дубины в мире (для вспышки).</summary>
+        private Vector3 WeaponTip() => hand != null ? hand.TransformPoint(Vector3.up * 0.55f) : HitPoint;
 
         private Vector3 Separation()
         {
@@ -343,6 +364,13 @@ namespace ColorsAction.Unity
                 case EnemyState.Idle:
                     marker.Hide();
                     break;
+                case EnemyState.Parried:
+                    // Отдача: оружие отскакивает из текущей позы, куб сжимается и откидывается назад.
+                    parriedFrom = handPose;
+                    deformer.SetSquash(-0.3f, -2f);
+                    deformer.Impulse(-1f, new Vector2(0f, -3.5f));
+                    flash = 0.08f;
+                    break;
                 case EnemyState.Dead:
                     Die();
                     break;
@@ -413,7 +441,7 @@ namespace ColorsAction.Unity
             if (brain == null || hand == null)
                 return;
             var pose = HandPose();
-            var k = brain.IsAttacking ? 1f : 1f - Mathf.Exp(-Time.deltaTime * 14f);
+            var k = brain.IsAttacking || brain.State == EnemyState.Parried ? 1f : 1f - Mathf.Exp(-Time.deltaTime * 14f);
             handPose = k >= 1f ? pose : PlayerCombat.AroundBody(handPose, pose, k);
             hand.localPosition = deformer.DeformPoint(handPose.position);
             if (parryGlint > 0f)
@@ -424,8 +452,39 @@ namespace ColorsAction.Unity
 
         private static Pose Rest => new Pose(new Vector3(0.68f, 0.42f, 0.12f), Quaternion.Euler(22f, 0f, -20f));
 
+        /// <summary>Отскок после парирования: оружие выбито вверх-назад.</summary>
+        private static Pose ParryRecoil => new Pose(new Vector3(0.62f, 0.95f, -0.28f),
+            Quaternion.FromToRotation(Vector3.up, new Vector3(0.25f, 0.75f, -0.62f).normalized));
+
+        /// <summary>Опущенное оружие: дубина у бедра концом вниз-вперёд.</summary>
+        private static Pose Lowered => new Pose(new Vector3(0.64f, 0.24f, 0.18f),
+            Quaternion.FromToRotation(Vector3.up, new Vector3(0.18f, -0.72f, 0.67f).normalized));
+
+        private Pose ParriedPose(float t)
+        {
+            const float bounce = 0.14f, lower = 0.5f;
+            if (t < bounce)
+            {
+                var u = t / bounce;
+                return PlayerCombat.AroundBody(parriedFrom, ParryRecoil, 1f - (1f - u) * (1f - u));
+            }
+
+            if (t < lower)
+            {
+                var u = (t - bounce) / (lower - bounce);
+                return PlayerCombat.AroundBody(ParryRecoil, Lowered, u * u * (3f - 2f * u));
+            }
+
+            // Стоит с опущенным оружием, дубина чуть покачивается.
+            var pose = Lowered;
+            pose.position += new Vector3(0f, Mathf.Sin(t * 5f) * 0.015f, 0f);
+            return pose;
+        }
+
         private Pose HandPose()
         {
+            if (brain.State == EnemyState.Parried)
+                return ParriedPose(brain.StateTime);
             var attack = brain.Attack;
             if (attack == null)
                 return Rest;
@@ -514,6 +573,15 @@ namespace ColorsAction.Unity
                         pitch = (sweep ? 10f : 28f) * k;
                         break;
                 }
+            }
+
+            if (state == EnemyState.Parried)
+            {
+                // Отшатнулся назад, потом обмяк: поклон вперёд с опущенным оружием.
+                var t = brain.StateTime;
+                pitch = t < 0.2f ? -16f : 7f;
+                twist = 0f;
+                deformer.SquashTarget = t < 0.2f ? 0f : -0.06f;
             }
 
             deformer.TwistTarget = twist;

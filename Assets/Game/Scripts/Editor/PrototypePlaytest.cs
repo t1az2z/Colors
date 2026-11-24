@@ -280,6 +280,21 @@ namespace ColorsAction.Unity.Editor
             Check(sawHold, "each swing holds its final pose (combo window)");
             Check(Time.timeScale == 1f, "hit stop restores time scale");
 
+            // 9б. Во время удара перекат запрещён (окно RollLockFrom..RollLockTo, по умолчанию весь удар).
+            yield return 60;
+            input.ScriptPress(GameAction.Primary);
+            yield return 4;
+            input.ScriptPress(GameAction.Roll);
+            var rolledDuringAttack = false;
+            for (int f = 0; f < 90; f++)
+            {
+                rolledDuringAttack |= player.Rolling && combat.IsBusy;
+                yield return 1;
+            }
+
+            Check(!rolledDuringAttack, "no roll during an attack (roll lock window)");
+            yield return 30;
+
             // 10. Блок щитом (левая рука, ПКМ).
             yield return 60;
             stamina = session.Stamina.Current.Value;
@@ -351,6 +366,30 @@ namespace ColorsAction.Unity.Editor
             Check(lockError < 10f, $"after the roll the player turns back to the target: error {lockError:F1}");
             input.ScriptPress(GameAction.LockOn);
             yield return 3;
+            // Диагональный ввод — перекат всё равно через грань (вперёд/назад/вбок), не через ребро.
+            input.ScriptPress(GameAction.LockOn);
+            yield return 40;
+            var diagonal = (ToDummy() + Vector3.Cross(Vector3.up, ToDummy())).normalized;
+            input.ScriptedMove = Dir(-diagonal);
+            input.ScriptPress(GameAction.Roll);
+            var axisRoll = true;
+            var sawDiagonalRoll = false;
+            for (int i = 0; i < 40; i++)
+            {
+                yield return 1;
+                if (!player.Rolling)
+                    continue;
+                input.ScriptedMove = null;
+                sawDiagonalRoll = true;
+                var l = player.RollLocalDirection;
+                axisRoll &= Mathf.Abs(Mathf.Abs(l.x) + Mathf.Abs(l.z) - 1f) < 0.01f && (Mathf.Abs(l.x) < 0.01f || Mathf.Abs(l.z) < 0.01f);
+            }
+
+            input.ScriptedMove = null;
+            Check(sawDiagonalRoll && axisRoll, "locked diagonal input rolls over a face, never over an edge");
+            yield return 30;
+            input.ScriptPress(GameAction.LockOn);
+            yield return 3;
             Check(!lockOn.Active, "second press releases the lock");
 
             // 11. Вторая схема: 4 угла камеры на Q/E (LB/RB), правый стик задаёт взгляд.
@@ -420,10 +459,18 @@ namespace ColorsAction.Unity.Editor
                 var maxStriking = 0;
                 var windupFrames = 0;
                 var hitFrame = -1;
+                var minChaseDistance = float.MaxValue;
                 var invulnerableAfterHit = false;
                 for (int f = 0; f < 60 * 7; f++)
                 {
                     sawAlert |= first.Brain.State == ColorsAction.Combat.EnemyState.Alerted;
+                    if (first.Brain.State == ColorsAction.Combat.EnemyState.Chase)
+                    {
+                        var d = first.transform.position - player.transform.position;
+                        d.y = 0f;
+                        minChaseDistance = Mathf.Min(minChaseDistance, d.magnitude);
+                    }
+
                     foreach (var e in enemies)
                         if (e != null && e.Brain.State == ColorsAction.Combat.EnemyState.Windup)
                             windupFrames++;
@@ -442,6 +489,9 @@ namespace ColorsAction.Unity.Editor
                 }
 
                 Check(sawAlert, "enemy notices the player and shows the alert");
+                if (minChaseDistance < float.MaxValue)
+                    Check(minChaseDistance >= first.Brain.Config.ApproachDistance - 0.35f,
+                        $"chasing enemy stops at a short distance, not point-blank: min {minChaseDistance:F2} (approach {first.Brain.Config.ApproachDistance:F2})");
                 Check(sawWindup && windupFrames >= 60, $"attack has a long readable wind-up: {windupFrames / 60f:F1} s of wind-up seen");
                 Check(maxStriking <= 1, $"two enemies never strike at the same time: {maxStriking}");
                 Check(hitFrame >= 0, $"enemy hits the player: hp {hpBefore:F0} -> {session.Vitals.Health.Current.Value:F0}");
@@ -463,6 +513,59 @@ namespace ColorsAction.Unity.Editor
                 Check(target == null || target.Dead, "enemy dies from sword hits");
                 yield return 150;
                 Check(session.Experience.Value > xpBefore, $"shards fly to the player as experience: {xpBefore} -> {session.Experience.Value}");
+
+                // 16. Парирование: блок щитом в окно парирования — вспышка, оружие отскакивает, враг стоит ~1 с.
+                EnemyController foe = null;
+                foreach (var e in EnemyController.All)
+                    if (e != null && !e.Dead)
+                    {
+                        foe = e;
+                        break;
+                    }
+
+                if (foe != null)
+                {
+                    var fp = foe.transform.position;
+                    var toFoe = new Vector3(0f, 0f, 1f);
+                    player.Teleport(fp - toFoe * 1.6f, 0f);
+                    input.ClearScripted();
+                    var parriesBefore = combat.ParryCount;
+                    var parried = false;
+                    var flashSeen = false;
+                    for (int f = 0; f < 60 * 8 && !parried; f++)
+                    {
+                        // Бьёт тот, у кого право атаки; блок ставим лицом к нему ровно в окно парирования.
+                        EnemyController striker = null;
+                        foreach (var e in EnemyController.All)
+                            if (e != null && !e.Dead && e.Brain.InParryWindow)
+                                striker = e;
+                        if (striker != null)
+                        {
+                            foe = striker;
+                            var face = foe.transform.position - player.transform.position;
+                            face.y = 0f;
+                            player.Teleport(player.transform.position, Mathf.Atan2(face.x, face.z) * Mathf.Rad2Deg);
+                            input.ScriptHold(GameAction.Secondary, true);
+                            yield return 2;
+                            parried = foe.Brain.State == ColorsAction.Combat.EnemyState.Parried;
+                            flashSeen = Object.FindAnyObjectByType<ParryFlash>() != null;
+                            break;
+                        }
+
+                        yield return 1;
+                    }
+
+                    input.ScriptHold(GameAction.Secondary, false);
+                    Check(parried && combat.ParryCount > parriesBefore, $"block in the parry window parries the attack: {foe.Brain.State}");
+                    Check(flashSeen, "parry shows a flash");
+                    if (parried)
+                    {
+                        yield return 50;
+                        Check(foe.Brain.State == ColorsAction.Combat.EnemyState.Parried, "parried enemy stands with the weapon lowered");
+                        yield return Mathf.CeilToInt(foe.Brain.Config.ParriedDuration * 60f);
+                        Check(foe.Brain.State != ColorsAction.Combat.EnemyState.Parried, "after the stun the enemy fights again");
+                    }
+                }
             }
 
             session.ControlScheme.Value = startScheme;

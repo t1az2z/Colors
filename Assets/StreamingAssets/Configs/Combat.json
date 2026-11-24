@@ -12,5 +12,7 @@
   "lockOnTurnSpeed": 900,
   "lockOnCameraSpeed": 4,
   "lockOnSwitchStick": 0.7,
-  "lockOnSwitchMouse": 120
+  "lockOnSwitchMouse": 120,
+  "parryHitStop": 0.12,
+  "parryShake": 0.35
 }

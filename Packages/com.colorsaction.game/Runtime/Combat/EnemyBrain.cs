@@ -17,6 +17,8 @@ namespace ColorsAction.Combat
         Recovery,
         /// <summary>Отшатнулся от удара.</summary>
         Staggered,
+        /// <summary>Атаку парировали: оружие отскочило, враг стоит с опущенным оружием.</summary>
+        Parried,
         Dead
     }
 
@@ -164,7 +166,7 @@ namespace ColorsAction.Combat
                         SetState(EnemyState.Waiting);
                     }
 
-                    return new EnemyIntent(Config.MoveSpeed, true);
+                    return new EnemyIntent(ApproachSpeed(distance), true);
 
                 case EnemyState.Waiting:
                     if (!playerAvailable || distance > Config.LoseRadius)
@@ -188,7 +190,7 @@ namespace ColorsAction.Combat
                     // Ждём за спиной игрока; следующий в очереди подходит на дистанцию своего удара,
                     // чтобы начать замах точно вовремя и ударить сразу после текущего врага.
                     var place = director.QueueIndex(Id);
-                    var close = place == 0 ? Math.Max(0.8f, Config.MaxAttackRange * 0.8f) : Config.WaitDistance;
+                    var close = place == 0 ? Math.Max(Config.ApproachDistance, Config.MaxAttackRange * 0.8f) : Config.WaitDistance;
                     return new EnemyIntent(Config.MoveSpeed, true, true, close, place);
 
                 case EnemyState.Windup:
@@ -223,6 +225,11 @@ namespace ColorsAction.Combat
                     if (StateTime >= Config.StaggerDuration)
                         SetState(EnemyState.Chase);
                     return new EnemyIntent(0f, false);
+
+                case EnemyState.Parried:
+                    if (StateTime >= Config.ParriedDuration)
+                        SetState(EnemyState.Chase);
+                    return new EnemyIntent(0f, false);
             }
 
             return new EnemyIntent(0f, false);
@@ -234,7 +241,8 @@ namespace ColorsAction.Combat
         /// </summary>
         public bool OnDamaged()
         {
-            if (State == EnemyState.Dead)
+            // Парированный враг стоит открытым: урон проходит, но оглушение не сбивается.
+            if (State == EnemyState.Dead || State == EnemyState.Parried)
                 return false;
             if (State == EnemyState.Windup)
             {
@@ -252,6 +260,41 @@ namespace ColorsAction.Combat
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Игрок поставил блок в окно парирования текущей атаки. Атака срывается, право атаки отдаётся следующему,
+        /// враг на <see cref="EnemyConfig.ParriedDuration"/> встаёт с опущенным оружием.
+        /// </summary>
+        /// <returns>true — атака парирована (было окно парирования).</returns>
+        public bool TryParry()
+        {
+            if (!InParryWindow)
+                return false;
+            ParriedAttack = Attack;
+            director.Release(Id);
+            director.Leave(Id);
+            Attack = null;
+            cooldown = Config.AttackCooldown;
+            SetState(EnemyState.Parried);
+            return true;
+        }
+
+        /// <summary>Последняя парированная атака (для анимации отскока оружия).</summary>
+        public EnemyAttackConfig ParriedAttack { get; private set; }
+
+        /// <summary>
+        /// Скорость погони: до <see cref="EnemyConfig.ApproachDistance"/> — бегом, на ней — стоит,
+        /// если игрок сам подошёл заметно ближе — неспешно отступает.
+        /// </summary>
+        private float ApproachSpeed(float distance)
+        {
+            var stop = Config.ApproachDistance;
+            if (distance > stop)
+                return Math.Min(Config.MoveSpeed, (distance - stop) * 6f);
+            if (distance < stop - 0.4f)
+                return -Config.MoveSpeed * 0.35f;
+            return 0f;
         }
 
         private void Engage(float distance)

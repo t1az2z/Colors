@@ -26,6 +26,7 @@ namespace ColorsAction.Unity
         private Spring leanX, leanZ;
         private Spring twist;
         private Spring pitch;
+        private Spring dirSquash;
 
         /// <summary>Целевое сжатие: &lt;0 — сплющен, &gt;0 — вытянут.</summary>
         public float SquashTarget { get; set; }
@@ -44,6 +45,13 @@ namespace ColorsAction.Unity
         /// Угол растёт к верху квадратично, поэтому верх загибается над передней гранью, а низ стоит.
         /// </summary>
         public float PitchTarget { get; set; }
+
+        /// <summary>
+        /// Сжатие вдоль горизонтального направления <see cref="DirSquashAxis"/> (координаты меша X/Z):
+        /// &lt;0 — куб сплющен в эту сторону (и чуть вытянут вверх), &gt;0 — вытянут.
+        /// </summary>
+        public float DirSquashTarget { get; set; }
+        public Vector2 DirSquashAxis { get; set; } = new Vector2(0f, 1f);
 
         public float Squash => squash.Value;
 
@@ -118,6 +126,14 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>Толчок пружин: скорость сжатия и изгиба. Отсюда вобблинг.</summary>
+        /// <summary>Толчок сжатия вдоль направления (например, в сторону переката).</summary>
+        public void ImpulseDirectional(Vector2 axis, float velocity)
+        {
+            if (axis.sqrMagnitude > 1e-4f)
+                DirSquashAxis = axis.normalized;
+            dirSquash.Velocity += velocity;
+        }
+
         public void Impulse(float squashVelocity, Vector2 bendVelocity = default)
         {
             squash.Velocity += squashVelocity;
@@ -128,8 +144,8 @@ namespace ColorsAction.Unity
         public void ResetShape()
         {
             squash = default;
-            bendX = bendZ = leanX = leanZ = twist = pitch = default;
-            TwistTarget = PitchTarget = 0f;
+            bendX = bendZ = leanX = leanZ = twist = pitch = dirSquash = default;
+            TwistTarget = PitchTarget = DirSquashTarget = 0f;
             SquashTarget = 0;
             BendTarget = LeanTarget = Vector2.zero;
         }
@@ -151,9 +167,11 @@ namespace ColorsAction.Unity
                 leanZ.Step(LeanTarget.y, stiffness * 0.6f, damping, h);
                 twist.Step(TwistTarget, stiffness * 0.9f, damping * 0.8f, h);
                 pitch.Step(PitchTarget, stiffness * 0.9f, damping, h);
+                dirSquash.Step(DirSquashTarget, stiffness, damping, h);
             }
 
             squash.Value = Mathf.Clamp(squash.Value, -0.6f, 0.8f);
+            dirSquash.Value = Mathf.Clamp(dirSquash.Value, -0.5f, 0.5f);
 
             for (int i = 0; i < rest.Length; i++)
                 work[i] = DeformPoint(dents != null ? rest[i] + dents[i] : rest[i]);
@@ -171,6 +189,18 @@ namespace ColorsAction.Unity
             var t2 = t * t;
             var x = p.x * sxz;
             var z = p.z * sxz;
+            var y = p.y * sy;
+            // Сжатие вдоль направления: проекция на ось масштабируется, объём уходит вверх.
+            var ds = dirSquash.Value;
+            if (Mathf.Abs(ds) > 1e-4f)
+            {
+                var axis = DirSquashAxis;
+                var along = x * axis.x + z * axis.y;
+                x += axis.x * along * ds;
+                z += axis.y * along * ds;
+                y *= 1f - ds * 0.5f;
+            }
+
             // Скручивание: угол растёт от низа к верху (плавно), как у закручиваемого бруска.
             var angle = twist.Value * Mathf.Deg2Rad * t * (2f - t);
             if (Mathf.Abs(angle) > 1e-4f)
@@ -183,7 +213,6 @@ namespace ColorsAction.Unity
                 z = rz;
             }
 
-            var y = p.y * sy;
             // Поклон: поворот вокруг горизонтальной оси у основания, угол ~ высота².
             var pitchAngle = pitch.Value * Mathf.Deg2Rad * t2;
             if (Mathf.Abs(pitchAngle) > 1e-4f)

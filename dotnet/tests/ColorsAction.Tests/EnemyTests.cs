@@ -149,6 +149,49 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void Chase_StopsAtApproachDistance_NotPointBlank()
+        {
+            var config = Club();
+            config.ApproachDistance = 1.3f;
+            // Удары, которые с этих дистанций не достают, чтобы враг именно шёл, а не бил.
+            config.Attacks.ForEach(a => a.Range = 0.3f);
+            config.OnConfigLoaded();
+            var brain = new EnemyBrain(1, config, Director(), 1);
+            Run(brain, 2.2f, 4f);
+            Assert.That(brain.State, Is.EqualTo(EnemyState.Chase));
+            Assert.That(brain.Tick(0.02f, 4f).MoveSpeed, Is.EqualTo(config.MoveSpeed), "far: runs");
+            Assert.That(brain.Tick(0.02f, 1.3f).MoveSpeed, Is.EqualTo(0f), "at approach distance: stands");
+            Assert.That(brain.Tick(0.02f, 0.5f).MoveSpeed, Is.LessThan(0f), "player came too close: backs off");
+        }
+
+        [Test]
+        public void Parry_OnlyInWindow_StunsWithLoweredWeapon_ThenChases()
+        {
+            var config = Club();
+            config.ParriedDuration = 1f;
+            config.Attacks.ForEach(a => { a.ParryFrom = -0.2f; a.ParryTo = 0.05f; });
+            config.OnConfigLoaded();
+            var director = Director();
+            var brain = new EnemyBrain(1, config, director, 1);
+            Run(brain, 2.1f, 1.2f, director);
+            Assert.That(brain.State, Is.EqualTo(EnemyState.Windup));
+            Assert.That(brain.TryParry(), Is.False, "too early");
+            while (!brain.InParryWindow)
+                brain.Tick(0.02f, 1.2f);
+            Assert.That(brain.TryParry(), Is.True);
+            Assert.That(brain.State, Is.EqualTo(EnemyState.Parried));
+            Assert.That(brain.ParriedAttack, Is.Not.Null);
+            Assert.That(director.Attackers, Is.Empty, "attack right goes to the next enemy");
+            brain.Health.TakeDamage(5);
+            Assert.That(brain.OnDamaged(), Is.False);
+            Assert.That(brain.State, Is.EqualTo(EnemyState.Parried), "hits don't break the stun");
+            Run(brain, 0.9f, 1.2f, director);
+            Assert.That(brain.State, Is.EqualTo(EnemyState.Parried));
+            Run(brain, 0.2f, 1.2f, director);
+            Assert.That(brain.State, Is.Not.EqualTo(EnemyState.Parried));
+        }
+
+        [Test]
         public void HitDuringWindup_InterruptsAttack_AndReleasesDirector()
         {
             var config = Club();

@@ -160,6 +160,22 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void RollLockWindow_DefaultsToWholeAttack_AndIsConfigurablePerStep()
+        {
+            var step = new AttackStepConfig { Windup = 0.2f, Strike = 0.1f, Recovery = 0.2f, Hold = 0.2f };
+            step.Normalize();
+            Assert.That(step.TotalTime(), Is.EqualTo(0.7f).Within(1e-4f));
+            Assert.That(step.RollLocked(0f) && step.RollLocked(0.69f), Is.True, "by default no roll during the whole attack");
+            Assert.That(step.RollLocked(0.71f), Is.False);
+
+            step.RollLockFrom = 0.1f;
+            step.RollLockTo = 0.3f;
+            Assert.That(step.RollLocked(0.05f), Is.False, "early wind-up can be cancelled");
+            Assert.That(step.RollLocked(0.2f), Is.True);
+            Assert.That(step.RollLocked(0.4f), Is.False, "recovery can be cancelled");
+        }
+
+        [Test]
         public void SameColor_GivesDamageBonus()
         {
             using var host = CreateHost();

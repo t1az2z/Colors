@@ -92,6 +92,15 @@ namespace ColorsAction.Configs
         /// <summary>Пока атакует другой враг, этот держится на такой дистанции от игрока (заходя за спину).</summary>
         public float WaitDistance { get; set; } = 3.2f;
 
+        /// <summary>
+        /// Погоня: враг подходит к игроку на это расстояние и дальше не напирает (не впритык).
+        /// Если игрок подошёл ближе — отступает. Атакует ударами, которые достают с этой дистанции.
+        /// </summary>
+        public float ApproachDistance { get; set; } = 1.3f;
+
+        /// <summary>После парирования: враг стоит с опущенным оружием столько секунд.</summary>
+        public float ParriedDuration { get; set; } = 1f;
+
         /// <summary>Насколько стремится зайти игроку за спину, пока ждёт очереди: 0 — где стоит, 1 — точно сзади.</summary>
         public float FlankBias { get; set; } = 1f;
 

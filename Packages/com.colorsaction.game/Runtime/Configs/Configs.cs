@@ -155,6 +155,9 @@ namespace ColorsAction.Configs
         public float RollBend { get; set; } = 0.18f;
         public float RollLandSquash { get; set; } = -0.25f;
 
+        /// <summary>Сжатие куба вдоль направления переката (в сторону переката) на толчке и в полёте, доля.</summary>
+        public float RollDirSquash { get; set; } = 0.22f;
+
         public float HitSquash { get; set; } = -0.15f;
 
         /// <summary>Скручивание куба при взмахе, градусы у верха: замах — против взмаха, удар — по взмаху.</summary>
@@ -302,10 +305,30 @@ namespace ColorsAction.Configs
         /// нажатие в это время сразу запускает следующий удар серии.
         /// </summary>
         public float Hold { get; set; } = 0.22f;
+
+        /// <summary>
+        /// Окно, в котором перекат запрещён, секунды от начала удара (замах + удар + фиксация + возврат).
+        /// <see cref="RollLockTo"/> &lt; 0 — до конца удара. Нажатие переката в окне запоминается на короткое время.
+        /// </summary>
+        public float RollLockFrom { get; set; }
+        public float RollLockTo { get; set; } = -1f;
     }
 
     public static class AttackStepTiming
     {
+        /// <summary>Полная длительность удара с фиксацией позы, секунды.</summary>
+        public static float TotalTime(this AttackStepConfig step) => step.Duration + step.Hold;
+
+        /// <summary>
+        /// Перекат запрещён в момент <paramref name="time"/> (секунды от начала удара):
+        /// внутри окна <see cref="AttackStepConfig.RollLockFrom"/>..<see cref="AttackStepConfig.RollLockTo"/>.
+        /// </summary>
+        public static bool RollLocked(this AttackStepConfig step, float time)
+        {
+            var end = step.RollLockTo < 0f ? step.TotalTime() : step.RollLockTo;
+            return time >= step.RollLockFrom && time <= end;
+        }
+
         /// <summary>
         /// Приводит тайминг удара к одному виду: фазы в секундах (Windup, Strike, Recovery) и согласованные с ними
         /// Duration/ActiveFrom/ActiveTo. Если фазы не заданы, они считаются из старых полей (перепутанные границы
@@ -442,6 +465,12 @@ namespace ColorsAction.Configs
 
         /// <summary>Рывок мышью для переключения цели, пикселей (схема А).</summary>
         public float LockOnSwitchMouse { get; set; } = 120f;
+
+        /// <summary>Успешное парирование: фриз-кадры, секунды.</summary>
+        public float ParryHitStop { get; set; } = 0.12f;
+
+        /// <summary>Успешное парирование: толчок камеры.</summary>
+        public float ParryShake { get; set; } = 0.35f;
     }
 
     /// <summary>Configs/Dummy.json — тренировочный манекен.</summary>
