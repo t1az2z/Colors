@@ -22,11 +22,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  # Сборка и публикация разнесены по двум заданиям (как в шаблоне GitHub): если deploy-pages
+  # запускать сразу после загрузки в том же задании, он иногда не находит артефакт.
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,8 +49,16 @@ jobs:
           ls -R _site
 
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
