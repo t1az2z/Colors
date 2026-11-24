@@ -211,7 +211,7 @@ namespace ColorsAction.Tests
             Assert.That(club.Attacks.Count, Is.EqualTo(2));
             var sweep = club.Attacks.Find(a => a.Motion == EnemyAttackMotion.Sweep);
             var overhead = club.Attacks.Find(a => a.Motion == EnemyAttackMotion.Overhead);
-            Assert.That(sweep.Windup, Is.GreaterThanOrEqualTo(0.8f), "readable wind-up");
+            Assert.That(sweep.Windup, Is.GreaterThanOrEqualTo(0.3f), "readable wind-up (tuned by the user in the config editor)");
             Assert.That(sweep.Strike, Is.LessThan(sweep.Windup / 3f), "sharp strike");
             Assert.That(overhead.Range, Is.GreaterThan(sweep.Range), "overhead reaches further");
             Assert.That(overhead.Arc, Is.LessThan(sweep.Arc), "but is narrower");

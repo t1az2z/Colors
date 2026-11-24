@@ -421,6 +421,27 @@ namespace ColorsAction.Configs
 
         /// <summary>Пауза между концом удара одного врага и ударом следующего, секунды.</summary>
         public float AttackerGap { get; set; } = 0.25f;
+
+        /// <summary>Фиксация на цели: в каком радиусе ищется цель, метры.</summary>
+        public float LockOnRange { get; set; } = 12f;
+
+        /// <summary>Фиксация снимается, если цель дальше этого, метры.</summary>
+        public float LockOnBreakRange { get; set; } = 16f;
+
+        /// <summary>Цель в стороне от взгляда камеры считается дальше на столько метров за каждые 90°.</summary>
+        public float LockOnAnglePenalty { get; set; } = 4f;
+
+        /// <summary>Скорость поворота персонажа к цели, градусов в секунду.</summary>
+        public float LockOnTurnSpeed { get; set; } = 900f;
+
+        /// <summary>Свободная камера (схема А) доворачивается за спину персонажу, чтобы цель была в кадре; 0 — не доворачивать.</summary>
+        public float LockOnCameraSpeed { get; set; } = 4f;
+
+        /// <summary>Порог отклонения правого стика для переключения цели (0..1).</summary>
+        public float LockOnSwitchStick { get; set; } = 0.7f;
+
+        /// <summary>Рывок мышью для переключения цели, пикселей (схема А).</summary>
+        public float LockOnSwitchMouse { get; set; } = 120f;
     }
 
     /// <summary>Configs/Dummy.json — тренировочный манекен.</summary>

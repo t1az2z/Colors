@@ -18,14 +18,15 @@ namespace ColorsAction.Unity
         Cancel,
         CameraLeft,
         CameraRight,
-        SwitchScheme
+        SwitchScheme,
+        LockOn
     }
 
     /// <summary>
     /// Весь ввод игры по GDD: клавиатура+мышь и геймпад. Привязки описаны здесь, в одном месте.
     /// <para>Геймплей: WASD/левый стик — ходьба, LShift/L3 — бег, Пробел/A — прыжок, Alt/B — перекат,
     /// ЛКМ/RT — правая рука, ПКМ/LT — левая рука, F/X — взаимодействие, TAB/Y — инвентарь,
-    /// 1–4/D-pad — предметы, мышь/правый стик — вращение камеры (FreeOrbit), Q/E и LB/RB — поворот камеры на 90° (FixedAngles), колесо — зум.</para>
+    /// 1–4/D-pad — предметы, СКМ/R3 — фиксация на цели, мышь/правый стик — вращение камеры (FreeOrbit), Q/E и LB/RB — поворот камеры на 90° (FixedAngles), колесо — зум.</para>
     /// <para>Интерфейс: стрелки/D-pad/левый стик — навигация, Enter/A — выбрать, Esc/B — назад.</para>
     /// </summary>
     [DefaultExecutionOrder(-1100)]
@@ -45,6 +46,9 @@ namespace ColorsAction.Unity
         public InputAction CameraStick { get; private set; }
         public InputAction CameraLeft { get; private set; }
         public InputAction CameraRight { get; private set; }
+
+        /// <summary>Фиксация на цели: средняя кнопка мыши / R3.</summary>
+        public InputAction LockOn { get; private set; }
 
         /// <summary>Переключение схемы управления А/Б для сравнения в прототипе: F1 / Select (View).</summary>
         public InputAction SwitchScheme { get; private set; }
@@ -110,6 +114,7 @@ namespace ColorsAction.Unity
                 case GameAction.CameraLeft: return CameraLeft;
                 case GameAction.CameraRight: return CameraRight;
                 case GameAction.SwitchScheme: return SwitchScheme;
+                case GameAction.LockOn: return LockOn;
                 default: return Cancel;
             }
         }
@@ -196,6 +201,10 @@ namespace ColorsAction.Unity
             CameraRight = player.AddAction("CameraRight", InputActionType.Button);
             CameraRight.AddBinding("<Gamepad>/rightShoulder");
             CameraRight.AddBinding("<Keyboard>/e");
+
+            LockOn = player.AddAction("LockOn", InputActionType.Button);
+            LockOn.AddBinding("<Mouse>/middleButton");
+            LockOn.AddBinding("<Gamepad>/rightStickPress");
 
             SwitchScheme = player.AddAction("SwitchScheme", InputActionType.Button);
             SwitchScheme.AddBinding("<Keyboard>/f1");
@@ -290,6 +299,7 @@ namespace ColorsAction.Unity
                 case "run": return UsingGamepad ? "L3" : "Shift";
                 case "cameraTurn": return UsingGamepad ? "LB / RB" : "Q / E";
                 case "switchScheme": return UsingGamepad ? "Select" : "F1";
+                case "lockOn": return UsingGamepad ? "R3" : "СКМ";
                 default: return action;
             }
         }

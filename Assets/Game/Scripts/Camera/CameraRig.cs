@@ -21,6 +21,7 @@ namespace ColorsAction.Unity
         private GameInput input;
         private GameSession session;
         private CinemachineOrbitalFollow orbit;
+        private PlayerLockOn lockOn;
         private float yaw;
         private float targetYaw;
         private float distance;
@@ -92,6 +93,15 @@ namespace ColorsAction.Unity
                     StartTurn(targetYaw + config.FixedAngleStep);
                 Zoom();
             }
+            else if (control && LockedYaw(out var lockedYaw))
+            {
+                // Фиксация на цели: камера плавно уходит за спину персонажу, цель — в кадре.
+                // Мышь и правый стик в это время переключают цель, камеру не крутят.
+                var speed = lockOn.Config.LockOnCameraSpeed;
+                yaw = Mathf.LerpAngle(yaw, lockedYaw, 1f - Mathf.Exp(-speed * Time.unscaledDeltaTime));
+                Zoom();
+                targetYaw = yaw;
+            }
             else if (control)
             {
                 var mouse = Mouse.current;
@@ -117,6 +127,21 @@ namespace ColorsAction.Unity
             }
 
             Apply();
+        }
+
+        private bool LockedYaw(out float value)
+        {
+            value = 0f;
+            if (lockOn == null && followTarget != null)
+                lockOn = followTarget.GetComponentInParent<PlayerLockOn>();
+            if (lockOn == null || !lockOn.Active || lockOn.Config.LockOnCameraSpeed <= 0f || followTarget == null)
+                return false;
+            var to = lockOn.TargetPoint - followTarget.position;
+            to.y = 0f;
+            if (to.sqrMagnitude < 0.25f)
+                return false;
+            value = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+            return true;
         }
 
         /// <summary>Текущий целевой угол схемы Б (для автотестов и HUD).</summary>

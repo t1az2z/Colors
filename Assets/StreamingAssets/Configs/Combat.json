@@ -5,5 +5,12 @@
   "hitShake": 0.3,
   "heldWeaponGlow": 0.25,
   "maxAttackers": 3,
-  "attackerGap": 0.25
+  "attackerGap": 0.25,
+  "lockOnRange": 12,
+  "lockOnBreakRange": 16,
+  "lockOnAnglePenalty": 4,
+  "lockOnTurnSpeed": 900,
+  "lockOnCameraSpeed": 4,
+  "lockOnSwitchStick": 0.7,
+  "lockOnSwitchMouse": 120
 }

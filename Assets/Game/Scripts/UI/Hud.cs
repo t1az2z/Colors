@@ -193,8 +193,8 @@ namespace ColorsAction.Unity
             weapons[(int)Hand.Left].SetKey(input.Label("secondary"));
 
             schemeLabel.text = session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FixedAngles
-                ? $"Схема Б  ·  [{input.Label("cameraTurn")}] поворот камеры  ·  [{input.Label("switchScheme")}] схема А"
-                : $"Схема А  ·  [{input.Label("switchScheme")}] схема Б";
+                ? $"Схема Б  ·  [{input.Label("cameraTurn")}] поворот камеры  ·  [{input.Label("lockOn")}] фиксация  ·  [{input.Label("switchScheme")}] схема А"
+                : $"Схема А  ·  [{input.Label("lockOn")}] фиксация  ·  [{input.Label("switchScheme")}] схема Б";
 
             var target = interactor != null ? interactor.Target : null;
             prompt.text = target != null ? $"[{input.Label("interact")}]  взять: {target.DisplayName}" : string.Empty;

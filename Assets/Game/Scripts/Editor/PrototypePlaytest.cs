@@ -290,6 +290,69 @@ namespace ColorsAction.Unity.Editor
             yield return 5;
             Check(!combat.Blocking, "block released");
 
+            // 10б. Фиксация на цели (СКМ / R3): лицом к цели, камера за спину, перекат вбок — через бок.
+            var lockOn = player.LockOn;
+            player.Teleport(new Vector3(dp.x, dp.y, dp.z - 3f), 90f);
+            input.ClearScripted();
+            yield return 10;
+            input.ScriptPress(GameAction.LockOn);
+            yield return 60;
+            Vector3 ToDummy()
+            {
+                var v = dummy.transform.position - player.transform.position;
+                v.y = 0f;
+                return v.normalized;
+            }
+
+            Check(lockOn != null && lockOn.Target == dummy, $"lock-on picks the dummy: {(lockOn != null && lockOn.Target != null ? lockOn.Target.name : "none")}");
+            var lockError = Vector3.Angle(player.Forward, ToDummy());
+            Check(lockError < 10f, $"locked player faces the target: error {lockError:F1}");
+            var camLockError = Mathf.Abs(Mathf.DeltaAngle(cam.eulerAngles.y, Mathf.Atan2(ToDummy().x, ToDummy().z) * Mathf.Rad2Deg));
+            Check(camLockError < 15f, $"free camera turns behind the player towards the target: error {camLockError:F1}");
+
+            var toTarget = ToDummy();
+            var side = Vector3.Cross(Vector3.up, toTarget);
+            var rollStart = player.transform.position;
+            var facingBefore = player.Forward;
+            input.ScriptedMove = Dir(side);
+            input.ScriptPress(GameAction.Roll);
+            var facingDrift = 0f;
+            var sideways = false;
+            var rollEnd = rollStart;
+            var sawRoll = false;
+            for (int i = 0; i < 60; i++)
+            {
+                yield return 1;
+                if (player.Rolling)
+                {
+                    // Направление переката задаётся в момент нажатия; дальше стик отпускаем,
+                    // чтобы шаги после переката (камера доворачивается — стрейф идёт по дуге) не смешивались с ним.
+                    input.ScriptedMove = null;
+                    sawRoll = true;
+                    facingDrift = Mathf.Max(facingDrift, Vector3.Angle(facingBefore, player.Forward));
+                    sideways |= player.RollLocalDirection.x > 0.9f;
+                    rollEnd = player.transform.position;
+                }
+                else if (sawRoll)
+                {
+                    break;
+                }
+            }
+
+            input.ScriptedMove = null;
+            var rollMove = rollEnd - rollStart;
+            rollMove.y = 0f;
+            Check(sideways && facingDrift < 5f,
+                $"locked side roll goes over the cube's side, facing kept: local dir x>0.9 {sideways}, facing drift {facingDrift:F1}");
+            Check(rollMove.magnitude > 1f && Mathf.Abs(Vector3.Dot(rollMove, toTarget)) < rollMove.magnitude * 0.3f,
+                $"locked side roll moves sideways relative to the target: {rollMove.magnitude:F2} m, towards target {Vector3.Dot(rollMove, toTarget):F2}");
+            yield return 30;
+            lockError = Vector3.Angle(player.Forward, ToDummy());
+            Check(lockError < 10f, $"after the roll the player turns back to the target: error {lockError:F1}");
+            input.ScriptPress(GameAction.LockOn);
+            yield return 3;
+            Check(!lockOn.Active, "second press releases the lock");
+
             // 11. Вторая схема: 4 угла камеры на Q/E (LB/RB), правый стик задаёт взгляд.
             session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FixedAngles;
             player.Teleport(new Vector3(10.5f, 0f, 5.5f), 0f);

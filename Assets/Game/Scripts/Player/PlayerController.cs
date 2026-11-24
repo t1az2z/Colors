@@ -24,6 +24,7 @@ namespace ColorsAction.Unity
         private GameSession session;
         private BoxMotor motor;
         private PlayerCombat combat;
+        private PlayerLockOn lockOn;
         private Transform cameraTransform;
 
         private Vector3 horizontalVelocity;
@@ -38,8 +39,9 @@ namespace ColorsAction.Unity
         private float rollTime;
         private float rollCooldown;
         private float rollBufferTimer;
-        private bool rollBackward;
         private Vector3 rollDirection;
+        // Направление переката в осях куба (x — вправо, z — вперёд): задаёт ось переворота и изгиб.
+        private Vector3 rollLocal = Vector3.forward;
         private int rollHalvesLanded;
 
         private int controlResumedFrame;
@@ -61,6 +63,7 @@ namespace ColorsAction.Unity
         public bool Grounded => motor != null && motor.Grounded;
         public Vector3 Forward => Quaternion.Euler(0, yaw, 0) * Vector3.forward;
         public CubeDeformer Deformer => deformer;
+        public PlayerLockOn LockOn => lockOn;
         public Transform Body => body;
         public PlayerConfig Config => config;
 
@@ -87,6 +90,12 @@ namespace ColorsAction.Unity
             motor.CollisionMask = ~((1 << gameObject.layer) | (1 << Debris.Layer));
             if (GetComponent<PlayerDamageReceiver>() == null)
                 gameObject.AddComponent<PlayerDamageReceiver>().Construct(resolver);
+            lockOn = GetComponent<PlayerLockOn>();
+            if (lockOn == null)
+            {
+                lockOn = gameObject.AddComponent<PlayerLockOn>();
+                lockOn.Construct(resolver);
+            }
             motor.Landed += OnLanded;
             deformer.Configure(config.Deformation.Stiffness, config.Deformation.Damping);
             yaw = body.eulerAngles.y;
@@ -207,17 +216,32 @@ namespace ColorsAction.Unity
                 accel *= config.AirControl;
             horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, accel * dt);
 
-            // Схема FixedAngles: взгляд и атака — по правому стику/мыши, независимо от движения.
+            // Фиксация на цели: всегда лицом к цели, движение — стрейфом.
+            // Иначе схема FixedAngles: взгляд и атака — по правому стику/мыши, независимо от движения.
             if (!HasControl)
                 AimPoint = null;
-            var aim = HasControl ? AimDirection() : null;
+            var locked = LockedFacing();
+            if (locked.HasValue)
+                AimPoint = null;
+            var aim = locked ?? (HasControl ? AimDirection() : null);
             var facing = aim ?? move;
-            var turn = aim.HasValue ? config.TurnSpeed * 2f : config.TurnSpeed;
+            var turn = locked.HasValue ? lockOn.Config.LockOnTurnSpeed
+                : aim.HasValue ? config.TurnSpeed * 2f : config.TurnSpeed;
             if (facing.sqrMagnitude > 0.01f && (combat == null || !combat.LockFacing))
             {
                 var targetYaw = Mathf.Atan2(facing.x, facing.z) * Mathf.Rad2Deg;
                 yaw = Mathf.MoveTowardsAngle(yaw, targetYaw, turn * dt);
             }
+        }
+
+        /// <summary>Направление на цель фиксации по горизонтали; null — фиксации нет.</summary>
+        private Vector3? LockedFacing()
+        {
+            if (lockOn == null || !lockOn.Active)
+                return null;
+            var to = lockOn.TargetPoint - transform.position;
+            to.y = 0f;
+            return to.sqrMagnitude > 0.0025f ? to.normalized : (Vector3?)null;
         }
 
         /// <summary>Схема Б: точка на земле, куда смотрит и бьёт персонаж (для маркера прицела). null — прицела нет.</summary>
@@ -352,17 +376,21 @@ namespace ColorsAction.Unity
                 return false;
 
             // Без направления движения — кувырок назад (отскок), лицом к прежнему направлению.
+            // С фиксацией на цели куб остаётся лицом к цели и катится в сторону ввода: вбок — через бок, назад — назад.
             var backward = move.sqrMagnitude <= 0.01f;
             rollDirection = backward ? -Forward : move.normalized;
-            rollBackward = backward;
-            if (!backward)
+            var locked = lockOn != null && lockOn.Active;
+            if (!backward && !locked)
                 yaw = Mathf.Atan2(rollDirection.x, rollDirection.z) * Mathf.Rad2Deg;
+            rollLocal = Quaternion.Inverse(Quaternion.Euler(0, yaw, 0)) * rollDirection;
+            rollLocal.y = 0f;
+            rollLocal = rollLocal.sqrMagnitude > 0.0001f ? rollLocal.normalized : Vector3.forward;
             rolling = true;
             rollTime = 0f;
             rollHalvesLanded = 0;
             combat?.CancelAttack();
-            // Изгиб в сторону движения перед прыжком (локально вперёд, +Z).
-            deformer.Impulse(-1.5f, new Vector2(0f, config.Deformation.RollBend * 12f));
+            // Изгиб в сторону переката перед прыжком.
+            deformer.Impulse(-1.5f, RollPlane * (config.Deformation.RollBend * 12f));
             return true;
         }
 
@@ -413,12 +441,13 @@ namespace ColorsAction.Unity
             {
                 angle = (phase == 2 ? 180f : 0f) + EaseInOut(u) * 180f;
                 hop = Mathf.Sin(u * Mathf.PI) * config.RollHopHeight;
-                deformer.BendTarget = new Vector2(0f, Mathf.Sin(u * Mathf.PI) * d.RollBend * (rollBackward ? -1f : 1f));
+                deformer.BendTarget = RollPlane * (Mathf.Sin(u * Mathf.PI) * d.RollBend);
                 deformer.SquashTarget = 0f;
             }
 
-            // Кувырок назад — вращение в обратную сторону, куб остаётся лицом вперёд.
-            rollPivot.localRotation = Quaternion.Euler(rollBackward ? -angle : angle, 0, 0);
+            // Переворот вокруг оси, перпендикулярной направлению переката: вперёд — через "лицо",
+            // назад — через спину, вбок (с фиксацией) — через бок. Куб при этом смотрит туда же, куда смотрел.
+            rollPivot.localRotation = Quaternion.AngleAxis(angle, Vector3.Cross(Vector3.up, rollLocal));
             rollPivot.localPosition = new Vector3(0, config.ColliderHeight * 0.5f + hop, 0);
 
             // Удары о землю: приземление на "голову", толчок во второй прыжок, приземление на "ноги".
@@ -444,6 +473,12 @@ namespace ColorsAction.Unity
                 deformer.SquashTarget = 0f;
             }
         }
+
+        /// <summary>Направление переката в осях изгиба куба (x — вбок, y — вперёд).</summary>
+        private Vector2 RollPlane => new Vector2(rollLocal.x, rollLocal.z);
+
+        /// <summary>Направление текущего переката в осях куба (для автотестов).</summary>
+        public Vector3 RollLocalDirection => rollLocal;
 
         private static float EaseInOut(float x) => x * x * (3f - 2f * x);
 
