@@ -1,0 +1,57 @@
+# Публикует веб-редактор уровней (Tools/LevelEditorWeb) на GitHub Pages вместе с палитрой,
+# предметами, врагами и уровнями из Assets/StreamingAssets/Configs.
+# Один раз включить: Settings → Pages → Build and deployment → Source: GitHub Actions.
+name: Level editor on Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Tools/LevelEditorWeb/**
+      - Assets/StreamingAssets/Configs/**
+      - .github/workflows/level-editor-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            Tools/LevelEditorWeb
+            Assets/StreamingAssets/Configs
+          lfs: false
+
+      - name: Build site
+        run: |
+          set -e
+          mkdir -p _site/configs _site/levels
+          cp Tools/LevelEditorWeb/index.html Tools/LevelEditorWeb/three.min.js _site/
+          cp Assets/StreamingAssets/Configs/*.json _site/configs/
+          if ls Assets/StreamingAssets/Configs/VoxelLevels/*.json >/dev/null 2>&1; then
+            cp Assets/StreamingAssets/Configs/VoxelLevels/*.json _site/levels/
+          fi
+          python3 -c "import os, json; print(json.dumps(sorted(f[:-5] for f in os.listdir('_site/levels') if f.endswith('.json'))))" > /tmp/index.json
+          mv /tmp/index.json _site/levels/index.json
+          touch _site/.nojekyll
+          ls -R _site
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
