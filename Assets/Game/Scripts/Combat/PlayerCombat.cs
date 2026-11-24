@@ -538,8 +538,9 @@ namespace ColorsAction.Unity
                 return new Pose(Vector3.Lerp(rest.position, start.position, u), Quaternion.Slerp(rest.rotation, start.rotation, u));
             }
 
+            // Удар резкий: быстро набирает ход и жёстко встаёт в финальную позу (её держит Hold).
             if (t <= b)
-                return ArcPose(hand, EaseInOut((t - a) / Mathf.Max(0.0001f, b - a)));
+                return ArcPose(hand, EaseOutCubic((t - a) / Mathf.Max(0.0001f, b - a)));
 
             var end = ArcPose(hand, 1f);
             var r = EaseInOut((t - b) / Mathf.Max(0.0001f, 1f - b));
@@ -588,6 +589,7 @@ namespace ColorsAction.Unity
         }
 
         private static float EaseOut(float x) => 1f - (1f - x) * (1f - x);
+        private static float EaseOutCubic(float x) => 1f - (1f - x) * (1f - x) * (1f - x);
         private static float EaseInOut(float x) => x * x * (3f - 2f * x);
 
         private sealed class HandState

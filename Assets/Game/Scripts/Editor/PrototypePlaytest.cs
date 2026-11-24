@@ -213,8 +213,8 @@ namespace ColorsAction.Unity.Editor
             input.ScriptPress(GameAction.Interact);
             yield return 30;
             var inv = session.Inventory;
-            Check(inv.Find(FindItem(inv, "sword")).HasValue && inv.Find(FindItem(inv, "shield")).HasValue,
-                "sword and shield picked up into the grid");
+            Check(inv.Right?.Id == "sword" && inv.Left?.Id == "shield",
+                $"picked up and auto-equipped: right={inv.Right?.Id} left={inv.Left?.Id}");
 
             // 8. Инвентарь: TAB, надеть оружие с геймпада (A), закрыть.
             input.ScriptPress(GameAction.Inventory);
@@ -222,6 +222,14 @@ namespace ColorsAction.Unity.Editor
             Check(fsm.Current is InventoryState, "TAB opens inventory");
             Check(!session.PlayerControl.Value, "player control is off while inventory is open");
             var screen = ((InventoryState)fsm.Current).Screen;
+            // Снять оба (A на руке), чтобы проверить экипировку из сетки.
+            screen.Cursor.Value = SlotRef.Of(Hand.Right);
+            input.ScriptPress(GameAction.Submit);
+            yield return 3;
+            screen.Cursor.Value = SlotRef.Of(Hand.Left);
+            input.ScriptPress(GameAction.Submit);
+            yield return 3;
+            Check(inv.Right == null && inv.Left == null, "A on a hand slot unequips into the grid");
             screen.Cursor.Value = inv.Find(FindItem(inv, "sword")).Value;
             Check(!screen.IsHighlighted(SlotRef.Of(Hand.Left)) && screen.IsHighlighted(SlotRef.Of(Hand.Right)),
                 "sword under cursor highlights only the right hand");

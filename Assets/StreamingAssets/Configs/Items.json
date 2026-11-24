@@ -9,9 +9,9 @@
     "gripRoll": 80,
     "comboWindow": 0,
     "combo": [
-      { "motion": "SlashRight", "tilt": 0,  "duration": 0.34, "hold": 0.12, "activeFrom": 0.3, "activeTo": 0.6, "damageMultiplier": 1.0, "lunge": 0.25, "range": 1.8, "arc": 180, "knockback": 1.0, "staminaCost": 14 },
-      { "motion": "SlashLeft",  "tilt": 18, "duration": 0.34, "hold": 0.12, "activeFrom": 0.3, "activeTo": 0.6, "damageMultiplier": 1.0, "lunge": 0.25, "range": 1.8, "arc": 180, "knockback": 1.0, "staminaCost": 14 },
-      { "motion": "Chop",       "duration": 0.5,  "hold": 0.2,  "activeFrom": 0.4,  "activeTo": 0.65, "damageMultiplier": 1.6, "lunge": 0.45, "range": 2.0, "arc": 70, "knockback": 2.0, "staminaCost": 22 }
+      { "motion": "SlashRight", "tilt": 0,  "duration": 0.34, "hold": 0.24, "activeFrom": 0.3, "activeTo": 0.6, "damageMultiplier": 1.0, "lunge": 0.25, "range": 1.8, "arc": 180, "knockback": 1.0, "staminaCost": 14 },
+      { "motion": "SlashLeft",  "tilt": 18, "duration": 0.34, "hold": 0.24, "activeFrom": 0.3, "activeTo": 0.6, "damageMultiplier": 1.0, "lunge": 0.25, "range": 1.8, "arc": 180, "knockback": 1.0, "staminaCost": 14 },
+      { "motion": "Chop",       "duration": 0.5,  "hold": 0.34, "activeFrom": 0.4,  "activeTo": 0.65, "damageMultiplier": 1.6, "lunge": 0.45, "range": 2.0, "arc": 70, "knockback": 2.0, "staminaCost": 22 }
     ]
   },
   "shield": {

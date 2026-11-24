@@ -253,7 +253,7 @@ namespace ColorsAction.Configs
         /// Фиксация финальной позы удара, секунды: акцент на позе и окно комбо —
         /// нажатие в это время сразу запускает следующий удар серии.
         /// </summary>
-        public float Hold { get; set; } = 0.12f;
+        public float Hold { get; set; } = 0.22f;
     }
 
     /// <summary>Configs/Items.json — предметы и оружие.</summary>
@@ -339,5 +339,8 @@ namespace ColorsAction.Configs
         public int Columns { get; set; } = 5;
         public int Rows { get; set; } = 5;
         public int QuickSlots { get; set; } = 4;
+
+        /// <summary>Подобранное оружие сразу надевается, если его рука свободна; иначе ложится в сетку.</summary>
+        public bool AutoEquipOnPickup { get; set; } = true;
     }
 }

@@ -42,6 +42,7 @@ namespace ColorsAction
     {
         private readonly ItemDatabase items;
         private readonly IEventBus events;
+        private readonly InventoryConfig inventoryConfig;
 
         public PlayerInventory Inventory { get; }
 
@@ -60,7 +61,8 @@ namespace ColorsAction
         {
             this.items = items;
             this.events = events;
-            Inventory = new PlayerInventory(configs.Load<InventoryConfig>(ConfigKeys.Inventory));
+            inventoryConfig = configs.Load<InventoryConfig>(ConfigKeys.Inventory);
+            Inventory = new PlayerInventory(inventoryConfig);
             Stamina = new Stamina(configs.Load<PlayerConfig>(ConfigKeys.Player).Stamina);
             ControlScheme = new ReactiveProperty<CameraScheme>(configs.Load<CameraConfig>(ConfigKeys.Camera).Scheme);
         }
@@ -80,6 +82,17 @@ namespace ColorsAction
             {
                 events.Publish(new InventoryFull(itemId));
                 return false;
+            }
+
+            // Автоэкипировка (Inventory.json): оружие встаёт в свою руку, если она свободна.
+            if (inventoryConfig.AutoEquipOnPickup && item.Config.IsWeapon)
+            {
+                var hand = Inventory.ChooseHand(item);
+                var free = item.Config.IsTwoHanded
+                    ? Inventory.Left == null && Inventory.Right == null
+                    : Inventory.InHand(hand) == null;
+                if (free)
+                    Inventory.Equip(item, hand);
             }
 
             events.Publish(new ItemPickedUp(item));

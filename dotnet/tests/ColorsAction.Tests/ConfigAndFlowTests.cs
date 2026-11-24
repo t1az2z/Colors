@@ -58,9 +58,10 @@ namespace ColorsAction.Tests
             using var host = CreateHost();
             host.Start<BootState>();
             var session = host.Container.Resolve<GameSession>();
-            session.PickUp("sword");
-            session.PickUp("shield");
+            var items = host.Container.Resolve<ItemDatabase>();
             var inv = session.Inventory;
+            inv.TryAdd(items.Create("sword"));
+            inv.TryAdd(items.Create("shield"));
             var sword = inv.Get(SlotRef.Grid(0));
             var shield = inv.Get(SlotRef.Grid(1));
 
@@ -128,12 +129,33 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void PickUp_PutsItemIntoGrid()
+        public void PickUp_AutoEquipsIntoFreeHand_AsConfigured()
         {
             using var host = CreateHost();
             host.Start<BootState>();
             var session = host.Container.Resolve<GameSession>();
+            Assert.That(host.Container.Resolve<ConfigService>().Load<InventoryConfig>(ConfigKeys.Inventory).AutoEquipOnPickup, Is.True);
             Assert.That(session.PickUp("sword"), Is.True);
+            Assert.That(session.PickUp("shield"), Is.True);
+            Assert.That(session.Inventory.Right?.Id, Is.EqualTo("sword"));
+            Assert.That(session.Inventory.Left?.Id, Is.EqualTo("shield"));
+
+            // Рука занята — второй меч ложится в сетку.
+            Assert.That(session.PickUp("sword"), Is.True);
+            Assert.That(session.Inventory.Get(SlotRef.Grid(0))?.Id, Is.EqualTo("sword"));
+        }
+
+        [Test]
+        public void PickUp_WithoutAutoEquip_PutsItemIntoGrid()
+        {
+            var source = new LayeredConfigSource(new FileConfigSource(ConfigsRoot()),
+                new InMemoryConfigSource().Set("Inventory", "{ \"autoEquipOnPickup\": false }"));
+            using var host = new GameHost(new ConsoleLogger(), new ConfigInstaller(source, new NewtonsoftConfigSerializer()),
+                new ColorsActionInstaller());
+            host.Start<BootState>();
+            var session = host.Container.Resolve<GameSession>();
+            Assert.That(session.PickUp("sword"), Is.True);
+            Assert.That(session.Inventory.Right, Is.Null);
             Assert.That(session.Inventory.Get(SlotRef.Grid(0)).Id, Is.EqualTo("sword"));
         }
 
