@@ -143,6 +143,12 @@ namespace ColorsAction.Configs
 
         /// <summary>Наклон верха вперёд при рубящем ударе сверху вниз, метры.</summary>
         public float ChopLean { get; set; } = 0.16f;
+
+        /// <summary>Отклонение верха назад на замахе любого удара, метры.</summary>
+        public float SwingLeanBack { get; set; } = 0.12f;
+
+        /// <summary>Наклон верха вперёд в момент удара (горизонтальные взмахи), метры.</summary>
+        public float SwingLeanForward { get; set; } = 0.14f;
     }
 
     /// <summary>Схема управления камерой и направлением взгляда.</summary>
@@ -233,6 +239,20 @@ namespace ColorsAction.Configs
     public sealed class AttackStepConfig
     {
         public AttackMotion Motion { get; set; } = AttackMotion.SlashRight;
+
+        /// <summary>Замах, секунды: рука уходит из стойки в начало дуги, куб отклоняется назад.</summary>
+        public float Windup { get; set; } = -1f;
+
+        /// <summary>Удар, секунды: клинок идёт по дуге, в это время засчитываются попадания.</summary>
+        public float Strike { get; set; } = -1f;
+
+        /// <summary>Возврат в стойку после фиксации (Hold), секунды.</summary>
+        public float Recovery { get; set; } = -1f;
+
+        /// <summary>
+        /// Устаревшее описание тайминга (вся длительность и окно попадания долями). Используется, только если
+        /// фазы Windup/Strike/Recovery не заданы; после загрузки всегда пересчитано из фаз.
+        /// </summary>
         public float Duration { get; set; } = 0.38f;
         public float ActiveFrom { get; set; } = 0.3f;
         public float ActiveTo { get; set; } = 0.65f;
@@ -254,6 +274,42 @@ namespace ColorsAction.Configs
         /// нажатие в это время сразу запускает следующий удар серии.
         /// </summary>
         public float Hold { get; set; } = 0.22f;
+    }
+
+    public static class AttackStepTiming
+    {
+        /// <summary>
+        /// Приводит тайминг удара к одному виду: фазы в секундах (Windup, Strike, Recovery) и согласованные с ними
+        /// Duration/ActiveFrom/ActiveTo. Если фазы не заданы, они считаются из старых полей (перепутанные границы
+        /// окна попадания меняются местами).
+        /// </summary>
+        public static void Normalize(this AttackStepConfig step)
+        {
+            if (step.Windup < 0f || step.Strike < 0f || step.Recovery < 0f)
+            {
+                var from = Math.Max(0f, Math.Min(1f, step.ActiveFrom));
+                var to = Math.Max(0f, Math.Min(1f, step.ActiveTo));
+                if (from > to)
+                {
+                    var t = from;
+                    from = to;
+                    to = t;
+                }
+
+                var duration = Math.Max(0.01f, step.Duration);
+                if (step.Windup < 0f) step.Windup = duration * from;
+                if (step.Strike < 0f) step.Strike = duration * (to - from);
+                if (step.Recovery < 0f) step.Recovery = duration * (1f - to);
+            }
+
+            step.Windup = Math.Max(0f, step.Windup);
+            step.Strike = Math.Max(0.01f, step.Strike);
+            step.Recovery = Math.Max(0f, step.Recovery);
+            step.Hold = Math.Max(0f, step.Hold);
+            step.Duration = step.Windup + step.Strike + step.Recovery;
+            step.ActiveFrom = step.Windup / step.Duration;
+            step.ActiveTo = (step.Windup + step.Strike) / step.Duration;
+        }
     }
 
     /// <summary>Configs/Items.json — предметы и оружие.</summary>
@@ -296,18 +352,7 @@ namespace ColorsAction.Configs
             // Окно попадания должно идти вперёд по времени: перепутанные границы меняем местами,
             // иначе удар молча перестаёт наносить урон.
             foreach (var step in Combo)
-            {
-                if (step == null)
-                    continue;
-                step.ActiveFrom = Math.Max(0f, Math.Min(1f, step.ActiveFrom));
-                step.ActiveTo = Math.Max(0f, Math.Min(1f, step.ActiveTo));
-                if (step.ActiveFrom > step.ActiveTo)
-                {
-                    var t = step.ActiveFrom;
-                    step.ActiveFrom = step.ActiveTo;
-                    step.ActiveTo = t;
-                }
-            }
+                step?.Normalize();
             if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Combo.Count == 0)
                 throw new InvalidOperationException($"weapon '{Id}' needs at least one combo step");
         }

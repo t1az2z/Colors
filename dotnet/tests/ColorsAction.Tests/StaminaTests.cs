@@ -43,8 +43,24 @@ namespace ColorsAction.Tests
                 Combo = { new AttackStepConfig { ActiveFrom = 0.6f, ActiveTo = 0.4f } }
             };
             item.OnConfigLoaded();
-            Assert.That(item.Combo[0].ActiveFrom, Is.EqualTo(0.4f));
-            Assert.That(item.Combo[0].ActiveTo, Is.EqualTo(0.6f));
+            Assert.That(item.Combo[0].ActiveFrom, Is.EqualTo(0.4f).Within(1e-4f));
+            Assert.That(item.Combo[0].ActiveTo, Is.EqualTo(0.6f).Within(1e-4f));
+        }
+
+        [Test]
+        public void ExplicitPhases_DefineTiming_WindupDoesNotChangeOtherPhases()
+        {
+            var item = new ItemConfig
+            {
+                Id = "sword", Kind = ItemKind.OneHanded,
+                Combo = { new AttackStepConfig { Windup = 0.3f, Strike = 0.1f, Recovery = 0.1f, Hold = 0.2f } }
+            };
+            item.OnConfigLoaded();
+            var step = item.Combo[0];
+            Assert.That(step.Duration, Is.EqualTo(0.5f).Within(1e-4f));
+            Assert.That(step.ActiveFrom * step.Duration, Is.EqualTo(0.3f).Within(1e-4f), "strike starts after the wind-up");
+            Assert.That((step.ActiveTo - step.ActiveFrom) * step.Duration, Is.EqualTo(0.1f).Within(1e-4f));
+            Assert.That(step.Hold, Is.EqualTo(0.2f));
         }
 
         [Test]

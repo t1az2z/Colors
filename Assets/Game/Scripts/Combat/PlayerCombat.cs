@@ -368,16 +368,17 @@ namespace ColorsAction.Unity
                 {
                     var sign = step.Motion == AttackMotion.SlashLeft ? 1f : -1f;
                     deformer.TwistTarget = sign * d.AttackTwist * (strike - wind * 0.7f);
-                    deformer.AttackLeanTarget = d.ChopLean * 0.25f * strike;
+                    // Замах — верх отклоняется назад, удар — подаётся вперёд.
+                    deformer.AttackLeanTarget = d.SwingLeanForward * strike - d.SwingLeanBack * wind;
                     break;
                 }
                 case AttackMotion.Chop:
                     deformer.TwistTarget = 0f;
-                    deformer.AttackLeanTarget = d.ChopLean * (strike - wind * 0.6f);
+                    deformer.AttackLeanTarget = d.ChopLean * strike - Mathf.Max(d.SwingLeanBack, d.ChopLean * 0.8f) * wind;
                     break;
                 default:
                     deformer.TwistTarget = 0f;
-                    deformer.AttackLeanTarget = d.ChopLean * 0.5f * strike;
+                    deformer.AttackLeanTarget = d.SwingLeanForward * strike - d.SwingLeanBack * 0.5f * wind;
                     break;
             }
         }

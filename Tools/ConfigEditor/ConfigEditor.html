@@ -237,6 +237,8 @@ const SCHEMA = {
         { k: 'deformation.rollLandSquash', l: 'Сжатие при перекате', d: 'Сплющивание при приземлении на «голову» и на «ноги».', u: U.frac, min: -0.8, max: 0, step: 0.01 },
         { k: 'deformation.hitSquash', l: 'Сжатие от удара', d: 'Реакция куба на полученный удар.', u: U.frac, min: -0.8, max: 0, step: 0.01 },
         { k: 'deformation.attackTwist', l: 'Скручивание при ударе', d: 'На сколько градусов закручивается верх куба при взмахе мечом: на замахе против взмаха, на ударе по взмаху.', u: U.deg, min: 0, max: 60, step: 1, def: 24 },
+        { k: 'deformation.swingLeanBack', l: 'Отклон назад на замахе', d: 'Насколько верх куба уходит назад во время замаха любого удара.', u: U.bl, min: 0, max: 0.5, step: 0.01, def: 0.12 },
+        { k: 'deformation.swingLeanForward', l: 'Наклон вперёд при ударе', d: 'Насколько верх куба подаётся вперёд в момент горизонтального взмаха.', u: U.bl, min: 0, max: 0.5, step: 0.01, def: 0.14 },
         { k: 'deformation.chopLean', l: 'Наклон при рубящем', d: 'Насколько верх куба уходит вперёд при ударе сверху вниз.', u: U.bl, min: 0, max: 0.5, step: 0.01, def: 0.16 },
       ] },
     ],
@@ -361,9 +363,9 @@ const ITEM_FIELDS = [
 const MOTIONS = [['SlashRight', 'Горизонтальный справа налево'], ['SlashLeft', 'Горизонтальный слева направо'], ['Chop', 'Рубящий сверху вниз'], ['Thrust', 'Укол'], ['Punch', 'Тычок']];
 const STEP_FIELDS = [
   { k: 'motion', l: 'Движение', t: 'enum', opts: MOTIONS, def: 'SlashRight', d: 'Анимация удара.' },
-  { k: 'duration', l: 'Длительность', u: U.s, min: 0.05, max: 1.5, step: 0.01, def: 0.38, d: 'Время всего удара.' },
-  { k: 'activeFrom', l: 'Попадание с', u: U.frac, min: 0, max: 1, step: 0.01, def: 0.3, d: 'Начало активной фазы, доля длительности.' },
-  { k: 'activeTo', l: 'Попадание до', u: U.frac, min: 0, max: 1, step: 0.01, def: 0.65, d: 'Конец активной фазы, доля длительности.' },
+  { k: 'windup', l: 'Замах', u: U.s, min: 0, max: 1, step: 0.01, def: 0.18, d: 'Время замаха: рука уходит в начало дуги, куб отклоняется назад. Меняет только замах.' },
+  { k: 'strike', l: 'Удар', u: U.s, min: 0.02, max: 0.6, step: 0.01, def: 0.08, d: 'Время прохода клинка по дуге; в это время засчитываются попадания.' },
+  { k: 'recovery', l: 'Возврат', u: U.s, min: 0, max: 1, step: 0.01, def: 0.14, d: 'Возврат в стойку после фиксации позы.' },
   { k: 'damageMultiplier', l: 'Множитель урона', u: U.x, min: 0, max: 5, step: 0.05, def: 1, d: '' },
   { k: 'lunge', l: 'Выпад', u: U.bl, min: 0, max: 3, step: 0.05, def: 0.25, d: 'Насколько куб продвигается вперёд при ударе.' },
   { k: 'range', l: 'Дальность', u: U.bl, min: 0.2, max: 6, step: 0.05, def: 1.3, d: 'Дальность поражения от центра куба.' },
@@ -663,7 +665,10 @@ function validateItems(d) {
     const weapon = it.kind === 'OneHanded' || it.kind === 'TwoHanded';
     if (weapon && !(it.combo?.length)) w.push(`${id}: у оружия должна быть хотя бы одна атака в серии.`);
     if (it.color && S.files.Colors && !S.files.Colors.data[it.color]) w.push(`${id}: цвета «${it.color}» нет в Colors.json.`);
-    (it.combo || []).forEach((s, i) => { if (num(s.activeFrom, 0.3) > num(s.activeTo, 0.65)) w.push(`${id}, удар ${i + 1}: «попадание с» позже, чем «попадание до».`); });
+    (it.combo || []).forEach((s, i) => {
+      if (s.windup === undefined && num(s.activeFrom, 0.3) > num(s.activeTo, 0.65)) w.push(`${id}, удар ${i + 1}: «попадание с» позже, чем «попадание до».`);
+      if (s.strike !== undefined && num(s.strike, 0.08) <= 0) w.push(`${id}, удар ${i + 1}: у удара должна быть ненулевая длительность.`);
+    });
   }
   return w;
 }
@@ -674,7 +679,7 @@ function renderItems(main, f) {
   $('#addItem', bar).onclick = () => {
     const id = prompt('Id нового предмета (латиница, например spear):'); if (!id) return;
     if (f.data[id]) { toast('Такой id уже есть.'); return; }
-    f.data[id] = { name: id, color: 'none', kind: 'OneHanded', hand: 'Any', damage: 10, prefab: '', comboWindow: 0.35, combo: [{ motion: 'SlashRight', duration: 0.38, activeFrom: 0.3, activeTo: 0.65, damageMultiplier: 1, lunge: 0.25, range: 1.3, arc: 150, knockback: 1, staminaCost: 12 }] };
+    f.data[id] = { name: id, color: 'none', kind: 'OneHanded', hand: 'Any', damage: 10, prefab: '', comboWindow: 0.35, combo: [{ motion: 'SlashRight', windup: 0.18, strike: 0.08, hold: 0.22, recovery: 0.14, damageMultiplier: 1, lunge: 0.25, range: 1.3, arc: 150, knockback: 1, staminaCost: 12 }] };
     renderPage();
   };
   for (const id of Object.keys(f.data)) {
@@ -1082,12 +1087,21 @@ function vizItem({ id, it }) {
   });
   g += `<rect x="${cx - s / 2}" y="${cy - s / 2}" width="${s}" height="${s}" fill="#b3b6bd" stroke="#7d818a"/>` + T(cx, cy + s / 2 + 14, 'куб 1×1', { anchor: 'middle', size: 10 });
   // таймлайн
-  const cw = num(it.comboWindow, 0.35);
-  const total = combo.reduce((a, st) => a + num(st.duration, 0.38), 0) + cw;
-  const TW = 290, L = 4, sx = (TW - L * 2) / total; let x = L, tl = '';
+  const cw = num(it.comboWindow, 0);
+  // Фазы удара в секундах: замах, удар, фиксация (окно комбо), возврат. Старые поля — как запасной вариант.
+  const phases = st => {
+    if (st.windup !== undefined || st.strike !== undefined) return { w: num(st.windup, 0.18), s: num(st.strike, 0.08), h: num(st.hold, 0.22), r: num(st.recovery, 0.14) };
+    let d = num(st.duration, 0.38), af = num(st.activeFrom, 0.3), at = num(st.activeTo, 0.65); if (af > at) [af, at] = [at, af];
+    return { w: d * af, s: d * (at - af), h: num(st.hold, 0.22), r: d * (1 - at) };
+  };
+  const total = combo.reduce((a, st) => { const p = phases(st); return a + p.w + p.s + p.h + p.r; }, 0) + cw;
+  const TW = 290, L = 4, sx = (TW - L * 2) / Math.max(0.01, total); let x = L, tl = '';
   combo.forEach((st, i) => {
-    const dur = num(st.duration, 0.38), af = num(st.activeFrom, 0.3), at = num(st.activeTo, 0.65);
-    tl += `<rect x="${x}" y="18" width="${dur * sx - 2}" height="20" rx="3" fill="${C.grid2}"/><rect x="${x + af * dur * sx}" y="18" width="${Math.max(0, (at - af) * dur * sx)}" height="20" fill="${col}"/>` + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 });
+    const p = phases(st), dur = p.w + p.s + p.h + p.r;
+    tl += `<rect x="${x}" y="18" width="${Math.max(0, dur * sx - 2)}" height="20" rx="3" fill="${C.grid2}"/>`
+      + `<rect x="${x + p.w * sx}" y="18" width="${p.s * sx}" height="20" fill="${col}"/>`
+      + `<rect x="${x + (p.w + p.s) * sx}" y="18" width="${p.h * sx}" height="20" fill="${col}" fill-opacity=".35"/>`
+      + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 });
     x += dur * sx;
   });
   tl += `<rect x="${x}" y="24" width="${cw * sx}" height="8" rx="3" fill="${C.grid}" stroke="${C.grid2}" stroke-dasharray="2 2"/>` + T(x + 2, 13, 'окно', { size: 9 });
@@ -1095,7 +1109,7 @@ function vizItem({ id, it }) {
   const dmg = combo.map(st => itemDamage(it, st));
   const sta = combo.reduce((a, st) => a + num(st.staminaCost, 12), 0);
   const cm = num(S.files.Combat?.data?.sameColorMultiplier, 1.5);
-  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени (цвет — попадание)</h4>${svgWrap(TW, 56, tl)}
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени: серый — замах и возврат, цвет — удар, светлый — пауза (окно комбо)</h4>${svgWrap(TW, 56, tl)}
     <table class="dmg" style="margin-top:8px"><tr><th>#</th><th>Движение</th><th>Урон</th><th>Цвет ×${r2(cm)}</th><th>Выносл.</th></tr>${combo.map((st, i) => `<tr><td>${i + 1}</td><td>${esc((MOTIONS.find(m => m[0] === st.motion) || [, st.motion])[1])}</td><td>${r2(dmg[i], 1)}</td><td>${r2(dmg[i] * cm, 1)}</td><td>${r2(num(st.staminaCost, 12), 0)}</td></tr>`).join('')}
     <tr><th></th><th>Серия</th><th>${r2(dmg.reduce((a, b) => a + b, 0), 1)}</th><th>${r2(dmg.reduce((a, b) => a + b, 0) * cm, 1)}</th><th>${r2(sta, 0)}</th></tr></table>
     ${facts([['Урон в секунду', r2(dmg.reduce((a, b) => a + b, 0) / Math.max(0.01, total - cw), 1)], ['Рука', ({ Any: 'любая', Left: 'левая', Right: 'правая' })[it.hand || 'Any'] || it.hand], ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']])}</div></div>`;
