@@ -6,9 +6,9 @@
     "maxHealth": 40,
     "weaponPrefab": "Items/Club",
     "aggroRadius": 7,
-    "loseRadius": 13,
-    "alertDuration": 2,
-    "moveSpeed": 4.5,
+    "loseRadius": 20,
+    "alertDuration": 1,
+    "moveSpeed": 7,
     "turnSpeed": 540,
     "waitDistance": 3.2,
     "attackCooldown": 0.8,
@@ -18,8 +18,9 @@
     "deathPieces": 14,
     "experiencePieces": 6,
     "attacks": [
-      { "motion": "Sweep",    "windup": 1.5, "strike": 0.1,  "hold": 0.3, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 150, "knockback": 1.0, "lunge": 0.3, "weight": 1 },
-      { "motion": "Overhead", "windup": 1.5, "strike": 0.12, "hold": 0.35, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50,  "knockback": 1.5, "lunge": 0.5, "weight": 1 }
-    ]
+      { "motion": "Sweep", "windup": 0.6, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1 },
+      { "motion": "Overhead", "windup": 0.8, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 0.5, "weight": 1, "parryFrom": -0.17, "parryTo": 0.02 }
+    ],
+    "flankBias": 0.7
   }
 }

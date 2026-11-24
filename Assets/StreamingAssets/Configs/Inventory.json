@@ -1,6 +1,6 @@
 {
-  "columns": 5,
-  "rows": 5,
+  "columns": 4,
+  "rows": 3,
   "quickSlots": 4,
   "autoEquipOnPickup": true
 }
