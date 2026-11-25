@@ -1,5 +1,6 @@
 """
-Generates Assets/StreamingAssets/Configs/Levels/Test.json: a 64x64 test level for jumps.
+Generates Assets/StreamingAssets/Configs/Levels/Test.json: a 64x86 test level for jumps,
+plus a flat shooting field in the north (z 64..84) behind a gap in the old north wall.
 
 Height symbols (see LevelConfig): '0'..'9' = 0..9 steps, 'a'..'z' = 10..35 steps, one step = 0.25 m.
 Height differences are tuned for jumpHeight 1.5 and stepHeight 0.3:
@@ -15,7 +16,10 @@ import json
 import math
 import os
 
-W = H = 64
+W = 64
+MAIN = 64          # old 64x64 square; the shooting field is added north of it
+FIELD = 22         # rows of the shooting field (z 64..85, the last one is the wall)
+H = MAIN + FIELD
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "Assets", "StreamingAssets", "Configs", "Levels", "Test.json")
 
 WALK, JUMP, BLOCK = 1, 4, 8   # steps of 0.25 m
@@ -43,8 +47,17 @@ for i in range(14):            # ramp along +z: heights 1..14
 
 # Border wall (3 m): taller walls hide the player from the iso camera near the edges.
 for i in range(W):
-    g[0][i] = g[H - 1][i] = 12
+    g[0][i] = g[MAIN - 1][i] = g[H - 1][i] = 12
+for i in range(H):
     g[i][0] = g[i][W - 1] = 12
+
+# Shooting field: flat ground north of the old wall, reached through a gap at x 6..12.
+# The hills next to the gap are lowered into a 0.25-step ramp down to the field's level 0.
+rect(1, MAIN, W - 2, H - 2, 0)
+GAP_X0, GAP_X1 = 6, 12
+for z in range(MAIN - 12, MAIN):
+    for x in range(GAP_X0, GAP_X1 + 1):
+        g[z][x] = min(g[z][x], MAIN - 1 - z)   # 11 .. 0 steps towards the gap
 
 # Step comparison right in front of the spawn: 0.25 / 1.0 / 2.0 blocks, 3x3 each.
 rect(6, 20, 8, 22, WALK)
@@ -88,12 +101,22 @@ level = {
     "items": [
         {"item": "sword", "x": 12, "z": 13, "yaw": 30},
         {"item": "shield", "x": 15, "z": 12, "yaw": -20},
+        {"item": "shotgun", "x": 9, "z": 66, "yaw": 0},
     ],
     # Враги на ровной площадке за блоками-образцами: трое, чтобы видеть, что атакует только один.
     "enemies": [
         {"type": "club_cube", "x": 16, "z": 29, "yaw": 180},
         {"type": "club_cube", "x": 20, "z": 31, "yaw": 200},
         {"type": "club_cube", "x": 12, "z": 31, "yaw": 160},
+        # Тир на поле за северной стеной: 4 красных (цвет дробовика) и 3 синих (цвет меча),
+        # шахматкой в 2-3 клетках друг от друга, в 9-15 клетках от прохода.
+        {"type": "club_cube_red", "x": 6, "z": 74, "yaw": 180},
+        {"type": "club_cube", "x": 9, "z": 76, "yaw": 180},
+        {"type": "club_cube_red", "x": 12, "z": 74, "yaw": 180},
+        {"type": "club_cube", "x": 15, "z": 76, "yaw": 180},
+        {"type": "club_cube_red", "x": 18, "z": 74, "yaw": 180},
+        {"type": "club_cube", "x": 21, "z": 76, "yaw": 180},
+        {"type": "club_cube_red", "x": 24, "z": 74, "yaw": 180},
     ],
     "dummies": [
         {"x": 18, "z": 15, "yaw": 200},
