@@ -53,6 +53,11 @@
   section.card > h3 { margin: 0; padding: 11px 16px; font-size: 15px; border-bottom: 1px solid var(--line); background: var(--panel2); display: flex; align-items: center; gap: 10px; }
   section.card > h3 .sub { font-weight: 400; color: var(--muted); font-size: 12px; }
   section.card > h3 .right { margin-left: auto; display: flex; gap: 6px; }
+  section.card.collapsible > h3 { cursor: pointer; user-select: none; }
+  section.card.collapsible > h3 .chev { display: inline-block; width: 12px; color: var(--muted); transition: transform .12s; }
+  section.card.collapsed > h3 .chev { transform: rotate(-90deg); }
+  section.card.collapsed > h3 { border-bottom: 0; }
+  section.card.collapsed > .cardbody { display: none; }
   .cardbody { display: grid; grid-template-columns: minmax(540px, 1.1fr) minmax(380px, 1fr); gap: 0; }
   .cardbody.single { grid-template-columns: 1fr; }
   .fields { padding: 6px 16px 12px; }
@@ -383,6 +388,17 @@ const ITEM_FIELDS = [
   { k: 'gripRoll', l: 'Поворот в руке', d: 'Поворот модели вокруг оси клинка: 80° — меч рубящей кромкой вниз.', u: U.deg, min: -180, max: 180, step: 5, def: 0, onlyWeapon: true },
   { k: 'blockAngle', l: 'Угол блока', d: 'Сектор перед игроком, в котором щит гасит удар.', u: U.deg, min: 0, max: 360, step: 5, def: 120, onlyShield: true },
 ];
+const RANGED_FIELDS = [
+  { k: 'pellets', l: 'Пуль за выстрел', u: U.pts, min: 1, max: 30, step: 1, def: 8, d: 'Сколько пуль вылетает веером за один выстрел. Урон каждой пули — базовый урон предмета.' },
+  { k: 'spread', l: 'Разброс', u: U.deg, min: 0, max: 180, step: 1, def: 30, d: 'Ширина веера пуль. Пули распределены по вееру равномерно, каждая — со случайным сдвигом внутри своей доли.' },
+  { k: 'range', l: 'Дальность', u: U.bl, min: 0.5, max: 30, step: 0.25, def: 7, d: 'Как далеко летит пуля. Стены пулю останавливают.' },
+  { k: 'cooldown', l: 'Пауза между выстрелами', u: U.s, min: 0, max: 3, step: 0.01, def: 0.3, d: 'Кулдаун: стрелять чаще нельзя.' },
+  { k: 'staminaCost', l: 'Выносливость', u: U.pts, min: 0, max: 100, step: 1, def: 20, d: 'Цена выстрела.' },
+  { k: 'knockback', l: 'Отбрасывание врага', u: U.x, min: 0, max: 5, step: 0.1, def: 1.2, d: 'Если попали все пули; меньше пуль — пропорционально слабее.' },
+  { k: 'recoil', l: 'Отдача', u: U.bl, min: 0, max: 2, step: 0.05, def: 0.35, d: 'На сколько выстрел сдвигает персонажа назад.' },
+  { k: 'recoilTime', l: 'Время отдачи', u: U.s, min: 0.02, max: 0.5, step: 0.01, def: 0.12, d: 'За сколько проходит сдвиг отдачи: меньше — резче.' },
+  { k: 'inputBuffer', l: 'Буфер нажатия', u: U.s, min: 0, max: 0.5, step: 0.01, def: 0.12, d: 'Нажатие чуть раньше конца паузы запоминается и стреляет сразу, как можно.' },
+];
 const MOTIONS = [['SlashRight', 'Горизонтальный справа налево'], ['SlashLeft', 'Горизонтальный слева направо'], ['Chop', 'Рубящий сверху вниз'], ['Thrust', 'Укол'], ['Punch', 'Тычок']];
 const STEP_FIELDS = [
   { k: 'motion', l: 'Движение', t: 'enum', opts: MOTIONS, def: 'SlashRight', d: 'Анимация удара.' },
@@ -594,6 +610,30 @@ function sectionCard(title, sub, withViz) {
 }
 function addViz(container, fn, ctx) { VIZ.push({ el: container, fn, ctx }); }
 
+/* Сворачиваемые карточки (оружие, враги): клик по заголовку; состояние помнится в браузере. */
+const COLLAPSED_KEY = 'colorsaction.configEditor.collapsed';
+const COLLAPSED = (() => { try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]')); } catch { return new Set(); } })();
+function saveCollapsed() { try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...COLLAPSED])); } catch { } }
+function makeCollapsible(root, key) {
+  const h3 = $('h3', root);
+  root.classList.add('collapsible');
+  h3.prepend(el('<span class="chev">▾</span>'));
+  root.classList.toggle('collapsed', COLLAPSED.has(key));
+  h3.addEventListener('click', e => {
+    if (e.target.closest('button, input, select, a')) return;
+    const on = !root.classList.contains('collapsed');
+    root.classList.toggle('collapsed', on);
+    if (on) COLLAPSED.add(key); else COLLAPSED.delete(key);
+    saveCollapsed();
+  });
+}
+function collapseBar(bar, prefix, ids) {
+  const bAll = el('<button>Свернуть все</button>'), bNone = el('<button>Развернуть все</button>');
+  bar.append(bAll, bNone);
+  bAll.onclick = () => { ids().forEach(id => COLLAPSED.add(prefix + id)); saveCollapsed(); renderPage(); };
+  bNone.onclick = () => { ids().forEach(id => COLLAPSED.delete(prefix + id)); saveCollapsed(); renderPage(); };
+}
+
 function collectUnknown(data, knownKeys, prefix = []) {
   const known = new Set(knownKeys);
   const out = [];
@@ -692,7 +732,18 @@ function validateItems(d) {
   const w = [];
   for (const [id, it] of Object.entries(d || {})) {
     const weapon = it.kind === 'OneHanded' || it.kind === 'TwoHanded';
-    if (weapon && !(it.combo?.length)) w.push(`${id}: у оружия должна быть хотя бы одна атака в серии.`);
+    if (weapon && !it.ranged && !(it.combo?.length)) w.push(`${id}: у оружия должна быть хотя бы одна атака в серии или стрельба.`);
+    if (it.ranged) {
+      const r = it.ranged;
+      if (num(r.pellets, 8) < 1) w.push(`${id}: пуль за выстрел должно быть хотя бы 1.`);
+      if (num(r.range, 7) <= 0) w.push(`${id}: дальность стрельбы должна быть больше 0.`);
+      if (num(r.spread, 30) < 0 || num(r.spread, 30) > 180) w.push(`${id}: разброс — от 0 до 180°.`);
+      if (num(r.cooldown, 0.3) < 0) w.push(`${id}: пауза между выстрелами не может быть отрицательной.`);
+      if (num(r.recoil, 0.35) < 0) w.push(`${id}: отдача не может быть отрицательной.`);
+      if (num(r.recoilTime, 0.12) <= 0) w.push(`${id}: время отдачи должно быть больше 0.`);
+      for (const k of ['staminaCost', 'knockback', 'inputBuffer']) if (num(r[k], 0) < 0) w.push(`${id}: ${k} не может быть отрицательным.`);
+      if (it.combo?.length) w.push(`${id}: у стрелкового оружия серия ударов не используется (её можно удалить).`);
+    }
     if (it.color && S.files.Colors && !S.files.Colors.data[it.color]) w.push(`${id}: цвета «${it.color}» нет в Colors.json.`);
     (it.combo || []).forEach((s, i) => {
       if (s.windup === undefined && num(s.activeFrom, 0.3) > num(s.activeTo, 0.65)) w.push(`${id}, удар ${i + 1}: «попадание с» позже, чем «попадание до».`);
@@ -705,6 +756,7 @@ function validateItems(d) {
 function renderItems(main, f) {
   const bar = el('<div style="margin:-4px 0 14px;display:flex;gap:8px"><button id="addItem">+ Новый предмет</button></div>');
   main.append(bar);
+  collapseBar(bar, 'Items:', () => Object.keys(f.data));
   $('#addItem', bar).onclick = () => {
     const id = prompt('Id нового предмета (латиница, например spear):'); if (!id) return;
     if (f.data[id]) { toast('Такой id уже есть.'); return; }
@@ -724,17 +776,32 @@ function renderItems(main, f) {
     bRen.onclick = () => { const nid = prompt('Новый id:', id); if (!nid || nid === id) return; if (f.data[nid]) return toast('Такой id уже есть.'); f.data = renameKey(f.data, id, nid); renderPage(); };
     bDup.onclick = () => { let nid = id + '_copy'; while (f.data[nid]) nid += '_'; f.data = insertAfter(f.data, id, nid, clone(it)); renderPage(); };
     bDel.onclick = () => { if (confirm(`Удалить предмет «${it.name || id}»?`)) { delete f.data[id]; renderPage(); } };
+    makeCollapsible(card.root, 'Items:' + id);
 
     const isShield = it.kind === 'Shield';
     for (const fd of ITEM_FIELDS) {
       if (fd.onlyShield && !isShield) continue;
       if (fd.onlyWeapon && (isShield || it.kind === 'Consumable')) continue;
+      if (fd.onlyWeapon && it.ranged) continue; // окно комбо, след и поворот клинка стрелковому не нужны
       card.fields.append(fieldRow(f, [id, fd.k], fd, () => { if (fd.k === 'kind' || fd.k === 'color' || fd.k === 'name') renderPage(); }));
     }
-    const leftovers = collectUnknown(it, [...ITEM_FIELDS.map(x => x.k), 'combo']);
+    const leftovers = collectUnknown(it, [...ITEM_FIELDS.map(x => x.k), 'combo', 'ranged']);
     for (const p of leftovers) card.fields.append(genericRow(f, [id, ...p]));
 
-    if (!isShield && it.kind !== 'Consumable' || it.combo?.length) {
+    const weapon = !isShield && it.kind !== 'Consumable';
+    if (it.ranged) {
+      const sh = el(`<div class="subhead">Стрельба <button class="small danger">убрать</button></div>`);
+      card.fields.append(sh);
+      $('button', sh).onclick = () => { if (confirm('Убрать стрельбу? Оружие снова будет бить серией ударов.')) { delete it.ranged; renderPage(); } };
+      for (const fd of RANGED_FIELDS) card.fields.append(fieldRow(f, [id, 'ranged', fd.k], fd));
+      for (const p of collectUnknown(it.ranged, RANGED_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'ranged', ...p]));
+    } else if (weapon) {
+      const sh = el(`<div class="subhead">Стрельба <button class="small">+ сделать стрелковым</button></div>`);
+      card.fields.append(sh);
+      $('button', sh).onclick = () => { it.ranged = Object.fromEntries(RANGED_FIELDS.map(x => [x.k, x.def])); renderPage(); };
+    }
+
+    if (weapon && !it.ranged || it.combo?.length && !it.ranged) {
       const sh = el(`<div class="subhead">Серия ударов (комбо) <button class="small">+ удар</button></div>`);
       card.fields.append(sh);
       $('button', sh).onclick = () => { it.combo = it.combo || []; it.combo.push(clone(it.combo[it.combo.length - 1] || Object.fromEntries(STEP_FIELDS.map(x => [x.k, x.def])))); renderPage(); };
@@ -861,7 +928,8 @@ function validateEnemies(d) {
 }
 
 function renderEnemies(main, f) {
-  const bar = el('<div style="margin:-4px 0 14px"><button>+ Новый тип врага</button></div>'); main.append(bar);
+  const bar = el('<div style="margin:-4px 0 14px;display:flex;gap:8px"><button>+ Новый тип врага</button></div>'); main.append(bar);
+  collapseBar(bar, 'Enemies:', () => Object.keys(f.data));
   $('button', bar).onclick = () => {
     const id = prompt('Id типа врага (латиница, например spear_cube):'); if (!id) return;
     if (f.data[id]) return toast('Такой id уже есть.');
@@ -880,6 +948,7 @@ function renderEnemies(main, f) {
     bRen.onclick = () => { const nid = prompt('Новый id (на него ссылаются уровни):', id); if (!nid || nid === id) return; if (f.data[nid]) return toast('Такой id уже есть.'); f.data = renameKey(f.data, id, nid); renderPage(); };
     bDup.onclick = () => { let nid = id + '_copy'; while (f.data[nid]) nid += '_'; f.data = insertAfter(f.data, id, nid, clone(e)); renderPage(); };
     bDel.onclick = () => { if (confirm(`Удалить тип врага «${e.name || id}»? Уровни, где он расставлен, перестанут загружаться.`)) { delete f.data[id]; renderPage(); } };
+    makeCollapsible(card.root, 'Enemies:' + id);
 
     const group = (title, fields) => { card.fields.append(el(`<div class="subhead">${esc(title)}</div>`)); for (const fd of fields) card.fields.append(fieldRow(f, [id, fd.k], fd, () => { if (fd.k === 'color' || fd.k === 'name') renderPage(); })); };
     group('Основное', ENEMY_FIELDS);
@@ -1209,6 +1278,7 @@ function vizItem({ id, it }) {
     const g = `<path d="M${cx},${cy} L${x1},${y1} A${R},${R} 0 ${a > 180 ? 1 : 0} 1 ${x2},${y2} Z" fill="${col}" opacity=".25" stroke="${col}"/><rect x="${cx - 12}" y="${cy - 12}" width="24" height="24" fill="#b3b6bd" stroke="#7d818a"/><line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy - R - 8}" stroke="${C.dark}" stroke-dasharray="3 3"/>` + T(cx, 12, 'вперёд', { anchor: 'middle', size: 10 });
     return `<h4>Сверху: сектор блока ${r2(a, 0)}°</h4>` + svgWrap(W, H, g) + facts([['Рука', it.hand || 'Any'], ['Блок гасит удары', `в секторе ${r2(a, 0)}° перед кубом`]]);
   }
+  if (it.ranged) return vizRanged(it, col);
   if (!combo.length) return '<div style="color:var(--muted)">Нет серии ударов.</div>';
   // сверху: дальность и сектор каждого удара
   const maxR = Math.max(1.5, ...combo.map(s => num(s.range, 1.3) + Math.max(0, num(s.lunge, 0))));
@@ -1255,6 +1325,29 @@ function vizItem({ id, it }) {
     <table class="dmg" style="margin-top:8px"><tr><th>#</th><th>Движение</th><th>Урон</th><th>Цвет ×${r2(cm)}</th><th>Выносл.</th></tr>${combo.map((st, i) => `<tr><td>${i + 1}</td><td>${esc((MOTIONS.find(m => m[0] === st.motion) || [, st.motion])[1])}</td><td>${r2(dmg[i], 1)}</td><td>${r2(dmg[i] * cm, 1)}</td><td>${r2(num(st.staminaCost, 12), 0)}</td></tr>`).join('')}
     <tr><th></th><th>Серия</th><th>${r2(dmg.reduce((a, b) => a + b, 0), 1)}</th><th>${r2(dmg.reduce((a, b) => a + b, 0) * cm, 1)}</th><th>${r2(sta, 0)}</th></tr></table>
     ${facts([['Урон в секунду', r2(dmg.reduce((a, b) => a + b, 0) / Math.max(0.01, total - cw), 1)], ['Рука', ({ Any: 'любая', Left: 'левая', Right: 'правая' })[it.hand || 'Any'] || it.hand], ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']])}</div></div>`;
+}
+
+/* Стрелковое оружие: веер пуль сверху и урон залпа. */
+function vizRanged(it, col) {
+  const r = it.ranged, n = Math.max(1, Math.round(num(r.pellets, 8))), spread = num(r.spread, 30), range = num(r.range, 7);
+  const W = 260, H = 240, cx = W / 2, cy = H - 30, s = (H - 60) / Math.max(1, range);
+  const R = range * s, p = a => [cx + Math.sin(a * Math.PI / 180) * R, cy - Math.cos(a * Math.PI / 180) * R];
+  const [x1, y1] = p(-spread / 2), [x2, y2] = p(spread / 2);
+  let g = `<path d="M${cx},${cy} L${x1},${y1} A${R},${R} 0 ${spread > 180 ? 1 : 0} 1 ${x2},${y2} Z" fill="${col}" fill-opacity=".12" stroke="${col}" stroke-opacity=".5"/>`;
+  for (let i = 0; i < n; i++) { const [x, y] = p(-spread / 2 + spread / n * (i + 0.5)); g += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" stroke="${col}" stroke-width="1.4"/>`; }
+  for (let m = 1; m <= Math.floor(range); m++) g += `<circle cx="${cx}" cy="${cy}" r="${m * s}" fill="none" stroke="${C.dark}" stroke-opacity=".08"/>`;
+  // ширина веера на дальности: сколько врагов размером 0.8 бл туда помещается
+  const width = 2 * range * Math.tan(Math.min(89, spread / 2) * Math.PI / 180);
+  g += `<rect x="${cx - s * 0.5}" y="${cy - s * 0.5}" width="${s}" height="${s}" fill="#b3b6bd" stroke="#7d818a"/>` + T(cx, 12, `${r2(range, 1)} бл`, { anchor: 'middle', size: 10 });
+  const cm = num(S.files.Combat?.data?.sameColorMultiplier, 1.5), dmg = num(it.damage) * n, cd = Math.max(0.01, num(r.cooldown, 0.3));
+  const sta = num(r.staminaCost, 20), maxSta = num(S.files.Player?.data?.stamina?.max, 100);
+  return `<h4>Сверху: веер пуль (${n} шт., ${r2(spread, 0)}°)</h4>` + svgWrap(W, H, g) + facts([
+    ['Урон залпа (все пули в цель)', `${r2(dmg, 1)} · своего цвета ${r2(dmg * cm, 1)}`],
+    ['Урон в секунду максимум', r2(dmg / cd, 1)],
+    ['Ширина веера на дальности', `${r2(width, 1)} бл`],
+    ['Выстрелов на полной выносливости', sta <= 0 ? '∞' : `${Math.ceil(maxSta / sta)}`],
+    ['Отдача', `${r2(num(r.recoil, 0.35), 2)} бл назад за ${r2(num(r.recoilTime, 0.12), 2)} с`],
+    ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']]);
 }
 
 function vizColors({ d }) {

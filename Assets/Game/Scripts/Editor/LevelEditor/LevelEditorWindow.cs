@@ -50,6 +50,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         [SerializeField] private BarrierKind barrierKind = BarrierKind.Wall;
         [SerializeField] private string objectColor = "red";
         [SerializeField] private int barrierHeight = 2;
+        [SerializeField] private int doorHeight = 3;
+        [SerializeField] private int doorYaw;
         [SerializeField] private string objectItem = "";
         [SerializeField] private InteractionAction pointAction = InteractionAction.ShieldSlide;
 
@@ -357,13 +359,22 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                         barrierHeight = EditorGUILayout.IntSlider("Высота (клеток)", barrierHeight, 1, 6);
                     }
 
+                    if (objectKind == LevelObjectKind.ShortcutDoor)
+                    {
+                        doorYaw = DoorSidePopup(doorYaw);
+                        doorHeight = EditorGUILayout.IntSlider("Высота (клеток)", doorHeight, 1, 6);
+                        EditorGUILayout.HelpBox("Дверь открывается только со стороны стрелки, после этого остаётся открытой. " +
+                                                "Ставьте её в проём стены.", MessageType.None);
+                    }
+
                     if (objectKind == LevelObjectKind.EnemySpawn)
                         objectItem = DrawEnemyPopup(objectItem);
                     else
                     {
                         if (HasColor(objectKind))
                             DrawColorPicker(ref objectColor, false);
-                        objectItem = EditorGUILayout.TextField(ItemLabel(objectKind), objectItem);
+                        if (objectKind != LevelObjectKind.ShortcutDoor)
+                            objectItem = EditorGUILayout.TextField(ItemLabel(objectKind), objectItem);
                     }
 
                     EditorGUILayout.HelpBox("ЛКМ по блоку — поставить объект сверху. ЛКМ по объекту — выбрать.", MessageType.None);
@@ -379,6 +390,14 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     break;
             }
         }
+
+        private static readonly string[] DoorSideLabels = { "↑ +Z", "→ +X", "↓ −Z", "← −X" };
+        private static readonly int[] DoorSideYaws = { 0, 90, 180, 270 };
+
+        /// <summary>Сторона, с которой открывается дверь-срезка (это её поворот).</summary>
+        private static int DoorSidePopup(float yaw) =>
+            EditorGUILayout.IntPopup(new GUIContent("Открывается со стороны", "Стрелка на сцене показывает лицевую сторону"),
+                ((Mathf.RoundToInt(yaw / 90f) % 4 + 4) % 4) * 90, DoorSideLabels.Select(l => new GUIContent(l)).ToArray(), DoorSideYaws);
 
         private static bool HasColor(LevelObjectKind kind) =>
             kind == LevelObjectKind.Barrier || kind == LevelObjectKind.WeaponPedestal;
@@ -470,7 +489,16 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             EditorGUILayout.LabelField("Id", obj.Id);
             after.Kind = (LevelObjectKind)EditorGUILayout.EnumPopup("Вид", obj.Kind);
             after.Cell = ToInt3(EditorGUILayout.Vector3IntField("Клетка", ToV(obj.Cell)));
-            after.Yaw = EditorGUILayout.IntPopup("Поворот", Mathf.RoundToInt(obj.Yaw), new[] { "0°", "90°", "180°", "270°" }, new[] { 0, 90, 180, 270 });
+            if (after.Kind == LevelObjectKind.ShortcutDoor)
+            {
+                after.Yaw = DoorSidePopup(obj.Yaw);
+                after.Height = EditorGUILayout.IntSlider("Высота", obj.Height, 1, 6);
+                // Объект только что стал дверью: высота как у стен по умолчанию (поворот уже округлён до 90°).
+                if (obj.Kind != LevelObjectKind.ShortcutDoor)
+                    after.Height = doorHeight;
+            }
+            else
+                after.Yaw = EditorGUILayout.IntPopup("Поворот", Mathf.RoundToInt(obj.Yaw), new[] { "0°", "90°", "180°", "270°" }, new[] { 0, 90, 180, 270 });
             if (after.Kind == LevelObjectKind.Barrier)
             {
                 after.Barrier = (BarrierKind)EditorGUILayout.EnumPopup("Тип барьера", obj.Barrier);
@@ -482,6 +510,11 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 // Цвет врага задаёт его тип в Enemies.json.
                 after.Item = DrawEnemyPopup(obj.Item);
                 after.Color = null;
+            }
+            else if (after.Kind == LevelObjectKind.ShortcutDoor)
+            {
+                after.Color = null;
+                after.Item = null;
             }
             else
             {
@@ -507,7 +540,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             var item = EditorGUILayout.DelayedTextField("Условие: предмет", point.Condition.RequiredItem ?? "");
             after.Condition.RequiredItem = string.IsNullOrEmpty(item) ? null : item;
             after.Condition.RequiredOpen = IdPopup("Условие: открыт", point.Condition.RequiredOpen,
-                session.Level.Objects.Where(o => o.IsBarrier).Select(o => o.Id));
+                session.Level.Objects.Where(o => o.BlocksPath).Select(o => o.Id));
             if (InteractionPoint.CreatesLink(after.Action))
             {
                 after.TargetPoint = IdPopup("Точка B", point.TargetPoint, session.Level.Points.Where(p => p.Id != point.Id).Select(p => p.Id));

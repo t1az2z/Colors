@@ -14,6 +14,14 @@
       { "motion": "Chop", "windup": 0.25, "strike": 0.12, "hitFrom": 0.6, "hitTo": 1, "hold": 0.07, "recovery": 0.16, "damageMultiplier": 1.6, "lunge": 0.8, "range": 2.5, "arc": 70, "knockback": 3, "staminaCost": 22 }
     ]
   },
+  "shotgun": {
+    "name": "Дробовик",
+    "color": "red",
+    "kind": "TwoHanded",
+    "damage": 3,
+    "prefab": "Items/Shotgun",
+    "ranged": { "pellets": 8, "spread": 30, "range": 7, "cooldown": 0.3, "staminaCost": 20, "knockback": 1.2, "recoil": 0.35, "recoilTime": 0.12, "inputBuffer": 0.12 }
+  },
   "shield": {
     "name": "Щит",
     "color": "lilac",

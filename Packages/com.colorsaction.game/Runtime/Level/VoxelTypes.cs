@@ -164,7 +164,13 @@ namespace ColorsAction.Level
         Bonfire,
         EnemySpawn,
         Npc,
-        Hint
+        Hint,
+
+        /// <summary>
+        /// Односторонняя дверь-срезка: <see cref="LevelObject.Yaw"/> смотрит в сторону, с которой её открывают,
+        /// <see cref="LevelObject.Height"/> — высота в клетках. Закрытая блокирует проход, как барьер.
+        /// </summary>
+        ShortcutDoor
     }
 
     /// <summary>Тип цветного барьера (раздел 8 GDD).</summary>
@@ -189,18 +195,23 @@ namespace ColorsAction.Level
         public string Color { get; set; }
         public BarrierKind Barrier { get; set; }
 
-        /// <summary>Высота барьера в клетках (сколько клеток вверх он закрывает).</summary>
+        /// <summary>Высота барьера или двери в клетках (сколько клеток вверх он закрывает).</summary>
         public int Height { get; set; } = 2;
 
         public string Item { get; set; }
 
         public bool IsBarrier => Kind == LevelObjectKind.Barrier;
 
+        public bool IsDoor => Kind == LevelObjectKind.ShortcutDoor;
+
+        /// <summary>Перекрывает ли проход, пока не открыт (барьер или дверь-срезка).</summary>
+        public bool BlocksPath => IsBarrier || IsDoor;
+
         public LevelObject Clone() => (LevelObject)MemberwiseClone();
 
-        /// <summary>Закрывает ли барьер клетку.</summary>
+        /// <summary>Закрывает ли барьер или дверь клетку.</summary>
         public bool Covers(Int3 cell) =>
-            IsBarrier && cell.X == Cell.X && cell.Z == Cell.Z && cell.Y >= Cell.Y && cell.Y < Cell.Y + Math.Max(1, Height);
+            BlocksPath && cell.X == Cell.X && cell.Z == Cell.Z && cell.Y >= Cell.Y && cell.Y < Cell.Y + Math.Max(1, Height);
     }
 
     /// <summary>Действие точки взаимодействия.</summary>
@@ -221,7 +232,10 @@ namespace ColorsAction.Level
         /// <summary>Рычаг: открывает объект-цель (барьер, дверь). Связи пути не создаёт.</summary>
         Lever,
 
-        /// <summary>Дверь-срезка: открывается с одной стороны, после этого проход в обе стороны.</summary>
+        /// <summary>
+        /// Связь через дверь-срезку для карты пути (A — лицевая сторона). Сама дверь — объект
+        /// <see cref="LevelObjectKind.ShortcutDoor"/>; эта точка нужна, только чтобы описать проход явно.
+        /// </summary>
         ShortcutDoor,
 
         /// <summary>Переход между этажами (лестница, люк): связь A ↔ B.</summary>
