@@ -724,9 +724,9 @@ function viewPanel() {
     row('Этажи выше', chips([['show', 'видно'], ['ghost', 'призрак'], ['hide', 'скрыть']], st.upper, v => { st.upper = v; needMesh = true; })),
     row('Затемнять ниже', chips([[true, 'да'], [false, 'нет']], st.darkBelow, v => { st.darkBelow = v; needMesh = true; })),
     H3('Камера'),
-    desc('Двумя пальцами: сдвиг, щипок — масштаб, вращение пальцев — поворот. Кнопки ⟲ ⟳ поворачивают на 90° (как схема Б в игре). Мышью: правая кнопка — поворот и наклон, средняя — сдвиг, колесо — масштаб.'),
+    desc('Двумя пальцами: сдвиг, щипок — масштаб, вращение пальцев — плавный поворот на любой угол. Кнопки ⟲ ⟳ и Q/E поворачивают на 45°, а в режиме «по 90°» на 90° (как схема Б в игре). Мышью: правая кнопка — поворот и наклон, средняя — сдвиг, колесо — масштаб.'),
     row('Наклон', chips([[30, '30°'], [35.26, 'изо'], [50, '50°'], [65, '65°'], [90, 'сверху']], Math.round(cam.pitchT * 100) / 100, v => { cam.pitchT = v; })),
-    row('Поворот', chips([[true, 'по 90°'], [false, 'свободный']], cam.snap, v => { cam.snap = v; if (v) cam.yawT = Math.round((cam.yawT - 45) / 90) * 90 + 45; })),
+    row('Поворот', chips([[false, 'свободный'], [true, 'по 90°']], cam.snap, v => { cam.snap = v; if (v) cam.yawT = Math.round((cam.yawT - 45) / 90) * 90 + 45; })),
     H3('Уровень'),
     row('Название', textInput(L.name, v => { touchMarkup(); L.name = v || 'Уровень'; commit(); renderName(); })),
     row('Имя файла', textInput(L.file, v => { L.file = (v || 'Level').replace(/\.json$/i, '').replace(/[^\w\-]/g, ''); renderName(); autosave(); })),
@@ -838,7 +838,7 @@ let chunks = new Map(); // "cx,cz,floor" -> {mesh, tri: [ключи блоков
 let dirtyChunks = new Set();
 let needMesh = true; // полная пересборка
 
-const cam = { tx: 16, ty: 0, tz: 16, yaw: 45, yawT: 45, pitch: 35.26, pitchT: 35.26, zoom: 14, snap: true };
+const cam = { tx: 16, ty: 0, tz: 16, yaw: 45, yawT: 45, pitch: 35.26, pitchT: 35.26, zoom: 14, snap: false };
 
 function heightColor(absTop) {
   const base = activeFloor === 0 ? 0 : L.floors[activeFloor].baseY;
@@ -1460,7 +1460,10 @@ function moveGesture() {
   panBy(s.mx - l.mx, s.my - l.my);
   if (l.d > 10 && s.d > 10) zoomAt(l.d / s.d, s.mx, s.my);
   let da = s.ang - l.ang; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
-  cam.yawT += da * 180 / Math.PI; cam.yaw = cam.yawT; gesture.rotated = (gesture.rotated || 0) + Math.abs(da);
+  // Мёртвая зона: поворот включается, только когда пальцы реально провернулись (~8°), чтобы щипок и сдвиг не крутили камеру.
+  gesture.twist = (gesture.twist || 0) + da;
+  if (!gesture.rotated && Math.abs(gesture.twist) > ROT_DEADZONE) { gesture.rotated = true; da = gesture.twist; }
+  if (gesture.rotated) { cam.yawT += da * 180 / Math.PI; cam.yaw = cam.yawT; }
   gesture.last = s; requestRender();
 }
 function endGesture() {
@@ -1469,6 +1472,7 @@ function endGesture() {
   // оставшийся палец ничего не рисует до следующего касания
   for (const id of pointers.keys()) pointers.delete(id);
 }
+const ROT_DEADZONE = 8 * Math.PI / 180;
 function snapYaw() { cam.yawT = Math.round((cam.yawT - 45) / 90) * 90 + 45; requestRender(); }
 /** Точка на горизонтальной плоскости через цель камеры под экранной точкой (в координатах окна). */
 function groundAt(px, py) {
@@ -1504,7 +1508,7 @@ window.addEventListener('keydown', e => {
   if (e.key >= '0' && e.key <= '9') { st.height = +e.key; renderPanel(); hud(); }
   if (e.key === 'Delete' && sel.obj) { touchMarkup(); L.objects = L.objects.filter(o => o.id !== sel.obj); sel.obj = null; commit(); renderPanel(); }
 });
-function rotateCam(dir) { cam.yawT = (cam.snap ? Math.round((cam.yawT - 45) / 90) * 90 + 45 : cam.yawT) + dir * 90; requestRender(); }
+function rotateCam(dir) { cam.yawT = cam.snap ? Math.round((cam.yawT - 45) / 90) * 90 + 45 + dir * 90 : cam.yawT + dir * 45; requestRender(); }
 
 // ============================================================================ кнопки
 
