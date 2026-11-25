@@ -99,6 +99,7 @@
   .add { margin: 6px 0; }
   .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line2); border-radius: 10px; padding: 0 7px; font-weight: 400; }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .legend span { font-weight: 500; }
   .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
   table.dmg { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   table.dmg th, table.dmg td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
@@ -985,6 +986,17 @@ function renderEnemies(main, f) {
 const C = { grid: '#e3e5e9', grid2: '#cfd3d9', ground: '#c9ccd2', groundTop: '#b7bbc2', text: '#6b7078', dark: '#23262b', blue: '#2F6BFF', red: '#E8413C', green: '#3DBE5A', orange: '#FF8A1F', lilac: '#B07CFF', yellow: '#F5C518', teal: '#18B5A8' };
 function svgWrap(w, h, inner) { return `<svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`; }
 const T = (x, y, s, o = {}) => `<text x="${x}" y="${y}" font-size="${o.size || 11}" fill="${o.fill || C.text}" text-anchor="${o.anchor || 'start'}" ${o.weight ? `font-weight="${o.weight}"` : ''}>${esc(s)}</text>`;
+// Цвет подписи легенды: светлые цвета (жёлтый, серый) затемняем, чтобы текст читался на белом.
+function legendText(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '')); if (!m) return C.text;
+  const v = parseInt(m[1], 16), rgb = [v >> 16 & 255, v >> 8 & 255, v & 255];
+  const lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+  if (lum < 0.6) return '#' + m[1];
+  const k = 0.6 / lum * 0.85;
+  return '#' + rgb.map(c => Math.round(c * k).toString(16).padStart(2, '0')).join('');
+}
+// Пункт легенды: образец (стиль <i>) + подпись того же цвета.
+const legendItem = (swatch, label, color) => `<span style="color:${legendText(color)}"><i style="${swatch}"></i>${esc(label)}</span>`;
 const facts = arr => `<div class="facts">${arr.map(([k, v]) => `<span>${esc(k)}: <b>${esc(v)}</b></span>`).join('')}</div>`;
 
 // Сторона-сцена: возвращает функции преобразования координат
@@ -1314,14 +1326,16 @@ function vizItem({ id, it }) {
     // Окно запрета переката — тёмная полоса под ударом.
     const lf = clamp(num(st.rollLockFrom, 0), 0, dur), ltRaw = num(st.rollLockTo, -1), lt = ltRaw < 0 ? dur : clamp(ltRaw, lf, dur);
     tl += `<rect x="${x + lf * sx}" y="40" width="${Math.max(0, (lt - lf) * sx - 2)}" height="3" rx="1.5" fill="${C.dark}" fill-opacity=".55"/>`;
+    // Общее время удара — подпись под его отрезком.
+    tl += T(x + Math.max(0, dur * sx - 2) / 2, 55, `${r2(dur)} с`, { size: 9, anchor: 'middle', fill: C.dark });
     x += dur * sx;
   });
   tl += `<rect x="${x}" y="24" width="${cw * sx}" height="8" rx="3" fill="${C.grid}" stroke="${C.grid2}" stroke-dasharray="2 2"/>` + T(x + 2, 13, 'окно', { size: 9 });
-  tl += T(L, 52, '0', { size: 9 }) + T(TW - L, 52, `${r2(total)} с`, { size: 9, anchor: 'end' });
+  tl += `<line x1="${L}" x2="${TW - L}" y1="60" y2="60" stroke="${C.grid2}"/>` + T(L, 70, '0', { size: 9 }) + T(TW - L, 70, `всего ${r2(total)} с`, { size: 9, anchor: 'end' });
   const dmg = combo.map(st => itemDamage(it, st));
   const sta = combo.reduce((a, st) => a + num(st.staminaCost, 12), 0);
   const cm = num(S.files.Combat?.data?.sameColorMultiplier, 1.5);
-  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени: серый — замах и возврат, цвет — удар (ярко — окно урона), светлый — пауза (окно комбо), тёмная полоса снизу — перекат запрещён</h4>${svgWrap(TW, 56, tl)}
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени, под каждым ударом — его общее время</h4>${svgWrap(TW, 74, tl)}<div class="legend">${legendItem(`background:${C.grid2}`, 'замах и возврат', C.text)}${legendItem(`background:${col};opacity:.55`, 'удар', col)}${legendItem(`background:${col}`, 'окно урона', col)}${legendItem(`background:${col};opacity:.35`, 'фиксация', col)}${legendItem(`border:1px dashed ${C.grid2};background:${C.grid};height:6px`, 'пауза (окно комбо)', '#9aa0a8')}${legendItem(`background:${C.dark};opacity:.55`, 'перекат запрещён', C.dark)}</div>
     <table class="dmg" style="margin-top:8px"><tr><th>#</th><th>Движение</th><th>Урон</th><th>Цвет ×${r2(cm)}</th><th>Выносл.</th></tr>${combo.map((st, i) => `<tr><td>${i + 1}</td><td>${esc((MOTIONS.find(m => m[0] === st.motion) || [, st.motion])[1])}</td><td>${r2(dmg[i], 1)}</td><td>${r2(dmg[i] * cm, 1)}</td><td>${r2(num(st.staminaCost, 12), 0)}</td></tr>`).join('')}
     <tr><th></th><th>Серия</th><th>${r2(dmg.reduce((a, b) => a + b, 0), 1)}</th><th>${r2(dmg.reduce((a, b) => a + b, 0) * cm, 1)}</th><th>${r2(sta, 0)}</th></tr></table>
     ${facts([['Урон в секунду', r2(dmg.reduce((a, b) => a + b, 0) / Math.max(0.01, total - cw), 1)], ['Рука', ({ Any: 'любая', Left: 'левая', Right: 'правая' })[it.hand || 'Any'] || it.hand], ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']])}</div></div>`;
@@ -1432,7 +1446,7 @@ function vizEnemy({ e }) {
   const toFirst = num(e.alertDuration, 2) + Math.max(0, aggro - maxR) / Math.max(0.01, speed);
   const pHp = num(S.files.Player?.data?.maxHealth, 0);
   return `<div style="display:flex;gap:10px;flex-wrap:wrap"><div><h4>Зоны сверху (масштаб по радиусу потери)</h4>${svgWrap(W, H, z)}</div><div><h4>Атаки сверху, цифры — номер атаки</h4>${svgWrap(W2, H2, g)}</div></div>`
-    + `<h4>Атаки по времени</h4>${svgWrap(TW, tlH, tl)}<div class="legend"><span><i style="background:${C.yellow}"></i>замах (реакция игрока)</span><span><i style="background:${C.red}"></i>удар (урон)</span><span><i style="background:${C.orange}"></i>фиксация</span><span><i style="background:${C.grid2}"></i>возврат</span><span><i style="background:${C.lilac}"></i>окно парирования</span><span><i style="border:1px dashed ${C.grid2};height:6px"></i>пауза между атаками</span></div>`
+    + `<h4>Атаки по времени</h4>${svgWrap(TW, tlH, tl)}<div class="legend">${legendItem(`background:${C.yellow}`, 'замах (реакция игрока)', C.yellow)}${legendItem(`background:${C.red}`, 'удар (урон)', C.red)}${legendItem(`background:${C.orange}`, 'фиксация', C.orange)}${legendItem(`background:${C.grid2}`, 'возврат', C.text)}${legendItem(`border:2px solid ${C.lilac};height:6px`, 'окно парирования', C.lilac)}${legendItem(`border:1px dashed ${C.grid2};height:6px`, 'пауза между атаками', '#9aa0a8')}</div>`
     + facts([
       ['Скорость', pWalk ? `${r2(speed)} бл/с (${r2(speed / pWalk * 100, 0)}% ходьбы игрока)` : `${r2(speed)} бл/с`],
       ['От агро до первого удара', `≈ ${r2(toFirst + (attacks[0] ? ph(attacks[0])[0] : 0), 1)} с`],
