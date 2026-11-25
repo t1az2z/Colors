@@ -16,20 +16,20 @@
     "hitPushback": 0.45,
     "experience": 10,
     "deathPieces": 14,
-    "experiencePieces": 6,
+    "experiencePieces": 10,
     "attacks": [
-      { "motion": "Sweep", "windup": 0.6, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1 },
-      { "motion": "Overhead", "windup": 0.8, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 0.5, "weight": 1, "parryFrom": -0.17, "parryTo": 0.02 }
+      { "motion": "Sweep", "windup": 0.4, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07 },
+      { "motion": "Overhead", "windup": 0.5, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.03, "parryTo": 0.06 }
     ],
     "flankBias": 0.7
   },
   "club_cube_red": {
     "name": "Красный куб с дубиной",
     "color": "red",
-    "size": 0.8,
-    "maxHealth": 40,
+    "size": 0.85,
+    "maxHealth": 55,
     "weaponPrefab": "Items/Club",
-    "aggroRadius": 7,
+    "aggroRadius": 8,
     "loseRadius": 20,
     "alertDuration": 1,
     "moveSpeed": 7,
@@ -38,12 +38,12 @@
     "attackCooldown": 0.8,
     "staggerDuration": 0.35,
     "hitPushback": 0.45,
-    "experience": 10,
+    "experience": 14,
     "deathPieces": 14,
-    "experiencePieces": 6,
+    "experiencePieces": 10,
     "attacks": [
-      { "motion": "Sweep", "windup": 0.6, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1 },
-      { "motion": "Overhead", "windup": 0.8, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 0.5, "weight": 1, "parryFrom": -0.17, "parryTo": 0.02 }
+      { "motion": "Sweep", "windup": 0.4, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07 },
+      { "motion": "Overhead", "windup": 0.6, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.04, "parryTo": 0.06 }
     ],
     "flankBias": 0.7
   }
