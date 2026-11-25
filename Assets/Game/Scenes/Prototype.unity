@@ -647,7 +647,6 @@ GameObject:
   - component: {fileID: 1099493302}
   - component: {fileID: 1099493301}
   - component: {fileID: 1099493300}
-  - component: {fileID: 1099493299}
   m_Layer: 0
   m_Name: GameBootstrap
   m_TagString: Untagged
@@ -655,19 +654,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &1099493299
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1099493298}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 771ba7df175b3e84a85bd2809f10cd21, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: ColorsAction.Unity::ColorsAction.Unity.Hud
-  interactor: {fileID: 1898017271}
 --- !u!114 &1099493300
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -682,6 +668,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: ColorsAction.Unity::ColorsAction.Unity.GameBootstrap
   dontDestroyOnLoad: 0
   uiRoot: {fileID: 0}
+  hudPrefab: {fileID: 8438134136393631200, guid: 73acaf39aec6cbd4d9ae3ffc34598bfd, type: 3}
+  inventoryPrefab: {fileID: 5430641325257715246, guid: 54c4f9497b1997545942a4d2a02ce35d, type: 3}
 --- !u!114 &1099493301
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -6,6 +6,8 @@ using GameCore.Newtonsoft;
 using GameCore.UI;
 using GameCore.Unity;
 using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
 
 namespace ColorsAction.Unity
 {
@@ -18,7 +20,14 @@ namespace ColorsAction.Unity
     [RequireComponent(typeof(GameInput))]
     public sealed class GameBootstrap : GameHostBehaviour
     {
+        private const string HudResource = "UI/Hud";
+        private const string InventoryResource = "UI/InventoryScreen";
+
         [SerializeField] private Transform uiRoot;
+        [Tooltip("Префаб HUD; пусто — Resources/UI/Hud.")]
+        [SerializeField] private Hud hudPrefab;
+        [Tooltip("Префаб экрана инвентаря; пусто — Resources/UI/InventoryScreen.")]
+        [SerializeField] private InventoryView inventoryPrefab;
 
         private ScreenViewBinder<GameObject> views;
         private GameInput input;
@@ -37,15 +46,31 @@ namespace ColorsAction.Unity
 
         protected override void OnHostCreated(GameHost host)
         {
-            var canvas = UiFactory.EnsureCanvas(uiRoot != null ? uiRoot : transform);
+            // Интерфейс — префабы со своими Canvas (Resources/UI): HUD живёт всю игру, экраны создаются по требованию.
+            var parent = uiRoot != null ? uiRoot : transform;
+            EnsureEventSystem(parent);
+            if (hudPrefab == null)
+                hudPrefab = Resources.Load<Hud>(HudResource);
+            if (FindAnyObjectByType<Hud>() == null && hudPrefab != null)
+                Instantiate(hudPrefab, parent, false).name = "Hud";
+            if (inventoryPrefab == null)
+                inventoryPrefab = Resources.Load<InventoryView>(InventoryResource);
             views = new ScreenViewBinder<GameObject>(host.Screens, Destroy, host.Logger)
-                .Register<InventoryScreenViewModel>(vm => InventoryView.Create(canvas, vm, host.Container));
+                .Register<InventoryScreenViewModel>(vm => InventoryView.Create(inventoryPrefab, parent, vm, host.Container));
 
             // BootState читает все конфиги и переводит игру в PlayState.
             host.Start<BootState>();
 
             foreach (var behaviour in FindObjectsByType<GameBehaviour>(FindObjectsInactive.Include))
                 behaviour.Construct(host.Container);
+        }
+
+        private static void EnsureEventSystem(Transform parent)
+        {
+            if (FindAnyObjectByType<EventSystem>() != null)
+                return;
+            var es = new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
+            es.transform.SetParent(parent, false);
         }
 
         /// <summary>Раздать зависимости объекту, созданному во время игры (предметы, манекены уровня).</summary>

@@ -6,6 +6,7 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Предмет на земле. Лежит, слегка покачиваясь, подсвечен своим цветом.
+    /// Вид — префаб Resources/Items/Pickups/&lt;имя префаба оружия&gt; (<see cref="PickupVisual"/>), без него — модель из рук.
     /// Игрок подбирает его на F / X (<see cref="PlayerInteractor"/>), предмет уходит в сетку инвентаря.
     /// </summary>
     public sealed class Pickup : GameBehaviour, IInteractable
@@ -17,8 +18,7 @@ namespace ColorsAction.Unity
         private GameSession session;
         private ItemDatabase itemsDb;
         private Palette palette;
-        private Transform visual;
-        private float phase;
+        private PickupVisual visual;
         private bool taken;
         private float takeTimer;
 
@@ -56,54 +56,77 @@ namespace ColorsAction.Unity
         private void Start()
         {
             var config = itemsDb.Get(itemId);
-            var prefab = Resources.Load<GameObject>(config.Prefab);
-            if (prefab == null)
-            {
-                Debug.LogError($"Pickup: no prefab for '{itemId}'", this);
-                return;
-            }
-
-            visual = Instantiate(prefab, transform, false).transform;
             var color = palette.Get(config.Color);
-            if (visual.TryGetComponent<ItemVisual>(out var iv))
+
+            // Свой префаб "на земле" (Resources/Items/Pickups/<имя префаба оружия>), иначе — модель из рук со светом.
+            var pickupPrefab = string.IsNullOrEmpty(config.Prefab) ? null : Resources.Load<PickupVisual>(PickupPath(config.Prefab));
+            if (pickupPrefab != null)
             {
-                iv.SetColor(color, 0.6f);
-                iv.StripColliders();
+                visual = Instantiate(pickupPrefab, transform, false);
+            }
+            else
+            {
+                visual = CreateFallbackVisual(config.Prefab);
+                if (visual == null)
+                {
+                    Debug.LogError($"Pickup: no prefab for '{itemId}'", this);
+                    return;
+                }
             }
 
-            // Лежит на боку над полом.
-            visual.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            visual.localPosition = Vector3.up * 0.12f;
+            visual.Setup(color);
+        }
+
+        /// <summary>Путь префаба предмета на земле: "Items/Sword" → "Items/Pickups/Sword".</summary>
+        public static string PickupPath(string heldPrefab)
+        {
+            var slash = heldPrefab.LastIndexOf('/');
+            var name = slash >= 0 ? heldPrefab.Substring(slash + 1) : heldPrefab;
+            var folder = slash >= 0 ? heldPrefab.Substring(0, slash + 1) : string.Empty;
+            return folder + "Pickups/" + name;
+        }
+
+        /// <summary>Запасной вид без префаба: модель из рук лежит на боку над полом, над ней точечный свет.</summary>
+        private PickupVisual CreateFallbackVisual(string heldPrefab)
+        {
+            var prefab = string.IsNullOrEmpty(heldPrefab) ? null : Resources.Load<GameObject>(heldPrefab);
+            if (prefab == null)
+                return null;
+            var root = new GameObject("Visual");
+            root.transform.SetParent(transform, false);
+            var model = Instantiate(prefab, root.transform, false).transform;
+            model.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            model.localPosition = Vector3.up * 0.2f;
 
             var glow = new GameObject("Glow").AddComponent<Light>();
-            glow.transform.SetParent(transform, false);
+            glow.transform.SetParent(root.transform, false);
             glow.transform.localPosition = Vector3.up * 0.6f;
             glow.type = LightType.Point;
-            glow.color = color;
             glow.range = 3f;
             glow.intensity = 2.5f;
             glow.shadows = LightShadows.None;
-            phase = Random.value * 10f;
+
+            var v = root.AddComponent<PickupVisual>();
+            v.Configure(model, glow);
+            return v;
         }
 
         private void Update()
         {
             if (visual == null)
                 return;
-            phase += Time.deltaTime;
             if (taken)
             {
                 takeTimer += Time.deltaTime;
                 var k = Mathf.Clamp01(takeTimer / 0.25f);
                 transform.localScale = Vector3.one * (1f - k);
-                visual.localPosition += Vector3.up * Time.deltaTime * 3f;
+                visual.TickTaken(Time.deltaTime);
                 if (k >= 1f)
                     Destroy(gameObject);
                 return;
             }
 
-            visual.localPosition = Vector3.up * (0.2f + Mathf.Sin(phase * 2f) * 0.05f);
-            visual.localRotation = Quaternion.Euler(90f, 0f, 0f) * Quaternion.Euler(0f, 0f, phase * 25f);
+            visual.Tick(Time.deltaTime);
         }
 
         /// <summary>Подобрать. false — инвентарь полон.</summary>
