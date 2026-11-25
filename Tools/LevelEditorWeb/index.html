@@ -1200,20 +1200,29 @@ function brushCells(x, z, n) {
   return out;
 }
 function paintAt(px, py) {
+  for (const [x, y, z] of paintCells(px, py)) { const old = getB(x, y, z); if (old) setBlock(x, y, z, { ...old, c: st.color }); }
+}
+/** Блоки, которые перекрасит кисть: блок под пальцем или вся колонка. */
+function paintCells(px, py) {
   const b = pickBlock(px, py);
   let cells = [];
   if (b && cam.pitch < 80 && !st.paintColumn) cells = [b.cell];
   else {
-    const c = pickColumn(px, py); if (!c) return;
+    const c = pickColumn(px, py); if (!c) return cells;
     const [x, z] = c.xz; const [lo, hi] = floorRange(activeFloor);
     if (st.paintColumn) { for (let y = Math.max(lo, bounds.minY); y <= Math.min(hi - 1, bounds.maxY); y++) if (getB(x, y, z)) cells.push([x, y, z]); }
     else { const t = columnTop(x, z, activeFloor); if (t) cells = [[x, t.y, z]]; }
   }
-  for (const [x, y, z] of cells) { const old = getB(x, y, z); if (old) setBlock(x, y, z, { ...old, c: st.color }); }
+  return cells;
 }
 function blockAt(px, py) {
+  const t = blockTarget(px, py); if (!t) return;
+  setBlock(...t.cell, t.remove ? null : { s: st.blockShape, r: st.rot, c: st.color });
+}
+/** Клетка, которую изменит инструмент «Блок»: при удалении — сам блок под пальцем, иначе соседняя клетка со стороны грани. */
+function blockTarget(px, py) {
   const b = pickBlock(px, py);
-  if (st.blockMode === 'remove') { if (b) setBlock(...b.cell, null); return; }
+  if (st.blockMode === 'remove') return b ? { cell: b.cell, remove: true } : null;
   let cell;
   if (b) {
     const n = b.normal, ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
@@ -1225,10 +1234,10 @@ function blockAt(px, py) {
     const own = getB(x, y, z);
     if (n.y > 0.5 && own && own.s !== 'F' && b.floor === activeFloor && cam.pitch < 80) cell = [x, y, z];
   } else {
-    const p = planeHit(px, py, floorPlaneY()); if (!p) return;
+    const p = planeHit(px, py, floorPlaneY()); if (!p) return null;
     cell = [p[0], floorPlaneY(), p[1]];
   }
-  setBlock(...cell, { s: st.blockShape, r: st.rot, c: st.color });
+  return { cell, remove: false };
 }
 function pickAt(px, py) {
   const c = pickColumn(px, py); if (!c) return;
@@ -1326,6 +1335,8 @@ view.addEventListener('pointerdown', e => {
   if (st.tool === 'pan' || st.tool === 'view' || touchPan) { gesture = { pan1: true, x: e.clientX, y: e.clientY }; return; }
   stroke = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), started: false, cells: new Set(), type: e.pointerType };
   // мышь и стилус начинают сразу; палец ждёт немного, вдруг это жест двумя пальцами
+  // подсветка сразу под пальцем: у касания нет наведения, и рамка иначе стояла бы на прошлом месте
+  hover(e.clientX, e.clientY);
   if (e.pointerType !== 'touch') startStroke(e.clientX, e.clientY);
   else stroke.timer = setTimeout(() => { if (stroke && !stroke.started) startStroke(stroke.x0, stroke.y0); }, 90);
 });
@@ -1436,12 +1447,26 @@ function finishStroke(cancel) {
 function hover(px, py) {
   if (pointers.size > 0 && !stroke) return;
   if (!['column', 'rect', 'erase', 'paint', 'pick', 'block', 'object', 'point'].includes(st.tool)) { cursor.visible = false; hoverInfo = ''; hud(); return; }
+  cursor.scale.set(1, 1, 1);
+  if (st.tool === 'block' || (st.tool === 'paint' && !st.paintColumn)) {
+    // подсветка там, где реально появится, исчезнет или перекрасится блок
+    const pc = st.tool === 'paint' ? paintCells(px, py)[0] : null;
+    const bt = st.tool === 'block' ? blockTarget(px, py) : pc && { cell: pc, remove: false };
+    if (!bt) { cursor.visible = false; hoverInfo = ''; hud(); requestRender(); return; }
+    const [bx, by, bz] = bt.cell;
+    cursor.position.set(bx + .5, by + .5, bz + .5); cursor.visible = true;
+    hoverInfo = `x ${bx}, y ${by}, z ${bz}` + (bt.remove ? ' · удалить' : '');
+    hud(); requestRender(); return;
+  }
   const c = pickColumn(px, py);
   if (!c) { cursor.visible = false; hoverInfo = ''; hud(); requestRender(); return; }
   const [x, z] = c.xz; const t = columnTop(x, z, activeFloor);
   const base = floorPlaneY();
   const top = t ? t.y + centerTop(t.b.s) : base;
-  cursor.position.set(x + .5, (t ? t.y : base) + .5, z + .5); cursor.visible = true;
+  // кисть больше 1: рамка на всю область кисти (те же клетки, что в brushCells)
+  const n = (st.tool === 'column' || st.tool === 'erase') ? st.brush : 1, o = Math.floor((n - 1) / 2);
+  cursor.scale.set(n, 1, n);
+  cursor.position.set(x - o + n / 2, (t ? t.y : base) + .5, z - o + n / 2); cursor.visible = true;
   hoverInfo = `x ${x}, z ${z}, верх ${t ? fmtH(top - base) : '—'}`;
   hud(); requestRender();
 }
