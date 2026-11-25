@@ -41,7 +41,7 @@ namespace ColorsAction.Configs
         }
     }
 
-    /// <summary>Configs/Player.json — движение, прыжок, перекат и деформация куба игрока.</summary>
+    /// <summary>Configs/Player.json — движение, прыжок, отскоки и деформация куба игрока.</summary>
     [Preserve]
     public sealed class PlayerConfig : IConfigPostLoad
     {
@@ -72,21 +72,8 @@ namespace ColorsAction.Configs
         public float CoyoteTime { get; set; } = 0.1f;
         public float JumpBuffer { get; set; } = 0.12f;
 
-        // Перекат: два переворота по 180°
-        public float RollDistance { get; set; } = 1.5f;
-        public float RollDuration { get; set; } = 0.45f;
-        public float RollCooldown { get; set; } = 0.15f;
-        public float RollHopHeight { get; set; } = 0.32f;
-
-        /// <summary>Окно неуязвимости переката, доли длительности (0..1).</summary>
-        public float RollInvulnerableFrom { get; set; } = 0.1f;
-        public float RollInvulnerableTo { get; set; } = 0.8f;
-
-        /// <summary>Доля длительности переката, которую куб стоит "на голове" между двумя переворотами.</summary>
-        public float RollMidPause { get; set; } = 0.16f;
-
-        /// <summary>Скорость скольжения в этой паузе относительно полёта (0 — стоит на месте).</summary>
-        public float RollMidSpeed { get; set; } = 0.25f;
+        /// <summary>Отскоки: серия-комбо (короткие прыжки и перекат через верх), у каждого шага свои параметры.</summary>
+        public DodgeConfig Dodge { get; set; } = new DodgeConfig();
 
         public StaminaConfig Stamina { get; set; } = new StaminaConfig();
 
@@ -112,16 +99,14 @@ namespace ColorsAction.Configs
 
         public void OnConfigLoaded()
         {
-            if (WalkSpeed <= 0 || JumpHeight < 0 || Gravity <= 0 || RollDuration <= 0)
-                throw new InvalidOperationException("walkSpeed, gravity and rollDuration must be positive, jumpHeight not negative");
+            if (WalkSpeed <= 0 || JumpHeight < 0 || Gravity <= 0)
+                throw new InvalidOperationException("walkSpeed and gravity must be positive, jumpHeight not negative");
             if (StepHeight >= ColliderHeight)
                 throw new InvalidOperationException("stepHeight must be less than colliderHeight");
             Deformation ??= new DeformationConfig();
             Stamina ??= new StaminaConfig();
-            if (RollMidPause < 0 || RollMidPause > 0.6f)
-                throw new InvalidOperationException("rollMidPause must be in 0..0.6");
-            if (RollInvulnerableFrom < 0 || RollInvulnerableTo > 1 || RollInvulnerableFrom > RollInvulnerableTo)
-                throw new InvalidOperationException("roll invulnerability window must be inside 0..1");
+            Dodge ??= new DodgeConfig();
+            Dodge.Validate();
         }
 
         /// <summary>Начальная скорость прыжка для высоты JumpHeight: v = sqrt(2gh).</summary>
@@ -135,7 +120,6 @@ namespace ColorsAction.Configs
         public float Max { get; set; } = 100f;
         public float RegenPerSecond { get; set; } = 22f;
         public float RegenDelay { get; set; } = 0.9f;
-        public float RollCost { get; set; } = 22f;
         public float BlockStartCost { get; set; } = 6f;
         public float BlockRegenMultiplier { get; set; } = 0.3f;
         public float JumpCost { get; set; } = 0f;
@@ -157,12 +141,6 @@ namespace ColorsAction.Configs
         public float JumpTakeoffStretch { get; set; } = 0.25f;
         public float LandSquashPerSpeed { get; set; } = -0.035f;
         public float MaxLandSquash { get; set; } = -0.4f;
-
-        public float RollBend { get; set; } = 0.18f;
-        public float RollLandSquash { get; set; } = -0.25f;
-
-        /// <summary>Сжатие куба вдоль направления переката (в сторону переката) на толчке и в полёте, доля.</summary>
-        public float RollDirSquash { get; set; } = 0.22f;
 
         public float HitSquash { get; set; } = -0.15f;
 

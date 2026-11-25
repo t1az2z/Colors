@@ -17,19 +17,19 @@
   "maxFallSpeed": 25,
   "coyoteTime": 0.1,
   "jumpBuffer": 0.12,
-  "rollDistance": 4,
-  "rollDuration": 0.5,
-  "rollCooldown": 0.15,
-  "rollHopHeight": 0.29,
-  "rollInvulnerableFrom": 0,
-  "rollInvulnerableTo": 0.7,
-  "rollMidPause": 0,
-  "rollMidSpeed": 0,
+  "dodge": {
+    "comboWindow": 0.35,
+    "inputBuffer": 0.18,
+    "steps": [
+      { "distance": 1.6, "duration": 0.26, "hopHeight": 0.22, "flip": false, "midPause": 0, "midSpeed": 0, "invulnerableFrom": 0.05, "invulnerableTo": 0.75, "staminaCost": 14, "cooldown": 0.05, "chainFrom": 1, "takeoffSquash": -0.28, "stretch": 0.12, "bend": 0.1, "dirSquash": 0.15, "landSquash": -0.22 },
+      { "distance": 2.2, "duration": 0.3, "hopHeight": 0.28, "flip": false, "midPause": 0, "midSpeed": 0, "invulnerableFrom": 0.05, "invulnerableTo": 0.75, "staminaCost": 16, "cooldown": 0.05, "chainFrom": 1, "takeoffSquash": -0.3, "stretch": 0.15, "bend": 0.12, "dirSquash": 0.18, "landSquash": -0.25 },
+      { "distance": 4, "duration": 0.5, "hopHeight": 0.29, "flip": true, "midPause": 0, "midSpeed": 0, "invulnerableFrom": 0, "invulnerableTo": 0.7, "staminaCost": 22, "cooldown": 0.15, "chainFrom": 1, "takeoffSquash": 0, "stretch": 0, "bend": 0.18, "dirSquash": 0.22, "landSquash": -0.25 }
+    ]
+  },
   "stamina": {
     "max": 100,
     "regenPerSecond": 63,
     "regenDelay": 0.7,
-    "rollCost": 22,
     "blockStartCost": 6,
     "blockRegenMultiplier": 0.3,
     "jumpCost": 0
@@ -46,8 +46,6 @@
     "jumpTakeoffStretch": 0.25,
     "landSquashPerSpeed": -0.035,
     "maxLandSquash": -0.4,
-    "rollBend": 0.18,
-    "rollLandSquash": -0.25,
     "hitSquash": -0.15
   }
 }
