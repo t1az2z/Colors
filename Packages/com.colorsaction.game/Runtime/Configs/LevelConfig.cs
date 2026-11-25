@@ -36,6 +36,7 @@ namespace ColorsAction.Configs
         public List<LevelPoint> Dummies { get; set; } = new List<LevelPoint>();
         public List<LevelEnemy> Enemies { get; set; } = new List<LevelEnemy>();
         public List<LevelHint> Hints { get; set; } = new List<LevelHint>();
+        public List<LevelDoor> Doors { get; set; } = new List<LevelDoor>();
 
         public int Width { get; private set; }
         public int Length { get; private set; }
@@ -60,6 +61,12 @@ namespace ColorsAction.Configs
             Dummies ??= new List<LevelPoint>();
             Enemies ??= new List<LevelEnemy>();
             Hints ??= new List<LevelHint>();
+            Doors ??= new List<LevelDoor>();
+            for (int i = 0; i < Doors.Count; i++)
+            {
+                if (string.IsNullOrEmpty(Doors[i].Id))
+                    Doors[i].Id = $"door_{Doors[i].X}_{Doors[i].Z}";
+            }
             Spawn ??= new LevelPoint();
         }
 
@@ -173,5 +180,19 @@ namespace ColorsAction.Configs
     public sealed class LevelHint : LevelPoint
     {
         public string Action { get; set; }
+    }
+
+    /// <summary>
+    /// Односторонняя дверь-срезка в клетке: <see cref="LevelPoint.Yaw"/> — лицевая сторона, только оттуда дверь
+    /// открывается (0 — +Z, 90 — +X, 180 — −Z, 270 — −X). Ставится поперёк прохода в стене.
+    /// </summary>
+    [Preserve]
+    public sealed class LevelDoor : LevelPoint
+    {
+        /// <summary>Id двери (для сохранения открытых срезок). Пусто — "door_x_z".</summary>
+        public string Id { get; set; }
+
+        /// <summary>Высота двери в метрах (кубах).</summary>
+        public float Height { get; set; } = 3f;
     }
 }

@@ -5,7 +5,10 @@ using UnityEngine;
 
 namespace ColorsAction.Unity
 {
-    /// <summary>Ближайший предмет в радиусе взаимодействия; F / X подбирает его. HUD показывает подсказку.</summary>
+    /// <summary>
+    /// Ближайшее <see cref="IInteractable"/> в радиусе взаимодействия (предмет, дверь-срезка); F / X использует его.
+    /// HUD показывает подсказку: с кнопкой, если можно, или текст <see cref="IInteractable.BlockedPrompt"/>.
+    /// </summary>
     public sealed class PlayerInteractor : GameBehaviour
     {
         private GameInput input;
@@ -14,7 +17,10 @@ namespace ColorsAction.Unity
 
         private PlayerController controller;
 
-        public Pickup Target { get; private set; }
+        public IInteractable Target { get; private set; }
+
+        /// <summary>Можно ли воспользоваться <see cref="Target"/> с текущего места.</summary>
+        public bool TargetUsable { get; private set; }
 
         protected override void OnConstruct(IResolver resolver)
         {
@@ -28,6 +34,7 @@ namespace ColorsAction.Unity
             if (config == null)
                 return;
             Target = null;
+            TargetUsable = false;
             if (!session.PlayerControl.Value)
                 return;
             if (controller == null)
@@ -35,23 +42,26 @@ namespace ColorsAction.Unity
 
             var best = config.InteractRadius * config.InteractRadius;
             var position = transform.position;
-            foreach (var pickup in Pickup.All)
+            foreach (var item in Interactables.All)
             {
-                if (!pickup.Available)
+                if (!item.Available)
                     continue;
-                var d = pickup.transform.position - position;
+                var d = item.InteractPoint - position;
                 if (Mathf.Abs(d.y) > 1.2f)
                     continue;
                 d.y = 0;
                 if (d.sqrMagnitude < best)
                 {
                     best = d.sqrMagnitude;
-                    Target = pickup;
+                    Target = item;
                 }
             }
 
-            if (Target != null && controller != null && controller.HasControl && input.Pressed(GameAction.Interact))
-                Target.TryTake();
+            if (Target == null)
+                return;
+            TargetUsable = Target.CanInteract(position);
+            if (TargetUsable && controller != null && controller.HasControl && input.Pressed(GameAction.Interact))
+                Target.Interact(position);
         }
     }
 }
