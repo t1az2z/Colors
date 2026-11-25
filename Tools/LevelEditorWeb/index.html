@@ -30,7 +30,7 @@
   #app { display: grid; grid-template-columns: 68px 1fr 300px; grid-template-rows: 54px 1fr; height: 100vh; height: 100dvh; }
   header { grid-column: 1 / 4; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; }
   header h1 { font-size: 15px; font-weight: 650; margin: 0 6px 0 2px; display: flex; gap: 8px; align-items: center; white-space: nowrap; }
-  header .name { font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  header .name { font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; cursor: pointer; }
   header .name b { color: var(--text); }
   header .grp { display: flex; gap: 6px; flex: none; }
   #saved { font-size: 12px; color: var(--faint); white-space: nowrap; }
@@ -129,7 +129,7 @@
 
   <div id="panel"></div>
 </div>
-<input type="file" id="fileInput" accept=".json,application/json" class="hidden">
+<input type="file" id="fileInput" accept=".json,.txt,application/json,text/plain" class="hidden">
 
 <script src="three.min.js"></script>
 <script>
@@ -453,16 +453,39 @@ function download() {
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   toast('Скачан ' + L.file + '.json');
 }
+// Chrome на Android не даёт делиться файлами .json (их нет в списке разрешённых типов), поэтому
+// если .json не проходит, отправляем тот же текст файлом .json.txt: после получения убрать «.txt».
 async function share() {
-  const file = new File([levelBlob()], L.file + '.json', { type: 'application/json' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: L.file + '.json' }); } catch (e) { /* отменено */ }
-  } else { download(); }
+  const name = L.file + '.json';
+  if (!navigator.share) {
+    download();
+    toast(window.isSecureContext ? 'Браузер не умеет «Поделиться», файл скачан' : '«Поделиться» работает только по https, файл скачан', 4000);
+    return;
+  }
+  const blob = levelBlob();
+  const variants = [
+    new File([blob], name, { type: 'application/json' }),
+    new File([blob], name + '.txt', { type: 'text/plain' }),
+  ];
+  const file = variants.find(f => !navigator.canShare || navigator.canShare({ files: [f] }));
+  try {
+    if (file) {
+      await navigator.share({ files: [file], title: name });
+      if (file.name !== name) toast('Отправлен ' + file.name + '. На ПК убери «.txt» в конце имени', 5000);
+    } else {
+      await navigator.share({ title: name, text: await blob.text() });
+      toast('Отправлен текст уровня. На ПК сохрани его как ' + name, 5000);
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // пользователь закрыл окно
+    download();
+    toast('Не получилось поделиться (' + (e && e.message || e) + '), файл скачан', 5000);
+  }
 }
 function openFile() { $('#fileInput').value = ''; $('#fileInput').click(); }
 $('#fileInput').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
-  try { fromJSON(JSON.parse(await f.text()), f.name.replace(/\.json$/i, '')); toast('Открыт ' + f.name); }
+  try { fromJSON(JSON.parse(await f.text()), f.name.replace(/(\.json)?(\.txt)?$/i, '')); toast('Открыт ' + f.name); }
   catch (err) { toast('Не получилось открыть: ' + err.message, 4000); }
 });
 
@@ -773,8 +796,8 @@ function viewPanel() {
     row('Наклон', chips([[30, '30°'], [35.26, 'изо'], [50, '50°'], [65, '65°'], [90, 'сверху']], Math.round(cam.pitchT * 100) / 100, v => { cam.pitchT = v; })),
     row('Поворот', chips([[false, 'свободный'], [true, 'по 90°']], cam.snap, v => { cam.snap = v; if (v) cam.yawT = Math.round((cam.yawT - 45) / 90) * 90 + 45; })),
     H3('Уровень'),
-    row('Название', textInput(L.name, v => { touchMarkup(); L.name = v || 'Уровень'; commit(); renderName(); })),
-    row('Имя файла', textInput(L.file, v => { L.file = (v || 'Level').replace(/\.json$/i, '').replace(/[^\w\-]/g, ''); renderName(); autosave(); })),
+    row('Название', textInput(L.name, v => setLevelName(v, L.file === fileNameFrom(L.name) ? null : L.file))),
+    row('Имя файла', textInput(L.file, v => setLevelName(L.name, v || 'Level'))),
     h('div', { class: 'note' }, `Блоков: ${L.blocks.size}, объектов: ${L.objects.length}, точек: ${L.points.length}. Размер: ${bounds.maxX - bounds.minX + 1}×${bounds.maxZ - bounds.minZ + 1}, высота ${bounds.minY}…${bounds.maxY}.`),
   ];
 }
@@ -835,12 +858,42 @@ function confirmBox(text, ok) {
   modal((m, close) => m.append(h('h2', {}, 'Точно?'), h('p', {}, text), h('div', { class: 'actions' },
     h('button', { on: { click: close } }, 'Отмена'), h('button', { class: 'primary', on: { click: () => { close(); ok(); } } }, 'Да'))));
 }
+const cleanFileName = v => String(v || '').trim().replace(/\.json$/i, '').replace(/[^\w\-]/g, '');
+function setLevelName(name, file) {
+  name = String(name || '').trim() || L.name;
+  file = cleanFileName(file) || fileNameFrom(name);
+  if (name !== L.name) { touchMarkup(); L.name = name; commit(); }
+  L.file = file;
+  renderName(); renderPanel(); autosave();
+  toast('Уровень сохранится как ' + file + '.json');
+}
+// Имя файла идёт за названием, пока его не поправили руками.
+function renameDialog() {
+  let name = L.name, file = L.file, follow = L.file === fileNameFrom(L.name);
+  modal((m, close) => {
+    const fileInp = h('input', { type: 'text', value: file, on: { input: e => { file = e.target.value; follow = false; } } });
+    const nameInp = h('input', { type: 'text', value: name, on: { input: e => {
+      name = e.target.value;
+      if (follow) fileInp.value = file = fileNameFrom(name);
+    } } });
+    const ok = () => { close(); setLevelName(name, file); };
+    m.addEventListener('keydown', e => { if (e.key === 'Enter') ok(); });
+    m.append(h('h2', {}, 'Переименовать уровень'),
+      row('Название', nameInp),
+      row('Имя файла (.json)', fileInp),
+      h('p', { class: 'desc' }, 'Скачивание и «Поделиться» сохранят файл под новым именем. Старый файл в Unity останется, его можно удалить вручную.'),
+      h('div', { class: 'actions' }, h('button', { on: { click: close } }, 'Отмена'),
+        h('button', { class: 'primary', on: { click: ok } }, 'Готово')));
+    setTimeout(() => { nameInp.focus(); nameInp.select(); }, 0);
+  });
+}
 function fileMenu() {
   modal((m, close) => {
     const item = (title, sub, fn) => h('button', { on: { click: () => { close(); fn(); } } }, title, sub ? h('small', {}, sub) : null);
     m.append(h('h2', {}, 'Файл'), h('div', { class: 'menu' },
       item('Новый уровень', 'Пустая площадка с землёй', newLevelDialog),
       item('Открыть файл…', 'JSON из папки VoxelLevels', openFile),
+      item('Переименовать…', 'Сейчас: ' + L.name + ' · ' + L.file + '.json', renameDialog),
       siteLevels.length ? h('div', { class: 'desc', style: 'margin:6px 2px 0' }, 'Уровни из репозитория:') : null,
       siteLevels.map(n => item(n, null, () => openSiteLevel(n))),
       item('Скачать ' + L.file + '.json', 'Положить в Assets/StreamingAssets/Configs/VoxelLevels', download),
@@ -1621,6 +1674,8 @@ function rotateCam(dir) { cam.yawT = cam.snap ? Math.round((cam.yawT - 45) / 90)
 // ============================================================================ кнопки
 
 $('#bFile').onclick = fileMenu;
+$('#levelName').onclick = renameDialog;
+$('#levelName').title = 'Переименовать';
 $('#bSave').onclick = download;
 $('#bUndo').onclick = undo;
 $('#bRedo').onclick = redo;
