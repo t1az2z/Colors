@@ -147,6 +147,7 @@ let PALETTE = {
   teal:   { name: 'Сине-зелёный', hex: '#18B5A8' },
 };
 let ITEMS = ['sword', 'shield', 'fists'];
+let ITEM_NAMES = { sword: 'Меч', shield: 'Щит', fists: 'Кулаки' };
 // Типы врагов из Enemies.json: id → имя и цвет. Манекен — отдельный тип прототипа.
 let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, dummy: { name: 'Манекен', color: null } };
 let ENEMIES = Object.keys(ENEMY_INFO);
@@ -466,7 +467,7 @@ async function loadSiteData() {
   const tryJson = async u => { try { const r = await fetch(u, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch (e) { return null; } };
   const colors = await tryJson('configs/Colors.json');
   if (colors) { const p = {}; for (const [k, v] of Object.entries(colors)) if (k !== 'none') p[k] = v; PALETTE = p; }
-  const items = await tryJson('configs/Items.json'); if (items) ITEMS = Object.keys(items);
+  const items = await tryJson('configs/Items.json'); if (items) { ITEMS = Object.keys(items); for (const [k, v] of Object.entries(items)) if (v && v.name) ITEM_NAMES[k] = v.name; }
   const enemies = await tryJson('configs/Enemies.json');
   if (enemies) {
     const info = {};
@@ -548,6 +549,12 @@ function colorChips(cur, set, allowWorld) {
   for (const [k, v] of Object.entries(PALETTE)) list.push([k, v.hex, v.name]);
   return h('div', { class: 'chips' }, list.map(([k, hex, name]) =>
     h('button', { class: 'swatch' + (cur === k ? ' on' : ''), title: name, style: `background:${hex}`, on: { click: () => { set(k); renderPanel(); } } })));
+}
+/** Выпадающий список оружия из Items.json (с названиями). Неизвестный id из файла уровня тоже показывается, чтобы не потерять его. */
+function itemSelect(val, set, allowNone, extra = []) {
+  const ids = [...new Set([...ITEMS, ...extra, ...(val ? [val] : [])])];
+  const opts = ids.map(id => [id, (ITEM_NAMES[id] ? ITEM_NAMES[id] + ' (' + id + ')' : id) + (ITEMS.includes(id) ? '' : ' — нет в Items.json')]);
+  return selectInput(val, allowNone ? [[null, '— нет —'], ...opts] : opts, set);
 }
 function stepper(val, set, min, max, fmt, step = 1) {
   // ниже нуля сразу к минимуму (яма −1), без дробных отрицательных высот
@@ -644,7 +651,7 @@ function objectPanel() {
   if (st.objKind === 'Barrier') out.push(H3('Цвет барьера'), colorChips(st.objColor, v => st.objColor = v, false),
     row('Вид', selectInput(st.barrier, Object.entries(BARRIERS), v => st.barrier = v)),
     row('Высота, кубов', stepper(st.barrierHeight, v => st.barrierHeight = v, 1, 12)));
-  if (st.objKind === 'WeaponPedestal') out.push(row('Оружие', textInput(st.objItem, v => st.objItem = v, ITEMS)));
+  if (st.objKind === 'WeaponPedestal') out.push(row('Оружие', itemSelect(st.objItem, v => st.objItem = v)));
   if (st.objKind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(st.objEnemy, v => { st.objEnemy = v; renderPanel(); }));
   if (o) {
     out.push(H3('Выбран: ' + o.id));
@@ -663,7 +670,8 @@ function objectPanel() {
     const itemList = o.kind === 'WeaponPedestal' ? ITEMS : o.kind === 'Hint' ? HINTS : null;
     if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })));
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire')
-      out.push(row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
+      out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
+
     out.push(h('div', { class: 'chips', style: 'margin-top:8px' },
       h('button', { class: 'danger', on: { click: () => { touchMarkup(); L.objects = L.objects.filter(x => x !== o); sel.obj = null; commit(); renderPanel(); } } }, 'Удалить объект'),
       h('button', { on: { click: () => { sel.obj = null; renderPanel(); requestRender(); } } }, 'Снять выбор')));
@@ -706,7 +714,7 @@ function pointPanel() {
     out.push(row('Id', textInput(p.id, v => { if (v && !L.points.some(x => x !== p && x.id === v)) edit(() => { renameRefs(p.id, v, 'point'); p.id = v; sel.point = v; }); else renderPanel(); })));
     out.push(row('Действие', selectInput(p.action, Object.entries(ACTIONS).map(([k, v]) => [k, v.name]), v => edit(() => p.action = v))));
     out.push(row('Клетка', h('span', {}, cellStr(p.cell))));
-    out.push(row('Нужен предмет', textInput(p.requiredItem, v => edit(() => p.requiredItem = v), [...ITEMS, 'hook', 'flail'])));
+    out.push(row('Нужен предмет', itemSelect(p.requiredItem, v => edit(() => p.requiredItem = v), true, ['hook', 'flail'])));
     out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Точка B', selectInput(p.targetPoint, [[null, '—'], ...L.points.filter(x => x !== p).map(x => [x.id, x.id])], v => edit(() => p.targetPoint = v))));
     out.push(row('Объект-цель', selectInput(p.targetObject, [[null, '—'], ...L.objects.map(o => [o.id, o.id])], v => edit(() => p.targetObject = v))));
