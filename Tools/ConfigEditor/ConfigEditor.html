@@ -100,6 +100,9 @@
   .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line2); border-radius: 10px; padding: 0 7px; font-weight: 400; }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 4px; }
   .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+  .legend .ph { font-weight: 600; }
+  .legend .ph i { height: 8px; }
+  .combo .chead .ctime { font-weight: 400; font-size: 12px; color: var(--muted); }
   table.dmg { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   table.dmg th, table.dmg td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
   table.dmg th { color: var(--muted); font-weight: 600; }
@@ -185,7 +188,7 @@ const U = { bl: 'бл', bls: 'бл/с', bls2: 'бл/с²', s: 'с', deg: '°', d
 
 const SCHEMA = {
   Player: {
-    title: 'Игрок', desc: 'Движение, прыжок, перекат, выносливость и деформация куба игрока. 1 блок = размер куба = 1 метр.',
+    title: 'Игрок', desc: 'Движение, прыжок, серия отскоков, выносливость и деформация куба игрока. 1 блок = размер куба = 1 метр.',
     sections: [
       { title: 'Движение', viz: vizSpeed, fields: [
         { k: 'walkSpeed', l: 'Скорость ходьбы', d: 'Сколько блоков проходит куб за секунду шагом.', u: U.bls, min: 0.5, max: 15, step: 0.1 },
@@ -213,21 +216,14 @@ const SCHEMA = {
         { k: 'coyoteTime', l: 'Время «койота»', d: 'Сколько ещё можно прыгнуть после того, как куб сошёл с края.', u: U.s, min: 0, max: 0.3, step: 0.01 },
         { k: 'jumpBuffer', l: 'Буфер прыжка', d: 'Нажатие прыжка чуть раньше приземления запомнится на это время.', u: U.s, min: 0, max: 0.3, step: 0.01 },
       ] },
-      { title: 'Перекат', viz: vizRoll, fields: [
-        { k: 'rollDistance', l: 'Длина переката', d: 'Сколько блоков куб проходит за весь перекат (два переворота).', u: U.bl, min: 0, max: 8, step: 0.1 },
-        { k: 'rollDuration', l: 'Длительность', d: 'Время всего переката от старта до приземления «на ноги».', u: U.s, min: 0.1, max: 1.5, step: 0.01 },
-        { k: 'rollCooldown', l: 'Перезарядка', d: 'Пауза после переката, прежде чем можно сделать следующий.', u: U.s, min: 0, max: 1, step: 0.01 },
-        { k: 'rollHopHeight', l: 'Высота подскока', d: 'Насколько куб подпрыгивает в каждом из двух переворотов.', u: U.bl, min: 0, max: 1.5, step: 0.01 },
-        { k: 'rollInvulnerableFrom', l: 'Неуязвимость с', d: 'Начало окна неуязвимости, доля длительности переката (0..1).', u: U.frac, min: 0, max: 1, step: 0.01 },
-        { k: 'rollInvulnerableTo', l: 'Неуязвимость до', d: 'Конец окна неуязвимости, доля длительности (0..1).', u: U.frac, min: 0, max: 1, step: 0.01 },
-        { k: 'rollMidPause', l: 'Пауза «на голове»', d: 'Доля длительности, которую куб стоит вверх дном между переворотами (0..0.6).', u: U.frac, min: 0, max: 0.6, step: 0.01 },
-        { k: 'rollMidSpeed', l: 'Скольжение в паузе', d: 'Скорость в паузе относительно скорости в полёте (0 — стоит на месте).', u: U.x, min: 0, max: 1, step: 0.05 },
+      { title: 'Отскоки (серия)', sub: 'Alt / B: повторное нажатие в окне комбо — следующий шаг, иначе серия с первого шага; без ввода — отскок назад', viz: vizDodge, known: ['dodge.steps'], extra: renderDodgeSteps, fields: [
+        { k: 'dodge.comboWindow', l: 'Окно комбо', d: 'Сколько секунд после приземления нажатие отскока запускает следующий шаг серии. Позже — серия начинается с первого шага.', u: U.s, min: 0, max: 1.5, step: 0.01, def: 0.35 },
+        { k: 'dodge.inputBuffer', l: 'Буфер нажатия', d: 'Сколько секунд помнится нажатие, сделанное чуть раньше, чем отскок стал возможен (в конце шага, во время удара, в воздухе).', u: U.s, min: 0, max: 0.5, step: 0.01, def: 0.18 },
       ] },
       { title: 'Выносливость', viz: vizStamina, fields: [
         { k: 'stamina.max', l: 'Запас', d: 'Полная шкала выносливости.', u: U.pts, min: 10, max: 300, step: 1 },
         { k: 'stamina.regenPerSecond', l: 'Восстановление', d: 'Сколько единиц восстанавливается в секунду.', u: 'ед./с', min: 1, max: 200, step: 1 },
         { k: 'stamina.regenDelay', l: 'Задержка восстановления', d: 'Через сколько секунд после траты начинается восстановление.', u: U.s, min: 0, max: 3, step: 0.05 },
-        { k: 'stamina.rollCost', l: 'Цена переката', d: '', u: U.pts, min: 0, max: 100, step: 1 },
         { k: 'stamina.blockStartCost', l: 'Цена поднятия щита', d: 'Списывается в момент начала блока.', u: U.pts, min: 0, max: 50, step: 1 },
         { k: 'stamina.blockRegenMultiplier', l: 'Восстановление при блоке', d: 'Множитель восстановления, пока щит поднят.', u: U.x, min: 0, max: 1, step: 0.05 },
         { k: 'stamina.jumpCost', l: 'Цена прыжка', d: '0 — прыжок бесплатный.', u: U.pts, min: 0, max: 50, step: 1 },
@@ -243,9 +239,6 @@ const SCHEMA = {
         { k: 'deformation.jumpTakeoffStretch', l: 'Вытягивание при отрыве', d: 'Форма в момент прыжка вверх.', u: U.frac, min: 0, max: 0.8, step: 0.01 },
         { k: 'deformation.landSquashPerSpeed', l: 'Сжатие от скорости приземления', d: 'Сжатие на каждый бл/с скорости удара о землю.', u: 'на бл/с', min: -0.2, max: 0, step: 0.001 },
         { k: 'deformation.maxLandSquash', l: 'Предел сжатия при приземлении', d: 'Сильнее этого куб не сплющится.', u: U.frac, min: -0.8, max: 0, step: 0.01 },
-        { k: 'deformation.rollBend', l: 'Изгиб при перекате', d: 'Насколько куб выгибается в сторону переката.', u: U.frac, min: 0, max: 0.5, step: 0.01 },
-        { k: 'deformation.rollDirSquash', l: 'Сжатие в сторону переката', d: 'Насколько куб сплющивается вдоль направления переката на толчке и в полёте (вбок — вбок, назад — назад).', u: U.frac, min: 0, max: 0.5, step: 0.01, def: 0.22 },
-        { k: 'deformation.rollLandSquash', l: 'Сжатие при перекате', d: 'Сплющивание при приземлении на «голову» и на «ноги».', u: U.frac, min: -0.8, max: 0, step: 0.01 },
         { k: 'deformation.hitSquash', l: 'Сжатие от удара', d: 'Реакция куба на полученный удар.', u: U.frac, min: -0.8, max: 0, step: 0.01 },
         { k: 'deformation.attackTwist', l: 'Скручивание при ударе', d: 'На сколько градусов закручивается верх куба при взмахе мечом: на замахе против взмаха, на ударе по взмаху.', u: U.deg, min: 0, max: 60, step: 1, def: 24 },
         { k: 'deformation.swingPitchBack', l: 'Отклон назад на замахе', d: 'Куб отклоняется назад во время замаха горизонтального взмаха, градусы у верха.', u: U.deg, min: 0, max: 45, step: 1, def: 8 },
@@ -258,11 +251,9 @@ const SCHEMA = {
       const w = [];
       if (!(num(d.walkSpeed) > 0)) w.push('walkSpeed должен быть больше 0.');
       if (!(num(d.gravity) > 0)) w.push('gravity должна быть больше 0.');
-      if (!(num(d.rollDuration) > 0)) w.push('rollDuration должна быть больше 0.');
       if (num(d.jumpHeight) < 0) w.push('jumpHeight не может быть отрицательной.');
       if (num(d.stepHeight) >= num(d.colliderHeight, 1)) w.push('Высота шага должна быть меньше высоты коллайдера — иначе игра не загрузит конфиг.');
-      if (num(d.rollMidPause) < 0 || num(d.rollMidPause) > 0.6) w.push('Пауза «на голове» должна быть в пределах 0..0.6.');
-      if (num(d.rollInvulnerableFrom) < 0 || num(d.rollInvulnerableTo) > 1 || num(d.rollInvulnerableFrom) > num(d.rollInvulnerableTo)) w.push('Окно неуязвимости должно лежать в 0..1, начало не позже конца.');
+      w.push(...validateDodge(d.dodge));
       return w;
     },
   },
@@ -568,10 +559,11 @@ function renderPage() {
     for (const s of sc.sections) {
       const card = sectionCard(s.title, s.sub, !!s.viz);
       for (const fd of s.fields) { used.add(fd.k.split('.')[0] === fd.k ? fd.k : fd.k); card.fields.append(fieldRow(f, fd.k.split('.'), fd)); }
+      if (s.extra) s.extra(card.fields, f);
       if (s.viz) addViz(card.viz, s.viz, () => ({ d: f.data, f }));
       main.append(card.root);
     }
-    const leftovers = collectUnknown(f.data, sc.sections.flatMap(s => s.fields.map(x => x.k)));
+    const leftovers = collectUnknown(f.data, sc.sections.flatMap(s => [...s.fields.map(x => x.k), ...(s.known || [])]));
     if (leftovers.length) {
       const card = sectionCard('Прочие ключи', 'без описания', false);
       for (const p of leftovers) card.fields.append(genericRow(f, p));
@@ -806,7 +798,8 @@ function renderItems(main, f) {
       card.fields.append(sh);
       $('button', sh).onclick = () => { it.combo = it.combo || []; it.combo.push(clone(it.combo[it.combo.length - 1] || Object.fromEntries(STEP_FIELDS.map(x => [x.k, x.def])))); renderPage(); };
       (it.combo || []).forEach((step, i) => {
-        const box = el(`<div class="combo"><div class="chead">Удар ${i + 1}<span class="right"></span></div><div class="fields"></div></div>`);
+        const box = el(`<div class="combo"><div class="chead">Удар ${i + 1}<span class="ctime" title="Полное время удара: замах + удар + фиксация + возврат"></span><span class="right"></span></div><div class="fields"></div></div>`);
+        addViz($('.ctime', box), st => st ? `${r2(comboStepTime(st))} с` : '', () => f.data[id]?.combo?.[i]);
         const r = $('.right', box);
         const up = el('<button class="icon" title="Выше">↑</button>'), dn = el('<button class="icon" title="Ниже">↓</button>'), cp = el('<button class="icon" title="Копия">⧉</button>'), rm = el('<button class="icon danger" title="Удалить">✕</button>');
         r.append(up, dn, cp, rm);
@@ -960,7 +953,8 @@ function renderEnemies(main, f) {
     card.fields.append(sh);
     $('button', sh).onclick = () => { e.attacks = e.attacks || []; e.attacks.push(clone(e.attacks[e.attacks.length - 1] || ENEMY_ATTACK_DEFAULT())); renderPage(); };
     (e.attacks || []).forEach((a, i) => {
-      const box = el(`<div class="combo"><div class="chead">Атака ${i + 1}<span class="right"></span></div><div class="fields"></div></div>`);
+      const box = el(`<div class="combo"><div class="chead">Атака ${i + 1}<span class="ctime" title="Полное время атаки: замах + удар + фиксация + возврат (без паузы между атаками)"></span><span class="right"></span></div><div class="fields"></div></div>`);
+      addViz($('.ctime', box), a => a ? `${r2(enemyAttackPhases(a).reduce((x, y) => x + y, 0))} с` : '', () => f.data[id]?.attacks?.[i]);
       const r = $('.right', box);
       const up = el('<button class="icon" title="Выше">↑</button>'), dn = el('<button class="icon" title="Ниже">↓</button>'), cp = el('<button class="icon" title="Копия">⧉</button>'), rm = el('<button class="icon danger" title="Удалить">✕</button>');
       r.append(up, dn, cp, rm);
@@ -1100,56 +1094,148 @@ function vizBody({ d }) {
     + facts([['Коллайдер', `${r2(w)} × ${r2(h)} бл`], ['Ступень 0.25', okStep ? 'проходит шагом' : 'нужен прыжок'], ['Проём шириной 1 бл', w < 1 ? 'проходит' : 'застревает']]);
 }
 
-function vizRoll({ d }) {
-  const D = num(d.rollDistance), T0 = Math.max(0.01, num(d.rollDuration, 0.45)), p = clamp(num(d.rollMidPause), 0, 0.95), ms = num(d.rollMidSpeed), hop = num(d.rollHopHeight);
-  const hopLen = (1 - p) / 2, avg = (1 - p) + p * ms, base = D / T0 / Math.max(0.05, avg);
-  const x1 = base * hopLen * T0, xp = base * ms * p * T0;
-  const xMax = Math.max(5, Math.ceil(D + 2)), yMax = Math.max(2, Math.ceil(hop + 1.4));
-  const sc = scene(560, 70 + yMax * 50, -1, xMax, -0.5, yMax);
+/* ---------- серия отскоков (Player.dodge) ---------- */
+const DODGE_STEP_FIELDS = [
+  { k: 'flip', l: 'Перекат через верх', t: 'bool', def: false, d: 'Выключено — короткий прыжок без переворота. Включено — перекат в два переворота: на «голову», затем на «ноги».' },
+  { k: 'distance', l: 'Длина', d: 'Сколько блоков куб проходит за шаг.', u: U.bl, min: 0, max: 8, step: 0.1, def: 1.6 },
+  { k: 'duration', l: 'Длительность', d: 'Время шага от толчка до приземления.', u: U.s, min: 0.05, max: 1.5, step: 0.01, def: 0.28 },
+  { k: 'hopHeight', l: 'Высота подскока', d: 'Насколько куб подпрыгивает (у переката — в каждом из двух переворотов).', u: U.bl, min: 0, max: 1.5, step: 0.01, def: 0.22 },
+  { k: 'midPause', l: 'Пауза «на голове»', onlyFlip: true, d: 'Доля длительности, которую куб стоит вверх дном между переворотами (0..0.6).', u: U.frac, min: 0, max: 0.6, step: 0.01, def: 0 },
+  { k: 'midSpeed', l: 'Скольжение в паузе', onlyFlip: true, d: 'Скорость в паузе относительно скорости в полёте (0 — стоит на месте).', u: U.x, min: 0, max: 1, step: 0.05, def: 0 },
+  { k: 'invulnerableFrom', l: 'Неуязвимость с', d: 'Начало окна неуязвимости, доля длительности шага (0..1).', u: U.frac, min: 0, max: 1, step: 0.01, def: 0.05 },
+  { k: 'invulnerableTo', l: 'Неуязвимость до', d: 'Конец окна неуязвимости, доля длительности (0..1).', u: U.frac, min: 0, max: 1, step: 0.01, def: 0.75 },
+  { k: 'staminaCost', l: 'Цена', d: 'Выносливость за этот шаг.', u: U.pts, min: 0, max: 100, step: 1, def: 15 },
+  { k: 'cooldown', l: 'Пауза после шага', d: 'Сколько секунд после приземления нельзя начать новый отскок (нажатие запомнится буфером). Должна быть меньше окна комбо, иначе серия не продолжится.', u: U.s, min: 0, max: 1, step: 0.01, def: 0 },
+  { k: 'chainFrom', l: 'Следующий шаг с', d: 'С какой доли шага запомненное нажатие сразу запускает следующий шаг, обрывая хвост текущего. 1 — только после приземления.', u: U.frac, min: 0, max: 1, step: 0.01, def: 1 },
+  { k: 'takeoffSquash', l: 'Сжатие на толчке', d: 'Мгновенное сплющивание в момент толчка (подготовка к прыжку). 0 — без него.', u: U.frac, min: -0.8, max: 0, step: 0.01, def: 0 },
+  { k: 'stretch', l: 'Вытягивание в полёте', d: 'Насколько куб вытягивается в верхней точке прыжка.', u: U.frac, min: 0, max: 0.6, step: 0.01, def: 0 },
+  { k: 'bend', l: 'Изгиб', d: 'Насколько куб выгибается в сторону движения.', u: U.frac, min: 0, max: 0.5, step: 0.01, def: 0.18 },
+  { k: 'dirSquash', l: 'Сжатие в сторону движения', d: 'Сплющивание вдоль направления на толчке и в полёте (вбок — вбок, назад — назад).', u: U.frac, min: 0, max: 0.5, step: 0.01, def: 0.22 },
+  { k: 'landSquash', l: 'Сжатие при приземлении', d: 'Сплющивание при приземлении (у переката — и на «голову», и на «ноги»). Дальше куб покачивается пружиной деформации.', u: U.frac, min: -0.8, max: 0, step: 0.01, def: -0.25 },
+];
+function dodgeSteps(d) { return Array.isArray(d?.dodge?.steps) ? d.dodge.steps : []; }
+function dodgeFlipStep(d) { const st = dodgeSteps(d); return st.find(x => x.flip) || st[0] || {}; }
+function renderDodgeSteps(container, f) {
+  const dodge = f.data.dodge = f.data.dodge || {};
+  const steps = dodge.steps = Array.isArray(dodge.steps) ? dodge.steps : [];
+  const sh = el(`<div class="subhead">Шаги серии <button class="small">+ шаг</button></div>`);
+  container.append(sh);
+  $('button', sh).onclick = () => { steps.push(clone(steps[steps.length - 1] || Object.fromEntries(DODGE_STEP_FIELDS.map(x => [x.k, x.def])))); renderPage(); };
+  steps.forEach((step, i) => {
+    const box = el(`<div class="combo"><div class="chead">Шаг ${i + 1} <span class="tag">${step.flip ? 'перекат через верх' : 'короткий прыжок'}</span><span class="right"></span></div><div class="fields"></div></div>`);
+    const r = $('.right', box);
+    const up = el('<button class="icon" title="Выше">↑</button>'), dn = el('<button class="icon" title="Ниже">↓</button>'), cp = el('<button class="icon" title="Копия">⧉</button>'), rm = el('<button class="icon danger" title="Удалить">✕</button>');
+    r.append(up, dn, cp, rm);
+    up.disabled = i === 0; dn.disabled = i === steps.length - 1; rm.disabled = steps.length < 2;
+    up.onclick = () => { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; renderPage(); };
+    dn.onclick = () => { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; renderPage(); };
+    cp.onclick = () => { steps.splice(i + 1, 0, clone(step)); renderPage(); };
+    rm.onclick = () => { steps.splice(i, 1); renderPage(); };
+    const fl = $('.fields', box);
+    for (const fd of DODGE_STEP_FIELDS) {
+      if (fd.onlyFlip && !step.flip) continue;
+      fl.append(fieldRow(f, ['dodge', 'steps', i, fd.k], fd, () => { if (fd.k === 'flip') renderPage(); }));
+    }
+    for (const p of collectUnknown(step, DODGE_STEP_FIELDS.map(x => x.k))) fl.append(genericRow(f, ['dodge', 'steps', i, ...p]));
+    container.append(box);
+  });
+}
+function validateDodge(dodge) {
+  const w = [], steps = Array.isArray(dodge?.steps) ? dodge.steps : [];
+  if (!steps.length) { w.push('В серии отскоков нет ни одного шага (dodge.steps) — игра не загрузит конфиг.'); return w; }
+  if (num(dodge.comboWindow, 0.35) < 0 || num(dodge.inputBuffer, 0.18) < 0) w.push('Окно комбо и буфер нажатия не могут быть отрицательными.');
+  steps.forEach((st, i) => {
+    const n = `Отскок, шаг ${i + 1}: `;
+    if (!(num(st.duration, 0.28) > 0)) w.push(n + 'длительность должна быть больше 0.');
+    if (num(st.distance, 1.6) < 0 || num(st.hopHeight, 0.22) < 0 || num(st.cooldown) < 0) w.push(n + 'длина, высота и пауза не могут быть отрицательными.');
+    if (num(st.midPause) < 0 || num(st.midPause) > 0.6) w.push(n + 'пауза «на голове» должна быть в пределах 0..0.6.');
+    const iF = num(st.invulnerableFrom, 0.05), iT = num(st.invulnerableTo, 0.75);
+    if (iF < 0 || iT > 1 || iF > iT) w.push(n + 'окно неуязвимости должно лежать в 0..1, начало не позже конца.');
+    if (num(st.chainFrom, 1) < 0 || num(st.chainFrom, 1) > 1) w.push(n + '«следующий шаг с» должен быть в 0..1.');
+    if (i < steps.length - 1 && num(st.cooldown) >= num(dodge.comboWindow, 0.35)) w.push(n + 'пауза после шага не меньше окна комбо — следующий шаг серии не наступит никогда.');
+  });
+  return w;
+}
+// Поза шага в момент t (0..1) — как DodgeMotion.Sample в Assets/Game/Logic/Configs/DodgeConfig.cs.
+function dodgeSample(st, t) {
+  t = clamp(t, 0, 1);
+  const D = num(st.distance, 1.6), T0 = Math.max(0.0001, num(st.duration, 0.28)), h = num(st.hopHeight, 0.22);
+  if (!st.flip) return { speed: D / T0, hop: Math.sin(t * Math.PI) * h, phase: 0 };
+  const p = clamp(num(st.midPause), 0, 0.6), ms = num(st.midSpeed), hopLen = (1 - p) / 2;
+  const base = D / T0 / Math.max(0.05, (1 - p) + p * ms);
+  if (t < hopLen) return { speed: base, hop: Math.sin(t / hopLen * Math.PI) * h, phase: 0 };
+  if (t < hopLen + p) return { speed: base * ms, hop: 0, phase: 1 };
+  return { speed: base, hop: Math.sin(Math.min(1, (t - hopLen - p) / hopLen) * Math.PI) * h, phase: 2 };
+}
+function vizDodge({ d }) {
+  const steps = dodgeSteps(d);
+  if (!steps.length) return '<div style="color:var(--bad)">Нет шагов серии (dodge.steps).</div>';
+  const win = num(d.dodge?.comboWindow, 0.35);
+  const cols = [C.blue, C.teal, C.lilac, C.orange, C.red];
+  // путь центра куба по всей серии
+  const paths = []; let x0 = 0, hMax = 0;
+  steps.forEach((st, i) => {
+    const T0 = Math.max(0.0001, num(st.duration, 0.28)), n = 80, pts = []; let x = x0;
+    for (let k = 0; k <= n; k++) { const t = k / n; const s = dodgeSample(st, t); pts.push([x, s.hop, t, s.phase]); if (k < n) x += dodgeSample(st, (k + 0.5) / n).speed * T0 / n; }
+    hMax = Math.max(hMax, num(st.hopHeight, 0.22));
+    paths.push({ st, pts, x1: x, c: cols[i % cols.length] }); x0 = x;
+  });
+  const xMax = Math.max(5, Math.ceil(x0 + 2)), yMax = Math.max(2, Math.ceil(hMax + 1.4));
+  const sc = scene(560, 70 + yMax * 40, -1, xMax, -0.5, yMax);
   let g = sc.g + cubes(sc, -1, xMax, -0.5, 0);
-  // путь центра куба
-  const pts = [];
-  for (let i = 0; i <= 120; i++) {
-    const t = i / 120; let x, y;
-    if (t < hopLen) { const u = t / hopLen; x = base * t * T0; y = Math.sin(u * Math.PI) * hop; }
-    else if (t < hopLen + p) { x = x1 + base * ms * (t - hopLen) * T0; y = 0; }
-    else { const u = (t - hopLen - p) / hopLen; x = x1 + xp + base * (t - hopLen - p) * T0; y = Math.sin(u * Math.PI) * hop; }
-    pts.push([x, y, t]);
-  }
-  const iF = num(d.rollInvulnerableFrom), iT = num(d.rollInvulnerableTo);
-  const inv = pts.filter(q => q[2] >= iF && q[2] <= iT);
-  if (inv.length > 1) g += `<polyline fill="none" stroke="${C.green}" stroke-width="10" stroke-linecap="round" opacity=".18" points="${inv.map(q => `${sc.X(0.5 + q[0]).toFixed(1)},${sc.Y(0.5 + q[1]).toFixed(1)}`).join(' ')}"/>`;
-  g += `<polyline fill="none" stroke="${C.blue}" stroke-width="2" points="${pts.map(q => `${sc.X(0.5 + q[0]).toFixed(1)},${sc.Y(0.5 + q[1]).toFixed(1)}`).join(' ')}"/>`;
   g += playerCube(sc, 0.5, 0, 1, 1, { foot: '#555' });
-  g += playerCube(sc, 0.5 + x1, 0, 1, 1, { foot: '#555', footTop: true, op: .55 }) + T(sc.X(0.5 + x1), sc.Y(1) - 5, 'на «голове»', { anchor: 'middle', size: 10 });
-  if (xp > 0.05) g += playerCube(sc, 0.5 + x1 + xp, 0, 1, 1, { foot: '#555', footTop: true, op: .3, dash: true });
-  g += playerCube(sc, 0.5 + D, 0, 1, 1, { foot: '#555', op: .8 }) + T(sc.X(0.5 + D), sc.Y(1) - 5, 'на «ногах»', { anchor: 'middle', size: 10 });
-  g += `<line x1="${sc.X(0.5)}" x2="${sc.X(0.5 + D)}" y1="${sc.Y(-0.25)}" y2="${sc.Y(-0.25)}" stroke="${C.dark}" marker-end="url(#ar)" marker-start="url(#ar)"/>`;
-  const defs = `<defs><marker id="ar" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L8,4 L0,8 z" fill="${C.dark}"/></marker></defs>`;
-  const H = 70 + yMax * 50;
-  // таймлайн
-  const cd = num(d.rollCooldown); const tot = 1 + cd / T0; const W = 560, L = 10, R = 10, bw = (W - L - R) / tot;
-  let tl = `<rect x="${L}" y="16" width="${hopLen * bw}" height="22" fill="${C.blue}" opacity=".75"/><rect x="${L + hopLen * bw}" y="16" width="${p * bw}" height="22" fill="${C.lilac}" opacity=".8"/><rect x="${L + (hopLen + p) * bw}" y="16" width="${hopLen * bw}" height="22" fill="${C.blue}" opacity=".75"/>`;
-  if (cd > 0) tl += `<rect x="${L + bw}" y="16" width="${cd / T0 * bw}" height="22" fill="${C.grid2}"/>` + T(L + bw + cd / T0 * bw / 2, 31, 'перезарядка', { anchor: 'middle', size: 10, fill: C.dark });
-  tl += `<rect x="${L + iF * bw}" y="42" width="${Math.max(0, iT - iF) * bw}" height="7" rx="3" fill="${C.green}"/>` + T(L + iF * bw, 62, `неуязвим ${r2(iF * T0)}–${r2(iT * T0)} с`, { size: 10, fill: C.green });
-  tl += T(L, 11, '0', { size: 10 }) + T(L + bw, 11, `${r2(T0)} с`, { size: 10, anchor: 'middle' }) + (cd > 0 ? T(W - R, 11, `${r2(T0 + cd)} с`, { size: 10, anchor: 'end' }) : '');
-  tl += T(L + hopLen * bw / 2, 31, 'переворот 1', { anchor: 'middle', size: 10, fill: '#fff' }) + (p > 0.08 ? T(L + (hopLen + p / 2) * bw, 31, 'пауза', { anchor: 'middle', size: 10, fill: '#fff' }) : '') + T(L + (hopLen * 1.5 + p) * bw, 31, 'переворот 2', { anchor: 'middle', size: 10, fill: '#fff' });
-  return `<h4>Перекат сбоку: путь центра куба, полоса — неуязвимость</h4>` + svgWrap(560, H, defs + g)
-    + `<h4>По времени</h4>` + svgWrap(560, 68, tl)
-    + facts([['Длина', `${r2(D)} бл`], ['Каждый переворот', `${r2(x1)} бл за ${r2(hopLen * T0)} с`], ['Скольжение в паузе', `${r2(xp)} бл`], ['Скорость в полёте', `${r2(base)} бл/с`], ['Неуязвимость', `${r2(Math.max(0, iT - iF) * T0)} с`], ['Перекатов в секунду (макс.)', r2(1 / (T0 + cd))]]);
+  for (const [i, p] of paths.entries()) {
+    const iF = num(p.st.invulnerableFrom, 0.05), iT = num(p.st.invulnerableTo, 0.75);
+    const inv = p.pts.filter(q => q[2] >= iF && q[2] <= iT);
+    if (inv.length > 1) g += `<polyline fill="none" stroke="${C.green}" stroke-width="10" stroke-linecap="round" opacity=".18" points="${inv.map(q => `${sc.X(0.5 + q[0]).toFixed(1)},${sc.Y(0.5 + q[1]).toFixed(1)}`).join(' ')}"/>`;
+    g += `<polyline fill="none" stroke="${p.c}" stroke-width="2" points="${p.pts.map(q => `${sc.X(0.5 + q[0]).toFixed(1)},${sc.Y(0.5 + q[1]).toFixed(1)}`).join(' ')}"/>`;
+    if (p.st.flip) {
+      const head = p.pts.find(q => q[3] >= 1) || p.pts[Math.floor(p.pts.length / 2)];
+      g += playerCube(sc, 0.5 + head[0], 0, 1, 1, { foot: '#555', footTop: true, op: .45 }) + T(sc.X(0.5 + head[0]), sc.Y(1) - 5, 'на «голове»', { anchor: 'middle', size: 10 });
+    }
+    g += playerCube(sc, 0.5 + p.x1, 0, 1, 1, { foot: '#555', op: i === paths.length - 1 ? .85 : .5 }) + T(sc.X(0.5 + p.x1), sc.Y(1) - 5, String(i + 1), { anchor: 'middle', size: 11, fill: p.c, weight: 700 });
+  }
+  const H = 70 + yMax * 40;
+  // таймлайн при нажатиях как можно раньше: шаг → пауза → следующий шаг; окно комбо — жёлтым
+  let tEnd = 0; const segs = [];
+  steps.forEach((st, i) => {
+    const T0 = Math.max(0.0001, num(st.duration, 0.28)), cd = Math.max(0, num(st.cooldown));
+    segs.push({ i, t0: tEnd, t1: tEnd + T0, st });
+    tEnd += T0 + (i < steps.length - 1 ? cd : 0);
+  });
+  const total = segs[segs.length - 1].t1, span = Math.max(total + win, 0.1), W = 560, L = 10, R = 10, k = (W - L - R) / span;
+  let tl = '';
+  for (const sg of segs) {
+    const c = cols[sg.i % cols.length], T0 = sg.t1 - sg.t0;
+    tl += `<rect x="${L + sg.t0 * k}" y="16" width="${T0 * k}" height="22" fill="${c}" opacity=".78"/>` + (T0 * k > 26 ? T(L + (sg.t0 + T0 / 2) * k, 31, `${sg.i + 1}`, { anchor: 'middle', size: 10, fill: '#fff', weight: 700 }) : '');
+    const iF = num(sg.st.invulnerableFrom, 0.05), iT = num(sg.st.invulnerableTo, 0.75);
+    tl += `<rect x="${L + (sg.t0 + iF * T0) * k}" y="42" width="${Math.max(0, iT - iF) * T0 * k}" height="7" rx="3" fill="${C.green}"/>`;
+    const cd = Math.max(0, num(sg.st.cooldown));
+    if (cd > 0) tl += `<rect x="${L + sg.t1 * k}" y="16" width="${cd * k}" height="22" fill="${C.grid2}"/>`;
+    if (sg.i < segs.length - 1 && win > 0) tl += `<rect x="${L + sg.t1 * k}" y="52" width="${win * k}" height="5" rx="2" fill="${C.yellow}"/>`;
+  }
+  tl += T(L, 11, '0', { size: 10 }) + T(L + total * k, 11, `${r2(total)} с`, { size: 10, anchor: 'middle' });
+  tl += T(L, 70, `зелёное — неуязвимость, жёлтое — окно комбо ${r2(win)} с после приземления, серое — пауза после шага`, { size: 10 });
+  const cost = steps.reduce((a, st) => a + num(st.staminaCost, 15), 0);
+  const inv = steps.reduce((a, st) => a + Math.max(0, num(st.invulnerableTo, 0.75) - num(st.invulnerableFrom, 0.05)) * num(st.duration, 0.28), 0);
+  return `<h4>Серия сбоку: путь центра куба, полоса — неуязвимость</h4>` + svgWrap(560, H, g)
+    + `<h4>По времени (каждое нажатие — как только можно)</h4>` + svgWrap(560, 76, tl)
+    + facts([['Длина серии', `${r2(x0)} бл`], ['Время серии', `${r2(total)} с`], ['Цена серии', `${r2(cost, 0)} ед.`], ['Неуязвимость за серию', `${r2(inv)} с`],
+      ...steps.map((st, i) => [`Шаг ${i + 1}`, `${r2(num(st.distance, 1.6))} бл за ${r2(num(st.duration, 0.28))} с${st.flip ? ', перекат' : ''}`])]);
 }
 
 function vizStamina({ d, f }) {
   const s = d.stamina || {};
-  const max = Math.max(1, num(s.max, 100)), regen = Math.max(0.01, num(s.regenPerSecond, 22)), delay = num(s.regenDelay, 0.9), roll = num(s.rollCost, 22);
+  const max = Math.max(1, num(s.max, 100)), regen = Math.max(0.01, num(s.regenPerSecond, 22)), delay = num(s.regenDelay, 0.9);
+  const dodge = dodgeSteps(d).map(x => num(x.staminaCost, 15)), roll = dodge[0] || 0;
   const sword = itemsData().sword?.combo?.map(x => num(x.staminaCost, 12)) || [];
   const W = 560, L = 10, bw = W - 20;
   let g = `<rect x="${L}" y="14" width="${bw}" height="20" rx="4" fill="#eef0f3" stroke="${C.grid2}"/>`;
-  // засечки перекатов
+  // засечки отскоков: шаги серии по кругу
   let acc = 0, i = 0;
-  while (roll > 0 && acc + roll <= max + 1e-6 && i < 40) { g += `<rect x="${L + acc / max * bw + 1}" y="16" width="${roll / max * bw - 2}" height="16" rx="3" fill="${C.green}" opacity=".75"/>`; acc += roll; i++; }
+  while (dodge.some(c => c > 0) && acc + dodge[i % dodge.length] <= max + 1e-6 && i < 40) { const c = dodge[i % dodge.length]; if (c > 0) g += `<rect x="${L + acc / max * bw + 1}" y="16" width="${c / max * bw - 2}" height="16" rx="3" fill="${C.green}" opacity="${0.55 + 0.2 * (i % dodge.length)}"/>`; acc += c; i++; }
   const rolls = i;
-  g += T(L, 10, `перекаты подряд: ${rolls}`, { size: 10 });
+  g += T(L, 10, `отскоков подряд (серия ${dodge.join('+')}): ${rolls}`, { size: 10 });
   // засечки серии меча
   let acc2 = 0, k = 0; const yy = 44;
   g += `<rect x="${L}" y="${yy}" width="${bw}" height="20" rx="4" fill="#eef0f3" stroke="${C.grid2}"/>`;
@@ -1162,7 +1248,7 @@ function vizStamina({ d, f }) {
   const ptsB = [[0, 0], [delay, 0], [Math.min(fullBlock, full * 2), Math.min(max, regen * num(s.blockRegenMultiplier, 0.3) * (Math.min(fullBlock, full * 2) - delay))]];
   return `<h4>Шкала ${r2(max, 0)} ед.</h4>` + svgWrap(W, 86, g)
     + `<h4>Восстановление с нуля</h4>` + chart(560, 160, [{ pts, c: C.green, name: 'обычно' }, { pts: ptsB, c: C.lilac, name: 'со щитом', dash: true }], { xl: 'секунды', legend: true, x0: 0, x1: full + 0.5, y0: 0, y1: max, marks: [{ x: delay, l: 'задержка' }] })
-    + facts([['Полное восстановление', `${r2(full)} с`], ['Со щитом', `${r2(fullBlock)} с`], ['Один перекат восстанавливается', `${r2(delay + roll / regen)} с`]]);
+    + facts([['Полное восстановление', `${r2(full)} с`], ['Со щитом', `${r2(fullBlock)} с`], ['Первый отскок восстанавливается', `${r2(delay + roll / regen)} с`]]);
 }
 
 function springSim(k, c, x0, v0, T, n = 300) { const pts = []; let x = x0, v = v0; const dt = T / n; for (let i = 0; i <= n; i++) { pts.push([i * dt, x]); for (let j = 0; j < 4; j++) { const a = -k * x - c * v; v += a * dt / 4; x += v * dt / 4; } } return pts; }
@@ -1178,7 +1264,7 @@ function vizDeform({ d }) {
   const k = num(df.stiffness, 220), c = num(df.damping, 9);
   const J = jumpModel(d);
   const landSq = Math.max(num(df.maxLandSquash, -0.4), num(df.landSquashPerSpeed, -0.035) * J.landV);
-  const shapes = [['покой', 0, 0], ['замах', num(df.jumpWindupSquash), 0], ['отрыв', num(df.jumpTakeoffStretch), 0], ['приземление', landSq, 0], ['перекат', num(df.rollLandSquash), num(df.rollBend)], ['удар', num(df.hitSquash), 0], ['ходьба', 0, num(df.walkBend)]];
+  const shapes = [['покой', 0, 0], ['замах', num(df.jumpWindupSquash), 0], ['отрыв', num(df.jumpTakeoffStretch), 0], ['приземление', landSq, 0], ['перекат', num(dodgeFlipStep(d).landSquash, -0.25), num(dodgeFlipStep(d).bend, 0.18)], ['удар', num(df.hitSquash), 0], ['ходьба', 0, num(df.walkBend)]];
   const W = 560, H = 120, step = W / shapes.length; let g = `<line x1="0" x2="${W}" y1="${H - 26}" y2="${H - 26}" stroke="${C.grid2}"/>`;
   shapes.forEach(([n, sq, b], i) => { const cx = step * (i + 0.5); g += cubeShape(cx, H - 26, 44, sq, b) + T(cx, H - 12, n, { anchor: 'middle', size: 10 }) + T(cx, H - 1, sq ? (sq > 0 ? '+' : '') + r2(sq) : b ? `изгиб ${r2(b)}` : '', { anchor: 'middle', size: 9 }); });
   const resp = springSim(k, c, landSq, 0, 1.2);
@@ -1268,6 +1354,22 @@ function vizInventory({ d }) {
     + facts([['Ячеек', String(cols * rows)], ['Быстрых слотов', String(q)]]);
 }
 
+// Фазы удара оружия в секундах: замах, удар, фиксация (окно комбо), возврат. Старые поля — как запасной вариант.
+function comboStepPhases(st) {
+  if (st.windup !== undefined || st.strike !== undefined) return { w: num(st.windup, 0.18), s: num(st.strike, 0.08), h: num(st.hold, 0.22), r: num(st.recovery, 0.14) };
+  let d = num(st.duration, 0.38), af = num(st.activeFrom, 0.3), at = num(st.activeTo, 0.65); if (af > at) [af, at] = [at, af];
+  return { w: d * af, s: d * (at - af), h: num(st.hold, 0.22), r: d * (1 - at) };
+}
+// Полное время удара: замах + удар + фиксация + возврат.
+const comboStepTime = st => { const p = comboStepPhases(st); return p.w + p.s + p.h + p.r; };
+// Фазы атаки врага: замах, удар, фиксация, возврат.
+const enemyAttackPhases = a => [num(a.windup, 1.5), num(a.strike, 0.1), num(a.hold, 0.3), num(a.recovery, 0.5)];
+// Пункт легенды таймлайна: подпись того же цвета, что и фаза. Слишком светлые цвета (жёлтый, серый) — чуть темнее, иначе не читаются.
+const LEGEND_TEXT = { [C.yellow]: '#B8900A', [C.grid2]: '#8E949C', [C.grid]: '#8E949C' };
+function legendItem(color, text, swatch) {
+  return `<span class="ph" style="color:${LEGEND_TEXT[color] || color}"><i style="${swatch || `background:${color}`}"></i>${esc(text)}</span>`;
+}
+
 function vizItem({ id, it }) {
   const col = colorHex(it.color);
   const combo = it.combo || [];
@@ -1296,12 +1398,7 @@ function vizItem({ id, it }) {
   g += `<rect x="${cx - s / 2}" y="${cy - s / 2}" width="${s}" height="${s}" fill="#b3b6bd" stroke="#7d818a"/>` + T(cx, cy + s / 2 + 14, 'куб 1×1', { anchor: 'middle', size: 10 });
   // таймлайн
   const cw = num(it.comboWindow, 0);
-  // Фазы удара в секундах: замах, удар, фиксация (окно комбо), возврат. Старые поля — как запасной вариант.
-  const phases = st => {
-    if (st.windup !== undefined || st.strike !== undefined) return { w: num(st.windup, 0.18), s: num(st.strike, 0.08), h: num(st.hold, 0.22), r: num(st.recovery, 0.14) };
-    let d = num(st.duration, 0.38), af = num(st.activeFrom, 0.3), at = num(st.activeTo, 0.65); if (af > at) [af, at] = [at, af];
-    return { w: d * af, s: d * (at - af), h: num(st.hold, 0.22), r: d * (1 - at) };
-  };
+  const phases = comboStepPhases;
   const total = combo.reduce((a, st) => { const p = phases(st); return a + p.w + p.s + p.h + p.r; }, 0) + cw;
   const TW = 290, L = 4, sx = (TW - L * 2) / Math.max(0.01, total); let x = L, tl = '';
   combo.forEach((st, i) => {
@@ -1310,18 +1407,21 @@ function vizItem({ id, it }) {
       + `<rect x="${x + p.w * sx}" y="18" width="${p.s * sx}" height="20" fill="${col}" fill-opacity=".55"/>`
       + `<rect x="${x + (p.w + p.s * num(st.hitFrom, 0)) * sx}" y="18" width="${Math.max(0, p.s * (num(st.hitTo, 1) - num(st.hitFrom, 0))) * sx}" height="20" fill="${col}"/>`
       + `<rect x="${x + (p.w + p.s) * sx}" y="18" width="${p.h * sx}" height="20" fill="${col}" fill-opacity=".35"/>`
-      + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 });
+      + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 })
+      // Полное время удара — под его полосой.
+      + T(x + dur * sx / 2, 56, dur * sx >= 36 ? `${r2(dur)} с` : r2(dur), { size: 10, fill: C.dark, weight: 600, anchor: 'middle' });
     // Окно запрета переката — тёмная полоса под ударом.
     const lf = clamp(num(st.rollLockFrom, 0), 0, dur), ltRaw = num(st.rollLockTo, -1), lt = ltRaw < 0 ? dur : clamp(ltRaw, lf, dur);
     tl += `<rect x="${x + lf * sx}" y="40" width="${Math.max(0, (lt - lf) * sx - 2)}" height="3" rx="1.5" fill="${C.dark}" fill-opacity=".55"/>`;
     x += dur * sx;
   });
   tl += `<rect x="${x}" y="24" width="${cw * sx}" height="8" rx="3" fill="${C.grid}" stroke="${C.grid2}" stroke-dasharray="2 2"/>` + T(x + 2, 13, 'окно', { size: 9 });
-  tl += T(L, 52, '0', { size: 9 }) + T(TW - L, 52, `${r2(total)} с`, { size: 9, anchor: 'end' });
+  tl += T(L, 70, '0', { size: 9 }) + T(TW - L, 70, `вся серия ${r2(total)} с`, { size: 9, anchor: 'end' });
   const dmg = combo.map(st => itemDamage(it, st));
   const sta = combo.reduce((a, st) => a + num(st.staminaCost, 12), 0);
   const cm = num(S.files.Combat?.data?.sameColorMultiplier, 1.5);
-  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени: серый — замах и возврат, цвет — удар (ярко — окно урона), светлый — пауза (окно комбо), тёмная полоса снизу — перекат запрещён</h4>${svgWrap(TW, 56, tl)}
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени (под ударом — его полное время)</h4>${svgWrap(TW, 74, tl)}
+    <div class="legend">${legendItem(C.grid2, 'замах и возврат')}${legendItem(col, 'удар', `background:${col};opacity:.55`)}${legendItem(col, 'окно урона')}${legendItem(col, 'фиксация (окно комбо)', `background:${col};opacity:.35`)}${legendItem(C.dark, 'перекат запрещён', `background:${C.dark};opacity:.55;height:3px`)}${legendItem(C.grid2, 'доп. окно комбо', `background:${C.grid};border:1px dashed ${C.grid2};height:6px`)}</div>
     <table class="dmg" style="margin-top:8px"><tr><th>#</th><th>Движение</th><th>Урон</th><th>Цвет ×${r2(cm)}</th><th>Выносл.</th></tr>${combo.map((st, i) => `<tr><td>${i + 1}</td><td>${esc((MOTIONS.find(m => m[0] === st.motion) || [, st.motion])[1])}</td><td>${r2(dmg[i], 1)}</td><td>${r2(dmg[i] * cm, 1)}</td><td>${r2(num(st.staminaCost, 12), 0)}</td></tr>`).join('')}
     <tr><th></th><th>Серия</th><th>${r2(dmg.reduce((a, b) => a + b, 0), 1)}</th><th>${r2(dmg.reduce((a, b) => a + b, 0) * cm, 1)}</th><th>${r2(sta, 0)}</th></tr></table>
     ${facts([['Урон в секунду', r2(dmg.reduce((a, b) => a + b, 0) / Math.max(0.01, total - cw), 1)], ['Рука', ({ Any: 'любая', Left: 'левая', Right: 'правая' })[it.hand || 'Any'] || it.hand], ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']])}</div></div>`;
@@ -1375,7 +1475,7 @@ function vizEnemy({ e }) {
   const col = colorHex(e.color || 'blue');
   const size = num(e.size, 0.8), aggro = num(e.aggroRadius, 7), lose = Math.max(aggro, num(e.loseRadius, 13)), wait = num(e.waitDistance, 3.2);
   const attacks = e.attacks || [];
-  const ph = a => [num(a.windup, 1.5), num(a.strike, 0.1), num(a.hold, 0.3), num(a.recovery, 0.5)];
+  const ph = enemyAttackPhases;
   // 1. Зоны сверху
   const W = 270, H = 270, cx = W / 2, cy = H / 2, s = (W / 2 - 14) / Math.max(1, lose);
   let z = '';
@@ -1432,7 +1532,7 @@ function vizEnemy({ e }) {
   const toFirst = num(e.alertDuration, 2) + Math.max(0, aggro - maxR) / Math.max(0.01, speed);
   const pHp = num(S.files.Player?.data?.maxHealth, 0);
   return `<div style="display:flex;gap:10px;flex-wrap:wrap"><div><h4>Зоны сверху (масштаб по радиусу потери)</h4>${svgWrap(W, H, z)}</div><div><h4>Атаки сверху, цифры — номер атаки</h4>${svgWrap(W2, H2, g)}</div></div>`
-    + `<h4>Атаки по времени</h4>${svgWrap(TW, tlH, tl)}<div class="legend"><span><i style="background:${C.yellow}"></i>замах (реакция игрока)</span><span><i style="background:${C.red}"></i>удар (урон)</span><span><i style="background:${C.orange}"></i>фиксация</span><span><i style="background:${C.grid2}"></i>возврат</span><span><i style="background:${C.lilac}"></i>окно парирования</span><span><i style="border:1px dashed ${C.grid2};height:6px"></i>пауза между атаками</span></div>`
+    + `<h4>Атаки по времени</h4>${svgWrap(TW, tlH, tl)}<div class="legend">${legendItem(C.yellow, 'замах (реакция игрока)')}${legendItem(C.red, 'удар (урон)')}${legendItem(C.orange, 'фиксация')}${legendItem(C.grid2, 'возврат')}${legendItem(C.lilac, 'окно парирования', `border:2px solid ${C.lilac};height:6px`)}${legendItem(C.grid2, 'пауза между атаками', `border:1px dashed ${C.grid2};height:6px`)}</div>`
     + facts([
       ['Скорость', pWalk ? `${r2(speed)} бл/с (${r2(speed / pWalk * 100, 0)}% ходьбы игрока)` : `${r2(speed)} бл/с`],
       ['От агро до первого удара', `≈ ${r2(toFirst + (attacks[0] ? ph(attacks[0])[0] : 0), 1)} с`],

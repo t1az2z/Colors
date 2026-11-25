@@ -32,6 +32,8 @@
   header h1 { font-size: 15px; font-weight: 650; margin: 0 6px 0 2px; display: flex; gap: 8px; align-items: center; white-space: nowrap; }
   header .name { font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
   header .name b { color: var(--text); }
+  header .name { cursor: pointer; }
+  .modal textarea { width: 100%; height: 90px; font: 12px ui-monospace, monospace; border: 1px solid var(--line2); border-radius: 7px; padding: 6px; resize: vertical; }
   header .grp { display: flex; gap: 6px; flex: none; }
   #saved { font-size: 12px; color: var(--faint); white-space: nowrap; }
 
@@ -104,7 +106,7 @@
       <button id="bUndo" title="Отменить">↶</button>
       <button id="bRedo" title="Повторить">↷</button>
     </div>
-    <div class="name" id="levelName"></div>
+    <div class="name" id="levelName" title="Переименовать уровень"></div>
     <span id="saved"></span>
     <div class="grp"><button id="bSave" class="primary">⤓ Сохранить</button></div>
   </header>
@@ -435,11 +437,12 @@ function renderSaved() {
   if (!savedAt) return;
   $('#saved').textContent = 'черновик ' + savedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
+let restoredDraft = false;
 function restore() {
   try {
     const s = localStorage.getItem(LS_KEY); if (!s) return false;
     const d = JSON.parse(s); fromJSON(d.data, d.file); activeFloor = Math.min(d.floor | 0, L.floors.length - 1);
-    return true;
+    return restoredDraft = true;
   } catch (e) { return false; }
 }
 
@@ -453,11 +456,88 @@ function download() {
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   toast('Скачан ' + L.file + '.json');
 }
+// ------------------------------------------------------------------ поделиться
+// Файлом .json умеет делиться только Safari (iPad/Mac): Chrome и Edge пускают в системное меню лишь картинки,
+// pdf, txt и т. п., поэтому раньше кнопка там молча превращалась в «Скачать». Теперь — окно с вариантами:
+// файл (где можно), ссылка с уровнем внутри, копия JSON и скачивание. Каждый вариант пишет, что получилось.
+function levelText() { return JSON.stringify(toJSON(), null, 2) + '\n'; }
+function canShareFile(file) { try { return !!(navigator.canShare && navigator.canShare({ files: [file] })); } catch (e) { return false; } }
+const b64url = bytes => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64url = t => { const s = atob(t.replace(/-/g, '+').replace(/_/g, '/')); const b = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) b[i] = s.charCodeAt(i); return b; };
+async function streamBytes(bytes, stream) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
+// Ссылка: адрес редактора + #lvl=z.<deflate, base64url> (или #lvl=j.<base64url>, если браузер не умеет сжимать).
+async function levelLink() {
+  const json = new TextEncoder().encode(JSON.stringify({ file: L.file, data: toJSON() }));
+  let code;
+  try { code = 'z.' + b64url(await streamBytes(json, new CompressionStream('deflate-raw'))); }
+  catch (e) { code = 'j.' + b64url(json); }
+  return location.href.split('#')[0] + '#lvl=' + code;
+}
+async function levelFromHash() {
+  const m = /[#&]lvl=([zj])\.([\w-]+)/.exec(location.hash); if (!m) return null;
+  let bytes = unb64url(m[2]);
+  if (m[1] === 'z') bytes = await streamBytes(bytes, new DecompressionStream('deflate-raw'));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+async function openFromHash() {
+  let d = null;
+  try { d = await levelFromHash(); } catch (e) { toast('Ссылка на уровень повреждена: ' + e.message, 4000); }
+  history.replaceState(null, '', location.href.split('#')[0]);
+  if (!d || !d.data) return;
+  const apply = () => {
+    try { fromJSON(d.data, d.file || fileNameFrom(d.data.name || '')); autosave(); toast('Открыт уровень из ссылки: ' + L.name, 3000); }
+    catch (e) { toast('Не получилось открыть уровень из ссылки: ' + e.message, 4000); }
+  };
+  const same = JSON.stringify(toJSON()) === JSON.stringify(d.data);
+  if (restoredDraft && !same) confirmBox('Открыть присланный ссылкой уровень «' + (d.data.name || d.file) + '»? Текущий черновик «' + L.name + '» заменится — если он нужен, сначала скачай его.', apply);
+  else apply();
+}
+window.addEventListener('hashchange', () => { if (/[#&]lvl=/.test(location.hash)) openFromHash(); });
+
+// Копирование в буфер: Clipboard API, иначе старый execCommand. false — не вышло (покажем текст для ручного копирования).
+async function copyText(text) {
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch (e) { /* попробуем иначе */ }
+  const ta = h('textarea', { style: 'position:fixed;left:-9999px;top:0' }); ta.value = text; document.body.appendChild(ta);
+  ta.focus(); ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false; try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  ta.remove(); return ok;
+}
+function manualCopy(title, text) {
+  modal((m, close) => {
+    const ta = h('textarea', { readonly: 'readonly' }); ta.value = text;
+    m.append(h('h2', {}, title), h('p', { class: 'desc' }, 'Браузер не дал скопировать автоматически. Выдели текст и скопируй вручную.'), ta,
+      h('div', { class: 'actions' }, h('button', { on: { click: close } }, 'Закрыть')));
+    setTimeout(() => { ta.focus(); ta.select(); }, 50);
+  });
+}
 async function share() {
-  const file = new File([levelBlob()], L.file + '.json', { type: 'application/json' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: L.file + '.json' }); } catch (e) { /* отменено */ }
-  } else { download(); }
+  const fileName = L.file + '.json';
+  const file = new File([levelBlob()], fileName, { type: 'application/json' });
+  const fileOk = canShareFile(file);
+  let link = null;
+  if (/^https?:$/.test(location.protocol)) { try { link = await levelLink(); } catch (e) { link = null; } }
+  modal((m, close) => {
+    const item = (title, sub, fn) => h('button', { on: { click: () => { close(); fn(); } } }, title, sub ? h('small', {}, sub) : null);
+    const sendFile = async () => {
+      try { await navigator.share({ files: [file], title: fileName }); toast('Отправлен ' + fileName); }
+      catch (e) { if (e.name !== 'AbortError') { toast('Система не дала отправить файл (' + (e.message || e.name) + '), скачиваю', 3500); download(); } }
+    };
+    const copyLink = async () => { if (await copyText(link)) toast('Ссылка на уровень скопирована — вставь её в сообщение', 3000); else manualCopy('Ссылка на уровень', link); };
+    const sendLink = async () => {
+      try { await navigator.share({ title: L.name, text: 'Уровень «' + L.name + '» для редактора ColorsAction', url: link }); toast('Ссылка отправлена'); }
+      catch (e) { if (e.name !== 'AbortError') copyLink(); }
+    };
+    const copyJson = async () => { const t = levelText(); if (await copyText(t)) toast('JSON уровня скопирован (' + Math.ceil(t.length / 1024) + ' КБ)', 3000); else manualCopy(fileName, t); };
+    const long = link && link.length > 4000;
+    m.append(h('h2', {}, 'Поделиться'), h('div', { class: 'menu' },
+      fileOk ? item('Отправить файл…', fileName + ' в Telegram, Файлы, почту — системное меню', sendFile) : null,
+      link && navigator.share ? item('Отправить ссылку…', 'Ссылка на этот редактор с уровнем внутри', sendLink) : null,
+      link ? item('Скопировать ссылку', 'Кто откроет её, увидит уровень в редакторе' + (long ? ' (ссылка длинная: ' + Math.round(link.length / 1024) + ' КБ — мессенджер может её обрезать, тогда лучше файл)' : ''), copyLink) : null,
+      item('Скопировать JSON', 'Текст файла уровня в буфер обмена', copyJson),
+      item('Скачать ' + fileName, 'И отправить файл вручную', download),
+    ), fileOk ? null : h('p', { class: 'desc', style: 'margin-top:10px' }, 'Этот браузер не умеет отправлять .json через системное меню — используй ссылку или скачай файл.'),
+    h('div', { class: 'actions' }, h('button', { on: { click: close } }, 'Закрыть')));
+  });
 }
 function openFile() { $('#fileInput').value = ''; $('#fileInput').click(); }
 $('#fileInput').addEventListener('change', async e => {
@@ -844,8 +924,33 @@ function fileMenu() {
       siteLevels.length ? h('div', { class: 'desc', style: 'margin:6px 2px 0' }, 'Уровни из репозитория:') : null,
       siteLevels.map(n => item(n, null, () => openSiteLevel(n))),
       item('Скачать ' + L.file + '.json', 'Положить в Assets/StreamingAssets/Configs/VoxelLevels', download),
-      item('Поделиться…', 'Отправить файл в Telegram, Диск, почту', share),
+      item('Сохранить как…', 'Скачать под другим названием и именем файла', () => renameDialog(true)),
+      item('Переименовать…', 'Сейчас: ' + L.name + ' · ' + L.file + '.json', () => renameDialog(false)),
+      item('Поделиться…', 'Файл, ссылка на уровень или JSON в буфер', share),
     ), h('div', { class: 'actions' }, h('button', { on: { click: close } }, 'Закрыть')));
+  });
+}
+// Переименование: меняет название и имя файла. «Сохранить как» — то же плюс сразу скачать файл под новым именем.
+function renameDialog(saveAfter) {
+  let name = L.name, file = L.file, fileTouched = fileNameFrom(L.name) !== L.file;
+  modal((m, close) => {
+    const fileInp = h('input', { type: 'text', value: file, on: { input: e => { file = e.target.value; fileTouched = true; } } });
+    const nameInp = h('input', { type: 'text', value: name, on: { input: e => { name = e.target.value; if (!fileTouched) fileInp.value = file = fileNameFrom(name); } } });
+    const ok = () => {
+      const f = String(file || '').trim().replace(/\.json$/i, '').replace(/[^\w\-]/g, '');
+      if (!f) { toast('Имя файла: латиница, цифры, _ и -', 3000); return; }
+      close();
+      L.name = name.trim() || 'Уровень'; L.file = f;
+      renderName(); renderPanel(); autosave();
+      if (saveAfter) download(); else toast('Уровень: ' + L.name + ' · ' + L.file + '.json');
+    };
+    const enter = e => { if (e.key === 'Enter') ok(); };
+    nameInp.addEventListener('keydown', enter); fileInp.addEventListener('keydown', enter);
+    m.append(h('h2', {}, saveAfter ? 'Сохранить как' : 'Переименовать уровень'),
+      row('Название', nameInp), row('Имя файла', fileInp),
+      h('p', { class: 'desc' }, 'Под этим именем (+ .json) уровень скачается; в проекте он лежит в Assets/StreamingAssets/Configs/VoxelLevels. Пока имя файла не трогали, оно повторяет название латиницей.'),
+      h('div', { class: 'actions' }, h('button', { on: { click: close } }, 'Отмена'),
+        h('button', { class: 'primary', on: { click: ok } }, saveAfter ? 'Скачать' : 'Переименовать')));
   });
 }
 function newLevelDialog() {
@@ -1622,6 +1727,7 @@ function rotateCam(dir) { cam.yawT = cam.snap ? Math.round((cam.yawT - 45) / 90)
 
 $('#bFile').onclick = fileMenu;
 $('#bSave').onclick = download;
+$('#levelName').onclick = () => renameDialog(false);
 $('#bUndo').onclick = undo;
 $('#bRedo').onclick = redo;
 $('#cRotL').onclick = () => rotateCam(-1);
@@ -1638,6 +1744,7 @@ if (!restore()) newLevel(32, 32, 'Новый уровень');
 renderName(); renderFloors(); renderPanel(); updateUndoButtons(); hud();
 resize(); fitView();
 loadSiteData();
+if (/[#&]lvl=/.test(location.hash)) openFromHash();
 window.__editor = { L, st, cam, toJSON, fromJSON, undo, redo, project, buildMeshes, updateCamera, sel,
   forceFull: () => { needMesh = true; }, dirtyOne: () => markDirty(20, 0, 20) }; // для отладки и тестов
 </script>

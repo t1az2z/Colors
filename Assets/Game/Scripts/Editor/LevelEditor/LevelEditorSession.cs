@@ -222,10 +222,55 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             var path = Path.Combine(ConfigsRoot, Key + ".json");
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllText(path, json);
-            var assetPath = "Assets/StreamingAssets/Configs/" + Key + ".json";
+            var assetPath = AssetPathOf(Key);
             AssetDatabase.ImportAsset(assetPath);
             Dirty = false;
             RebuildNav();
+        }
+
+        public static string AssetPathOf(string key) => "Assets/StreamingAssets/Configs/" + key + ".json";
+
+        /// <summary>
+        /// Сохраняет уровень под новым ключом (VoxelLevels/Имя). При <paramref name="rename"/> старый файл
+        /// переносится (вместе с .meta), иначе остаётся как был. Название уровня, совпадавшее со старым
+        /// именем файла, меняется вслед за ним.
+        /// </summary>
+        public void SaveAs(string key, bool rename)
+        {
+            if (string.IsNullOrEmpty(key))
+                throw new ArgumentException("level key is empty", nameof(key));
+            var oldKey = Key;
+            if (key == oldKey)
+            {
+                Save();
+                return;
+            }
+
+            var target = AssetPathOf(key);
+            // Файл с таким именем уже есть: пользователь подтвердил замену в диалоге сохранения.
+            if (File.Exists(Path.Combine(ConfigsRoot, key + ".json")))
+                AssetDatabase.DeleteAsset(target);
+
+            if (rename && !string.IsNullOrEmpty(oldKey) && File.Exists(Path.Combine(ConfigsRoot, oldKey + ".json")))
+            {
+                var error = AssetDatabase.MoveAsset(AssetPathOf(oldKey), target);
+                if (!string.IsNullOrEmpty(error))
+                    throw new IOException(error);
+            }
+
+            if (!string.IsNullOrEmpty(oldKey) && Level.Name == Path.GetFileName(oldKey))
+                Level.Name = Path.GetFileName(key);
+            Key = key;
+            Save();
+        }
+
+        /// <summary>Меняет название уровня (поле name в файле). Сохраняется кнопкой «Сохранить».</summary>
+        public void SetName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name) || name == Level.Name)
+                return;
+            Level.Name = name.Trim();
+            Dirty = true;
         }
 
         private void ResetHistory()
