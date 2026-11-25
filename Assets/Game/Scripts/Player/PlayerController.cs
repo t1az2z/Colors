@@ -360,11 +360,28 @@ namespace ColorsAction.Unity
 
         public bool InJumpWindup => windupTimer >= 0f;
 
+        /// <summary>Подскок удара (например, отскок добивающего): вертикальная скорость на высоту <paramref name="height"/>.</summary>
+        public void Hop(float height)
+        {
+            if (height > 0f && motor != null)
+                motor.VerticalVelocity = Mathf.Sqrt(2f * config.Gravity * height);
+        }
+
+        /// <summary>Погасить горизонтальную скорость (удар в прыжке прерывает полёт).</summary>
+        public void StopHorizontal() => horizontalVelocity = Vector3.zero;
+
         private void ApplyGravity(float dt)
         {
             if (windupTimer >= 0f)
             {
                 motor.VerticalVelocity = 0f;
+                return;
+            }
+
+            // Удар в прыжке ведёт вертикаль сам: зависание, затем быстрое падение.
+            if (combat != null && combat.VerticalOverride is float forced)
+            {
+                motor.VerticalVelocity = forced;
                 return;
             }
 

@@ -50,7 +50,7 @@ namespace ColorsAction.Unity
     /// Позы рук считаются процедурно и проходят через ту же деформацию, что и куб.
     /// </summary>
     [DefaultExecutionOrder(100)]
-    public sealed class PlayerCombat : GameBehaviour
+    public sealed partial class PlayerCombat : GameBehaviour
     {
         [SerializeField] private Transform leftSocket;
         [SerializeField] private Transform rightSocket;
@@ -103,7 +103,7 @@ namespace ColorsAction.Unity
         public Vector3? FacingOverride => null;
 
         /// <summary>Перекат разрешён: нет удара или удар вне своего окна запрета переката (RollLockFrom..RollLockTo).</summary>
-        public bool CanInterruptForRoll => attacking == null || !step.RollLocked(attackTime);
+        public bool CanInterruptForRoll => attacking == null || Charging || !step.RollLocked(attackTime);
 
         public float MoveMultiplier
         {
@@ -269,6 +269,10 @@ namespace ColorsAction.Unity
                     return;
                 }
 
+                // После окна комбо, на возврате: пауза в серии — добивающий удар (если он есть у оружия).
+                if (attackTime >= StrikeEnd && TryStartFinisher(actor))
+                    return;
+
                 // Раньше — буфер: следующий удар начнётся, когда начнётся фиксация (после короткого акцента).
                 // Позже (на возврате) — серия начнётся заново, когда удар закончится.
                 if (attackTime < StrikeEnd)
@@ -278,6 +282,9 @@ namespace ColorsAction.Unity
                 return;
             }
 
+            // В воздухе — удар в прыжке; после паузы в серии — добивающий.
+            if (TryStartPlunge(actor) || TryStartFinisher(actor))
+                return;
             StartAttack(actor, comboTimer > 0f && lastHand == actor ? comboIndex + 1 : 0);
         }
 
@@ -286,10 +293,21 @@ namespace ColorsAction.Unity
         private void StartAttack(HandState hand, int index)
         {
             var combo = hand.Item.Combo;
-            index %= combo.Count;
+            var continuing = index > 0;
+            // Удары за апгрейдами серия пропускает (меч: четвёртый удар открывает апгрейд 1).
+            index = UnlockedComboIndex(hand.Item, index);
+            if (index < 0)
+                return;
             var next = combo[index];
             if (!session.Stamina.TrySpend(next.StaminaCost))
                 return;
+            BeginStep(hand, next, index);
+            finisher.ComboAttack(continuing);
+        }
+
+        /// <summary>Запустить удар <paramref name="next"/> (из серии или особый: index = -1, следующее нажатие начнёт серию).</summary>
+        private void BeginStep(HandState hand, AttackStepConfig next, int index)
+        {
             attacking = hand;
             lastHand = hand;
             comboIndex = index;
@@ -304,10 +322,12 @@ namespace ColorsAction.Unity
             // а не из стойки — иначе следующий удар делал лишний взмах через стойку.
             hand.WindupFrom = hand.Current;
             controller.Deformer.Impulse(-0.6f, new Vector2(0f, 0.6f));
+            OnStepStarted(next);
         }
 
         public void CancelAttack()
         {
+            ResetMoves();
             attacking = null;
             queued = false;
             queuedRestart = false;
@@ -317,6 +337,9 @@ namespace ColorsAction.Unity
 
         private void UpdateAttack(float dt)
         {
+            // Заряд и удар в прыжке сами ведут время удара (пауза на замахе, падение до земли).
+            if (UpdateMoves(dt))
+                return;
             var previousTime = attackTime;
             attackTime += dt;
             // Окно урона внутри удара (HitFrom..HitTo от длительности Strike), в секундах от начала удара.
@@ -326,7 +349,7 @@ namespace ColorsAction.Unity
             var strikeLength = StrikeEnd - strikeStart;
             var hitStart = strikeStart + strikeLength * step.HitFrom;
             var hitEnd = strikeStart + strikeLength * step.HitTo;
-            if (attackTime >= hitStart - 1e-4f && previousTime <= hitEnd + 1e-4f)
+            if (!Plunging && attackTime >= hitStart - 1e-4f && previousTime <= hitEnd + 1e-4f)
                 DetectHits();
 
             if (InHold)
@@ -434,6 +457,14 @@ namespace ColorsAction.Unity
                     // Рубящий: на замахе отклон назад, в ударе — поклон вперёд-вниз (верх загибается над передней гранью).
                     deformer.PitchTarget = d.ChopPitch * strike - d.ChopPitchBack * wind;
                     break;
+                case AttackMotion.Thrust:
+                {
+                    // Укол: на замахе бок с оружием уходит назад, в уколе — подаётся вперёд, куб тянется за клинком.
+                    var side = attacking != null ? attacking.Side : 1f;
+                    deformer.TwistTarget = side * d.AttackTwist * 0.6f * (wind - strike);
+                    deformer.PitchTarget = d.SwingPitchForward * 1.2f * strike - d.SwingPitchBack * wind;
+                    break;
+                }
                 default:
                     deformer.TwistTarget = 0f;
                     deformer.PitchTarget = d.SwingPitchForward * strike - d.SwingPitchBack * 0.5f * wind;
@@ -730,7 +761,7 @@ namespace ColorsAction.Unity
 
                 hitThisSwing.Add(target);
                 var weapon = attacking.Item;
-                var result = rules.Calculate(weapon, step, target.ColorId);
+                var result = WithCharge(rules.Calculate(weapon, step, target.ColorId));
                 var color = palette.Get(weapon.Color);
                 target.ReceiveHit(new HitInfo
                 {
@@ -739,7 +770,7 @@ namespace ColorsAction.Unity
                     WeaponColor = color,
                     Direction = to.sqrMagnitude > 0.0001f ? to.normalized : forward,
                     Point = target.HitPoint,
-                    Knockback = step.Knockback
+                    Knockback = step.Knockback * ChargeKnockback
                 });
                 events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.ColorBonus, color));
                 // Импакт: толчок камеры по направлению удара и фриз-кадры, у финального удара сильнее.
@@ -815,8 +846,7 @@ namespace ColorsAction.Unity
                 hand.Socket.localRotation = deformer.DeformRotation(hand.Current.position) * hand.Current.rotation;
                 if (hand.Trail != null)
                 {
-                    var t = attacking == hand ? StepT : -1f;
-                    hand.Trail.Emitting = t >= step?.ActiveFrom - 0.1f && t <= step?.ActiveTo + 0.12f;
+                    hand.Trail.Emitting = TrailEmitting(hand);
                     if (step != null && hand.Item != null)
                         hand.Trail.MaxRadius = hand.Item.TrailRange > 0f ? hand.Item.TrailRange : step.Range;
                 }
@@ -950,8 +980,14 @@ namespace ColorsAction.Unity
                 }
                 case AttackMotion.Thrust:
                 {
-                    var pos = new Vector3(0.3f * s, 0.45f, Mathf.Lerp(0.1f, 0.95f, p));
-                    return new Pose(pos, Quaternion.FromToRotation(Vector3.up, Vector3.forward));
+                    // Укол: клинок отведён назад у бока куба, затем прямой выпад вперёд. Пока рука у бока,
+                    // она снаружи грани (|x| ≥ 0.64), к оси куба сходится только перед ним — клинок не входит в тело.
+                    var z = Mathf.Lerp(-0.3f, 1.05f, p);
+                    var inward = Mathf.Clamp01((z - 0.55f) / 0.5f);
+                    var pos = new Vector3(Mathf.Lerp(0.64f, 0.3f, inward) * s, Mathf.Lerp(0.5f, 0.46f, p), z);
+                    // Клинок смотрит вперёд и чуть к оси куба, на отводе — немного вверх.
+                    var dir = new Vector3(-0.1f * s, Mathf.Lerp(0.12f, 0f, p), 1f).normalized;
+                    return new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir));
                 }
                 default: // Punch
                 {

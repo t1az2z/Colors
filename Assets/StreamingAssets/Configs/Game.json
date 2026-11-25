@@ -1,4 +1,5 @@
 {
   "title": "ColorsAction",
-  "level": "Levels/Test"
+  "level": "Levels/Test",
+  "debugWeaponUpgrades": { "sword": 3 }
 }
