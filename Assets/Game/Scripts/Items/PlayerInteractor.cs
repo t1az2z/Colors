@@ -40,7 +40,12 @@ namespace ColorsAction.Unity
             if (controller == null)
                 controller = GetComponent<PlayerController>();
 
-            var best = config.InteractRadius * config.InteractRadius;
+            // Ближайшее из тех, чем можно воспользоваться; если таких нет — ближайшее недоступное, ради подсказки
+            // (например, дверь с обратной стороны не должна заслонять лежащий рядом предмет).
+            var radius = config.InteractRadius * config.InteractRadius;
+            var bestUsable = radius;
+            var bestBlocked = radius;
+            IInteractable usable = null, blocked = null;
             var position = transform.position;
             foreach (var item in Interactables.All)
             {
@@ -50,16 +55,26 @@ namespace ColorsAction.Unity
                 if (Mathf.Abs(d.y) > 1.2f)
                     continue;
                 d.y = 0;
-                if (d.sqrMagnitude < best)
+                var dist = d.sqrMagnitude;
+                if (item.CanInteract(position))
                 {
-                    best = d.sqrMagnitude;
-                    Target = item;
+                    if (dist < bestUsable)
+                    {
+                        bestUsable = dist;
+                        usable = item;
+                    }
+                }
+                else if (dist < bestBlocked)
+                {
+                    bestBlocked = dist;
+                    blocked = item;
                 }
             }
 
+            Target = usable ?? blocked;
             if (Target == null)
                 return;
-            TargetUsable = Target.CanInteract(position);
+            TargetUsable = usable != null;
             if (TargetUsable && controller != null && controller.HasControl && input.Pressed(GameAction.Interact))
                 Target.Interact(position);
         }

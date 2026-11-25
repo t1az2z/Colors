@@ -493,6 +493,9 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             {
                 after.Yaw = DoorSidePopup(obj.Yaw);
                 after.Height = EditorGUILayout.IntSlider("Высота", obj.Height, 1, 6);
+                // Объект только что стал дверью: высота как у стен по умолчанию (поворот уже округлён до 90°).
+                if (obj.Kind != LevelObjectKind.ShortcutDoor)
+                    after.Height = doorHeight;
             }
             else
                 after.Yaw = EditorGUILayout.IntPopup("Поворот", Mathf.RoundToInt(obj.Yaw), new[] { "0°", "90°", "180°", "270°" }, new[] { 0, 90, 180, 270 });

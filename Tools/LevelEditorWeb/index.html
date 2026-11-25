@@ -649,7 +649,11 @@ function objectPanel() {
     out.push(H3('Выбран: ' + o.id));
     const edit = fn => { touchMarkup(); fn(); commit(); renderPanel(); };
     out.push(row('Id', textInput(o.id, v => { if (v && !L.objects.some(x => x !== o && x.id === v)) edit(() => { renameRefs(o.id, v, 'obj'); o.id = v; sel.obj = v; }); else renderPanel(); })));
-    out.push(row('Тип', selectInput(o.kind, Object.entries(OBJECT_KINDS).map(([k, v]) => [k, v.name]), v => edit(() => o.kind = v))));
+    out.push(row('Тип', selectInput(o.kind, Object.entries(OBJECT_KINDS).map(([k, v]) => [k, v.name]), v => edit(() => {
+      // Дверь стоит строго поперёк прохода: поворот только по 90°, высота по умолчанию — как у стены.
+      if (v === 'ShortcutDoor' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
+      o.kind = v;
+    }))));
     out.push(row('Клетка', h('span', {}, cellStr(o.cell))));
     if (o.kind === 'ShortcutDoor') out.push(
       row('Открывается со стороны', chips(DOOR_SIDES, doorSide(o.yaw), v => edit(() => o.yaw = v))),
