@@ -48,7 +48,7 @@ namespace ColorsAction.Configs
         }
     }
 
-    /// <summary>Configs/Player.json — движение, прыжок, перекат и деформация куба игрока.</summary>
+    /// <summary>Configs/Player.json — движение, прыжок, отскоки и деформация куба игрока.</summary>
     [Preserve]
     public sealed class PlayerConfig : IConfigPostLoad
     {
@@ -79,21 +79,8 @@ namespace ColorsAction.Configs
         public float CoyoteTime { get; set; } = 0.1f;
         public float JumpBuffer { get; set; } = 0.12f;
 
-        // Перекат: два переворота по 180°
-        public float RollDistance { get; set; } = 1.5f;
-        public float RollDuration { get; set; } = 0.45f;
-        public float RollCooldown { get; set; } = 0.15f;
-        public float RollHopHeight { get; set; } = 0.32f;
-
-        /// <summary>Окно неуязвимости переката, доли длительности (0..1).</summary>
-        public float RollInvulnerableFrom { get; set; } = 0.1f;
-        public float RollInvulnerableTo { get; set; } = 0.8f;
-
-        /// <summary>Доля длительности переката, которую куб стоит "на голове" между двумя переворотами.</summary>
-        public float RollMidPause { get; set; } = 0.16f;
-
-        /// <summary>Скорость скольжения в этой паузе относительно полёта (0 — стоит на месте).</summary>
-        public float RollMidSpeed { get; set; } = 0.25f;
+        /// <summary>Отскоки: серия-комбо (короткие прыжки и перекат через верх), у каждого шага свои параметры.</summary>
+        public DodgeConfig Dodge { get; set; } = new DodgeConfig();
 
         public StaminaConfig Stamina { get; set; } = new StaminaConfig();
 
@@ -119,16 +106,14 @@ namespace ColorsAction.Configs
 
         public void OnConfigLoaded()
         {
-            if (WalkSpeed <= 0 || JumpHeight < 0 || Gravity <= 0 || RollDuration <= 0)
-                throw new InvalidOperationException("walkSpeed, gravity and rollDuration must be positive, jumpHeight not negative");
+            if (WalkSpeed <= 0 || JumpHeight < 0 || Gravity <= 0)
+                throw new InvalidOperationException("walkSpeed and gravity must be positive, jumpHeight not negative");
             if (StepHeight >= ColliderHeight)
                 throw new InvalidOperationException("stepHeight must be less than colliderHeight");
             Deformation ??= new DeformationConfig();
             Stamina ??= new StaminaConfig();
-            if (RollMidPause < 0 || RollMidPause > 0.6f)
-                throw new InvalidOperationException("rollMidPause must be in 0..0.6");
-            if (RollInvulnerableFrom < 0 || RollInvulnerableTo > 1 || RollInvulnerableFrom > RollInvulnerableTo)
-                throw new InvalidOperationException("roll invulnerability window must be inside 0..1");
+            Dodge ??= new DodgeConfig();
+            Dodge.Validate();
         }
 
         /// <summary>Начальная скорость прыжка для высоты JumpHeight: v = sqrt(2gh).</summary>
@@ -142,7 +127,6 @@ namespace ColorsAction.Configs
         public float Max { get; set; } = 100f;
         public float RegenPerSecond { get; set; } = 22f;
         public float RegenDelay { get; set; } = 0.9f;
-        public float RollCost { get; set; } = 22f;
         public float BlockStartCost { get; set; } = 6f;
         public float BlockRegenMultiplier { get; set; } = 0.3f;
         public float JumpCost { get; set; } = 0f;
@@ -164,12 +148,6 @@ namespace ColorsAction.Configs
         public float JumpTakeoffStretch { get; set; } = 0.25f;
         public float LandSquashPerSpeed { get; set; } = -0.035f;
         public float MaxLandSquash { get; set; } = -0.4f;
-
-        public float RollBend { get; set; } = 0.18f;
-        public float RollLandSquash { get; set; } = -0.25f;
-
-        /// <summary>Сжатие куба вдоль направления переката (в сторону переката) на толчке и в полёте, доля.</summary>
-        public float RollDirSquash { get; set; } = 0.22f;
 
         public float HitSquash { get; set; } = -0.15f;
 
@@ -326,6 +304,22 @@ namespace ColorsAction.Configs
         /// </summary>
         public float RollLockFrom { get; set; }
         public float RollLockTo { get; set; } = -1f;
+
+        /// <summary>
+        /// Окно эффекта удара (след клинка), доли всего удара (замах + удар + фиксация + возврат, 0..1).
+        /// Меньше нуля — автоматически: чуть до удара и до конца фиксации позы.
+        /// </summary>
+        public float FxFrom { get; set; } = -1f;
+        public float FxTo { get; set; } = -1f;
+
+        /// <summary>Удар доступен только с этим апгрейдом оружия (1..3); 0 — всегда. Закрытые удары серия пропускает.</summary>
+        public int Upgrade { get; set; }
+
+        /// <summary>Подскок в начале удара, блоки высоты (0 — без подскока). Вместе с отрицательным выпадом — отскок назад.</summary>
+        public float Hop { get; set; }
+
+        /// <summary>Заряд удержанием кнопки атаки (null — удар не заряжается).</summary>
+        public ChargeConfig Charge { get; set; }
     }
 
     public static class AttackStepTiming
@@ -376,6 +370,36 @@ namespace ColorsAction.Configs
             step.Duration = step.Windup + step.Strike + step.Recovery;
             step.ActiveFrom = step.Windup / step.Duration;
             step.ActiveTo = (step.Windup + step.Strike) / step.Duration;
+            if (step.FxFrom >= 0f && step.FxTo >= 0f)
+            {
+                step.FxFrom = Math.Min(1f, step.FxFrom);
+                step.FxTo = Math.Max(step.FxFrom, Math.Min(1f, step.FxTo));
+            }
+        }
+
+        /// <summary>
+        /// Окно эффекта (след клинка) в секундах от начала удара. Без FxFrom/FxTo — как раньше:
+        /// с 0.1 длительности до удара и до 0.12 длительности после фиксации позы.
+        /// </summary>
+        public static void FxWindow(this AttackStepConfig step, out float from, out float to)
+        {
+            var total = step.TotalTime();
+            if (step.FxFrom < 0f || step.FxTo < 0f)
+            {
+                from = Math.Max(0f, step.Windup - 0.1f * step.Duration);
+                to = Math.Min(total, step.Windup + step.Strike + step.Hold + 0.12f * step.Duration);
+                return;
+            }
+
+            from = step.FxFrom * total;
+            to = step.FxTo * total;
+        }
+
+        /// <summary>Эффект удара включён в момент <paramref name="time"/> (секунды от начала удара).</summary>
+        public static bool FxActive(this AttackStepConfig step, float time)
+        {
+            step.FxWindow(out var from, out var to);
+            return time >= from && time <= to;
         }
     }
 
@@ -413,6 +437,12 @@ namespace ColorsAction.Configs
 
         public List<AttackStepConfig> Combo { get; set; } = new List<AttackStepConfig>();
 
+        /// <summary>Добивающий удар после паузы в серии (null — нет).</summary>
+        public FinisherConfig Finisher { get; set; }
+
+        /// <summary>Удар в прыжке: падение вниз и удар по площади при приземлении (null — в воздухе обычная серия).</summary>
+        public PlungeConfig Plunge { get; set; }
+
         /// <summary>
         /// Стрелковое оружие (дробовик): если задано, кнопка атаки стреляет вместо серии ударов,
         /// урон одной пули — <see cref="Damage"/>.
@@ -421,6 +451,9 @@ namespace ColorsAction.Configs
 
         /// <summary>Щит: угол перед игроком, в котором блок гасит удар.</summary>
         public float BlockAngle { get; set; } = 120f;
+
+        /// <summary>Щит: параметры апгрейдов (дешевле блок, шире окно парирования, удар щитом).</summary>
+        public ShieldConfig Shield { get; set; }
 
         public bool IsWeapon => Kind == ItemKind.OneHanded || Kind == ItemKind.TwoHanded || Kind == ItemKind.Shield;
         public bool IsTwoHanded => Kind == ItemKind.TwoHanded;
@@ -432,8 +465,17 @@ namespace ColorsAction.Configs
             // Окно попадания должно идти вперёд по времени: перепутанные границы меняем местами,
             // иначе удар молча перестаёт наносить урон.
             foreach (var step in Combo)
+            {
                 step?.Normalize();
+                step?.Charge?.Validate(Id);
+            }
+
+            Finisher?.Validate(Id);
+            Plunge?.Validate(Id);
             Ranged?.Validate(Id);
+            if (Kind == ItemKind.Shield)
+                Shield ??= new ShieldConfig();
+            Shield?.Validate(Id);
             if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Ranged == null && Combo.Count == 0)
                 throw new InvalidOperationException($"weapon '{Id}' needs at least one combo step");
         }
@@ -473,8 +515,60 @@ namespace ColorsAction.Configs
         /// <summary>Нажатие раньше конца паузы запоминается на столько секунд и стреляет, как только можно.</summary>
         public float InputBuffer { get; set; } = 0.12f;
 
+        // Пули — настоящие снаряды: летят со скоростью, попадают при касании, останавливаются о стены.
+
+        /// <summary>Скорость пули, м/с.</summary>
+        public float PelletSpeed { get; set; } = 45f;
+
+        /// <summary>Разброс скорости пуль, доля: 0.15 — каждая пуля от 85% до 115% скорости.</summary>
+        public float SpeedJitter { get; set; } = 0.15f;
+
+        /// <summary>Случайный сдвиг угла каждой пули поверх веера, ± градусы: залп не выглядит ровным веером.</summary>
+        public float AngleJitter { get; set; } = 3f;
+
+        /// <summary>Случайный наклон пули вверх-вниз, ± градусы.</summary>
+        public float VerticalJitter { get; set; } = 1f;
+
+        /// <summary>Диаметр шарика пули (визуал), метры.</summary>
+        public float PelletSize { get; set; } = 0.1f;
+
+        /// <summary>Радиус попадания пули (толщина проверки касания), метры.</summary>
+        public float HitRadius { get; set; } = 0.08f;
+
+        /// <summary>Яркость свечения пули (HDR-множитель цвета оружия).</summary>
+        public float PelletGlow { get; set; } = 2.2f;
+
+        /// <summary>Поза в руках: в покое — перед кубом стволом чуть вниз; после выстрела — на прицеле.</summary>
+        public GunHoldConfig IdleHold { get; set; } = new GunHoldConfig();
+        public GunHoldConfig AimHold { get; set; } = new GunHoldConfig { Height = 0.5f, Forward = 0.62f, Pitch = 0f };
+
+        /// <summary>Апгрейды на костре.</summary>
+        public RangedUpgradesConfig Upgrades { get; set; } = new RangedUpgradesConfig();
+
+        /// <summary>
+        /// Заряд выстрела удержанием кнопки (общий механизм заряда, апгрейд <see cref="ChargeConfig.Upgrade"/>):
+        /// время, выносливость за полный заряд, множители урона и отбрасывания. null — выстрел не заряжается.
+        /// С зарядом выстрел уходит при отпускании кнопки (короткое нажатие — обычный выстрел).
+        /// </summary>
+        public ChargeConfig Charge { get; set; }
+
+        /// <summary>Каким становится залп при полном заряде (пуль больше, веер шире, дальше, ярче).</summary>
+        public ChargedShotConfig ChargedShot { get; set; } = new ChargedShotConfig();
+
         public void Validate(string id)
         {
+            IdleHold ??= new GunHoldConfig();
+            AimHold ??= new GunHoldConfig { Height = 0.5f, Forward = 0.62f, Pitch = 0f };
+            Upgrades ??= new RangedUpgradesConfig();
+            ChargedShot ??= new ChargedShotConfig();
+            Charge?.Validate(id);
+            ChargedShot.Validate(id);
+            if (PelletSpeed <= 0f || SpeedJitter < 0f || SpeedJitter >= 1f || AngleJitter < 0f || VerticalJitter < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': pelletSpeed > 0, speedJitter in 0..1, jitters not negative");
+            if (PelletSize <= 0f || HitRadius < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': pelletSize > 0, hitRadius >= 0");
+            if (Upgrades.StaminaCostMultiplier < 0f || Upgrades.ParryPellets < 1 || Upgrades.ParryDamageMultiplier < 1f)
+                throw new InvalidOperationException($"ranged weapon '{id}': upgrades staminaCostMultiplier >= 0, parryPellets >= 1, parryDamageMultiplier >= 1");
             if (Pellets < 1)
                 throw new InvalidOperationException($"ranged weapon '{id}': pellets must be at least 1");
             if (Range <= 0f || Cooldown < 0f || Spread < 0f || Spread > 180f)
@@ -483,6 +577,124 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException($"ranged weapon '{id}': recoil >= 0, recoilTime > 0");
             if (StaminaCost < 0f || Knockback < 0f || InputBuffer < 0f)
                 throw new InvalidOperationException($"ranged weapon '{id}': staminaCost, knockback and inputBuffer must not be negative");
+        }
+    }
+
+    /// <summary>Поза стрелкового оружия в руке (координаты меша куба: +X вправо, +Y вверх, +Z вперёд).</summary>
+    [Preserve]
+    public sealed class GunHoldConfig
+    {
+        /// <summary>Сдвиг вбок от центра куба (для правой руки вправо), метры.</summary>
+        public float Side { get; set; } = 0.22f;
+
+        /// <summary>Высота хвата над низом куба, метры.</summary>
+        public float Height { get; set; } = 0.42f;
+
+        /// <summary>Вынос вперёд от центра куба (передняя грань — 0.5), метры.</summary>
+        public float Forward { get; set; } = 0.58f;
+
+        /// <summary>Наклон ствола вниз, градусы.</summary>
+        public float Pitch { get; set; } = 16f;
+    }
+
+    /// <summary>
+    /// Заряженный выстрел: изменения залпа относительно обычного. Урон и отбрасывание задаёт заряд
+    /// (<see cref="ChargeConfig.DamageMultiplier"/>, <see cref="ChargeConfig.KnockbackMultiplier"/>).
+    /// </summary>
+    [Preserve]
+    public sealed class ChargedShotConfig
+    {
+        /// <summary>Пуль в заряженном залпе.</summary>
+        public int Pellets { get; set; } = 12;
+
+        /// <summary>Множитель ширины веера (1.15 — на 15% шире).</summary>
+        public float SpreadMultiplier { get; set; } = 1.15f;
+
+        /// <summary>Множители дальности и скорости пуль.</summary>
+        public float RangeMultiplier { get; set; } = 1.5f;
+        public float SpeedMultiplier { get; set; } = 1.15f;
+
+        /// <summary>Множитель размера шарика пули и яркости её свечения.</summary>
+        public float PelletSizeMultiplier { get; set; } = 1.4f;
+        public float GlowMultiplier { get; set; } = 2f;
+
+        /// <summary>Множитель отдачи.</summary>
+        public float RecoilMultiplier { get; set; } = 1.6f;
+
+        public void Validate(string id)
+        {
+            if (Pellets < 1 || SpreadMultiplier <= 0f || RangeMultiplier <= 0f || SpeedMultiplier <= 0f ||
+                PelletSizeMultiplier <= 0f || GlowMultiplier < 0f || RecoilMultiplier < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': chargedShot pellets >= 1, multipliers positive");
+        }
+    }
+
+    /// <summary>
+    /// Апгрейды стрелкового оружия (id предмета в WeaponUpgrades). 1 — дешевле выстрел; 2 — парирование выстрелом:
+    /// залп в окно парирования вражеской атаки парирует её, если в врага попало не меньше <see cref="ParryPellets"/> пуль,
+    /// и урон этих пуль умножается на <see cref="ParryDamageMultiplier"/>. 3 — заряженный выстрел (<see cref="RangedConfig.Charge"/>, <see cref="RangedConfig.ChargedShot"/>).
+    /// </summary>
+    [Preserve]
+    public sealed class RangedUpgradesConfig
+    {
+        /// <summary>Апгрейд 1: множитель выносливости за выстрел.</summary>
+        public float StaminaCostMultiplier { get; set; } = 0.6f;
+
+        /// <summary>Апгрейд 2: сколько пуль залпа должно попасть во врага, чтобы парировать.</summary>
+        public int ParryPellets { get; set; } = 3;
+
+        /// <summary>Апгрейд 2: множитель урона пуль парирующего залпа.</summary>
+        public float ParryDamageMultiplier { get; set; } = 3f;
+    }
+
+    /// <summary>
+    /// Щит и его апгрейды (id предмета в WeaponUpgrades). 1 — дешевле блок; 2 — шире окно парирования;
+    /// 3 — удар щитом: отпустить блок и сразу нажать снова.
+    /// </summary>
+    [Preserve]
+    public sealed class ShieldConfig
+    {
+        /// <summary>Апгрейд 1: множитель выносливости на блок (поднять щит и принять удар).</summary>
+        public float BlockCostMultiplier { get; set; } = 0.6f;
+
+        /// <summary>
+        /// Апгрейд 2: окно парирования шире на эту долю своей длины, поровну в обе стороны
+        /// (0.5 — окно в 1.5 раза длиннее: по 25% длины раньше и позже).
+        /// </summary>
+        public float ParryWindowBonus { get; set; } = 0.5f;
+
+        /// <summary>Апгрейд 3: удар щитом, если блок отпущен и нажат снова не позже чем через столько секунд.</summary>
+        public float BashMaxGap { get; set; } = 0.25f;
+
+        public float BashStaminaCost { get; set; } = 12f;
+        public float BashDamage { get; set; } = 8f;
+
+        /// <summary>Отбрасывание врага ударом щитом (как knockback удара).</summary>
+        public float BashKnockback { get; set; } = 2.5f;
+
+        /// <summary>Дальность и ширина сектора удара щитом.</summary>
+        public float BashRange { get; set; } = 1.7f;
+        public float BashArc { get; set; } = 110f;
+
+        /// <summary>Фазы удара щитом, секунды: замах, толчок (в конце — попадание), возврат.</summary>
+        public float BashWindup { get; set; } = 0.06f;
+        public float BashStrike { get; set; } = 0.08f;
+        public float BashRecovery { get; set; } = 0.22f;
+
+        /// <summary>Рывок вперёд при ударе щитом, метры.</summary>
+        public float BashLunge { get; set; } = 0.4f;
+
+        /// <summary>Удар щитом в окно парирования вражеской атаки: множитель урона и отбрасывания (и атака парирована).</summary>
+        public float BashParryMultiplier { get; set; } = 2f;
+
+        public float BashDuration => BashWindup + BashStrike + BashRecovery;
+
+        public void Validate(string id)
+        {
+            if (BlockCostMultiplier < 0f || ParryWindowBonus < 0f || BashMaxGap < 0f || BashStaminaCost < 0f)
+                throw new InvalidOperationException($"shield '{id}': blockCostMultiplier, parryWindowBonus, bashMaxGap, bashStaminaCost must not be negative");
+            if (BashWindup < 0f || BashStrike <= 0f || BashRecovery < 0f || BashRange <= 0f || BashParryMultiplier < 1f)
+                throw new InvalidOperationException($"shield '{id}': bash phases (strike > 0), bashRange > 0, bashParryMultiplier >= 1");
         }
     }
 

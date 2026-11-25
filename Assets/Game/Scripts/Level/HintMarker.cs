@@ -78,7 +78,7 @@ namespace ColorsAction.Unity
             switch (action)
             {
                 case "jump": verb = "прыжок"; break;
-                case "roll": verb = "перекат"; break;
+                case "roll": verb = "отскок"; break;
                 case "interact": verb = "взять"; break;
                 case "inventory": verb = "инвентарь"; break;
                 case "attack": verb = "удар"; break;

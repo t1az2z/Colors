@@ -45,9 +45,17 @@ namespace ColorsAction.Tests
             var player = host.Container.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player);
             // Числа крутит пользователь в редакторе конфигов, тест проверяет только соотношения.
             Assert.That(player.JumpHeight, Is.GreaterThan(1f).And.LessThan(2f), "1.0 ledge jumpable, 2.0 not");
-            Assert.That(player.RollDistance, Is.GreaterThan(1f));
             Assert.That(player.RunMultiplier, Is.GreaterThan(1f));
-            Assert.That(player.RollInvulnerableTo, Is.GreaterThan(player.RollInvulnerableFrom));
+            // Серия отскоков: два коротких прыжка (второй дальше) и перекат через верх.
+            var steps = player.Dodge.Steps;
+            Assert.That(steps.Count, Is.EqualTo(3));
+            Assert.That(steps[0].Flip || steps[1].Flip, Is.False, "first two dodges are hops");
+            Assert.That(steps[2].Flip, Is.True, "third dodge rolls over the top");
+            Assert.That(steps[0].Distance, Is.GreaterThan(1f));
+            Assert.That(steps[1].Distance, Is.GreaterThan(steps[0].Distance), "second hop goes farther");
+            Assert.That(player.Dodge.ComboWindow, Is.GreaterThan(0f));
+            foreach (var step in steps)
+                Assert.That(step.InvulnerableTo, Is.GreaterThan(step.InvulnerableFrom));
             // 0.25 — шагом, 0.5 — уже нет.
             Assert.That(player.StepHeight, Is.GreaterThan(0.25f).And.LessThan(0.5f));
         }

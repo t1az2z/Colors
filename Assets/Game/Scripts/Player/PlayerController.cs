@@ -8,7 +8,8 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Управление кубом игрока: ходьба/бег относительно камеры, прыжок (с подготовкой-сжатием),
-    /// перекат (два переворота по 180°, i-frames) и анимация деформацией. Числа — из Configs/Player.json.
+    /// серия отскоков (два коротких прыжка и перекат через верх в два переворота, i-frames) и анимация деформацией.
+    /// Числа — из Configs/Player.json.
     /// <para>Иерархия: Player (BoxMotor) → Body (поворот по Y) → RollPivot (центр куба) → Mesh (CubeDeformer).</para>
     /// </summary>
     [RequireComponent(typeof(BoxMotor))]
@@ -35,12 +36,12 @@ namespace ColorsAction.Unity
         private float swayPhase;
         private float airTime;
 
+        // Отскок: логика серии (какой шаг, окно комбо, буфер, пауза) — в DodgeCombo, здесь движение и анимация.
+        private DodgeCombo dodge;
         private bool rolling;
-        private float rollTime;
-        private float rollCooldown;
-        private float rollBufferTimer;
+        private DodgeStepConfig dodgeStep;
         private Vector3 rollDirection;
-        // Направление переката в осях куба (x — вправо, z — вперёд): задаёт ось переворота и изгиб.
+        // Направление отскока в осях куба (x — вправо, z — вперёд): задаёт ось переворота и изгиб.
         private Vector3 rollLocal = Vector3.forward;
         private int rollHalvesLanded;
 
@@ -59,7 +60,12 @@ namespace ColorsAction.Unity
         public void ApplyKnockback(Vector3 distance) => knockback += distance * 4f;
 
         public bool Invulnerable { get; private set; }
+
+        /// <summary>Идёт отскок (любой шаг серии).</summary>
         public bool Rolling => rolling;
+
+        /// <summary>Индекс шага серии отскоков: текущего или последнего (-1 — ещё не было).</summary>
+        public int DodgeStepIndex => dodge != null ? dodge.StepIndex : -1;
         public bool Grounded => motor != null && motor.Grounded;
         public Vector3 Forward => Quaternion.Euler(0, yaw, 0) * Vector3.forward;
         public CubeDeformer Deformer => deformer;
@@ -74,6 +80,7 @@ namespace ColorsAction.Unity
             cameraConfig = resolver.Resolve<ConfigService>().Load<CameraConfig>(ConfigKeys.Camera);
             input = resolver.Resolve<GameInput>();
             session = resolver.Resolve<GameSession>();
+            dodge = new DodgeCombo(config.Dodge);
             session.PlayerControl.Subscribe(on =>
             {
                 if (on)
@@ -120,6 +127,9 @@ namespace ColorsAction.Unity
             if (motor == null)
                 motor = GetComponent<BoxMotor>();
             motor.Teleport(position);
+            if (rolling)
+                FinishRoll();
+            dodge?.Reset();
             yaw = facingYaw;
             horizontalVelocity = Vector3.zero;
             if (body != null)
@@ -142,18 +152,19 @@ namespace ColorsAction.Unity
                 jumpBufferTimer -= dt;
 
             coyoteTimer = motor.Grounded ? config.CoyoteTime : coyoteTimer - dt;
-            rollCooldown -= dt;
 
-            // Буфер переката: нажатие во время удара или в воздухе срабатывает, как только станет можно.
+            // Серия отскоков: нажатие во время удара, в воздухе или в конце отскока запоминается буфером
+            // и срабатывает, как только станет можно; в окне комбо — следующий шаг серии.
+            dodge.Tick(dt);
+            if (rolling && !dodge.Active)
+                UpdateRoll(1f);
             if (control && input.Pressed(GameAction.Roll))
-                rollBufferTimer = config.JumpBuffer * 1.5f;
-            else
-                rollBufferTimer -= dt;
-            if (control && !rolling && rollBufferTimer > 0f && TryStartRoll(move))
-                rollBufferTimer = 0f;
+                dodge.Press();
+            if (control && dodge.CanBegin)
+                TryStartRoll(move);
 
             if (rolling)
-                UpdateRoll(dt);
+                UpdateRoll(dodge.Progress);
             else
                 UpdateWalk(move, running, dt);
 
@@ -360,11 +371,28 @@ namespace ColorsAction.Unity
 
         public bool InJumpWindup => windupTimer >= 0f;
 
+        /// <summary>Подскок удара (например, отскок добивающего): вертикальная скорость на высоту <paramref name="height"/>.</summary>
+        public void Hop(float height)
+        {
+            if (height > 0f && motor != null)
+                motor.VerticalVelocity = Mathf.Sqrt(2f * config.Gravity * height);
+        }
+
+        /// <summary>Погасить горизонтальную скорость (удар в прыжке прерывает полёт).</summary>
+        public void StopHorizontal() => horizontalVelocity = Vector3.zero;
+
         private void ApplyGravity(float dt)
         {
             if (windupTimer >= 0f)
             {
                 motor.VerticalVelocity = 0f;
+                return;
+            }
+
+            // Удар в прыжке ведёт вертикаль сам: зависание, затем быстрое падение.
+            if (combat != null && combat.VerticalOverride is float forced)
+            {
+                motor.VerticalVelocity = forced;
                 return;
             }
 
@@ -382,19 +410,19 @@ namespace ColorsAction.Unity
                 deformer.SetSquash(Mathf.Min(deformer.Squash, squash), -2f);
         }
 
-        // ------------------------------------------------------------------ перекат
+        // ------------------------------------------------------------------ отскок
 
         private bool TryStartRoll(Vector3 move)
         {
-            if (rollCooldown > 0f || !motor.Grounded || windupTimer >= 0f)
+            if (!motor.Grounded || windupTimer >= 0f)
                 return false;
             if (combat != null && !combat.CanInterruptForRoll)
                 return false;
-            if (!session.Stamina.TrySpend(config.Stamina.RollCost))
+            if (!session.Stamina.TrySpend(dodge.PendingStep.StaminaCost))
                 return false;
 
-            // Без направления движения — кувырок назад (отскок), лицом к прежнему направлению.
-            // С фиксацией на цели куб остаётся лицом к цели и катится в сторону ввода: вбок — через бок, назад — назад.
+            // Без направления движения — отскок назад, лицом к прежнему направлению.
+            // С фиксацией на цели куб остаётся лицом к цели и прыгает в сторону ввода: вбок — через бок, назад — назад.
             var backward = move.sqrMagnitude <= 0.01f;
             rollDirection = backward ? -Forward : move.normalized;
             var locked = lockOn != null && lockOn.Active;
@@ -405,105 +433,85 @@ namespace ColorsAction.Unity
             // Только через грани куба: вперёд, назад, влево, вправо — без перекатов через рёбра по диагонали.
             rollLocal = SnapToAxis(rollLocal);
             rollDirection = Quaternion.Euler(0, yaw, 0) * rollLocal;
+            dodgeStep = config.Dodge.Steps[dodge.Begin()];
             rolling = true;
-            rollTime = 0f;
             rollHalvesLanded = 0;
+            rollPivot.localRotation = Quaternion.identity;
             combat?.CancelAttack();
-            // Изгиб и сжатие в сторону переката перед прыжком.
-            deformer.Impulse(-1.5f, RollPlane * (config.Deformation.RollBend * 12f));
-            deformer.ImpulseDirectional(RollPlane, -config.Deformation.RollDirSquash * 14f);
+            // Подготовка к прыжку: сжатие, изгиб и сжатие в сторону отскока.
+            // Короткий прыжок: мгновенно сплющен и сразу распрямляется в вытягивание; перекат — толчок пружины вниз.
+            var takeoff = dodgeStep.TakeoffSquash < 0f;
+            if (takeoff)
+                deformer.SetSquash(dodgeStep.TakeoffSquash, 2f);
+            deformer.Impulse(takeoff ? 0f : -1.5f, RollPlane * (dodgeStep.Bend * 12f));
+            deformer.ImpulseDirectional(RollPlane, -dodgeStep.DirSquash * 14f);
             return true;
         }
 
-        private void UpdateRoll(float dt)
+        /// <summary>Поза отскока в момент <paramref name="t"/> (доля шага 0..1); при t ≥ 1 — приземление и конец.</summary>
+        private void UpdateRoll(float t)
         {
-            rollTime += dt;
-            var t = Mathf.Clamp01(rollTime / config.RollDuration);
-            Invulnerable = t >= config.RollInvulnerableFrom && t <= config.RollInvulnerableTo;
+            var step = dodgeStep;
+            var pose = step.Sample(t);
+            Invulnerable = dodge.Invulnerable;
 
-            // Фазы: прыжок-переворот 1 → стоит "на голове" (пауза, сплющен) → прыжок-переворот 2 → на "ноги".
-            var pause = config.RollMidPause;
-            var hopLength = (1f - pause) * 0.5f;
-            int phase;
-            float u;
-            if (t < hopLength)
-            {
-                phase = 0;
-                u = t / hopLength;
-            }
-            else if (t < hopLength + pause)
-            {
-                phase = 1;
-                u = (t - hopLength) / Mathf.Max(0.0001f, pause);
-            }
-            else
-            {
-                phase = 2;
-                u = (t - hopLength - pause) / hopLength;
-            }
+            // Перекат: прыжок-переворот 1 → стоит "на голове" (пауза, сплющен) → прыжок-переворот 2 → на "ноги".
+            // Короткий отскок: один прыжок без переворота.
+            horizontalVelocity = rollDirection * pose.Speed;
 
-            // Скорость: в полёте быстро, в паузе почти стоит — так перекат читается как два движения.
-            // Средняя скорость подобрана так, чтобы за весь перекат пройти ровно RollDistance.
-            var average = (1f - pause) + pause * config.RollMidSpeed;
-            var baseSpeed = config.RollDistance / config.RollDuration / Mathf.Max(0.05f, average);
-            horizontalVelocity = rollDirection * baseSpeed * (phase == 1 ? config.RollMidSpeed : 1f);
-
-            var d = config.Deformation;
-            float angle;
-            float hop;
-            if (phase == 1)
+            var u = pose.PhaseProgress;
+            var arc = Mathf.Sin(u * Mathf.PI);
+            if (pose.Phase == 1)
             {
-                angle = 180f;
-                hop = 0f;
                 deformer.BendTarget = Vector2.zero;
                 deformer.DirSquashTarget = 0f;
-                deformer.SquashTarget = d.RollLandSquash;
+                deformer.SquashTarget = step.LandSquash;
             }
             else
             {
-                angle = (phase == 2 ? 180f : 0f) + EaseInOut(u) * 180f;
-                hop = Mathf.Sin(u * Mathf.PI) * config.RollHopHeight;
-                deformer.BendTarget = RollPlane * (Mathf.Sin(u * Mathf.PI) * d.RollBend);
-                deformer.SquashTarget = 0f;
-                // В полёте куб чуть сжат вдоль направления переката.
+                deformer.BendTarget = RollPlane * (arc * step.Bend);
+                // Короткий прыжок вытягивается в полёте; перекат держит форму.
+                deformer.SquashTarget = arc * step.Stretch;
+                // В полёте куб чуть сжат вдоль направления отскока.
                 deformer.DirSquashAxis = RollPlane;
-                deformer.DirSquashTarget = -Mathf.Sin(u * Mathf.PI) * d.RollDirSquash;
+                deformer.DirSquashTarget = -arc * step.DirSquash;
             }
 
-            // Переворот вокруг оси, перпендикулярной направлению переката: вперёд — через "лицо",
+            // Переворот вокруг оси, перпендикулярной направлению: вперёд — через "лицо",
             // назад — через спину, вбок (с фиксацией) — через бок. Куб при этом смотрит туда же, куда смотрел.
-            rollPivot.localRotation = Quaternion.AngleAxis(angle, Vector3.Cross(Vector3.up, rollLocal));
-            rollPivot.localPosition = new Vector3(0, config.ColliderHeight * 0.5f + hop, 0);
+            rollPivot.localRotation = Quaternion.AngleAxis(pose.Angle, Vector3.Cross(Vector3.up, rollLocal));
+            rollPivot.localPosition = new Vector3(0, config.ColliderHeight * 0.5f + pose.Hop, 0);
 
             // Удары о землю: приземление на "голову", толчок во второй прыжок, приземление на "ноги".
-            var stage = phase == 0 ? 0 : phase == 1 ? 1 : t >= 1f ? 3 : 2;
-            if (stage > rollHalvesLanded)
+            if (pose.Stage > rollHalvesLanded)
             {
-                if (stage == 1 || stage == 3)
-                    deformer.SetSquash(d.RollLandSquash * 1.4f, -1.5f);
-                else if (stage == 2)
-                    deformer.SetSquash(d.JumpTakeoffStretch, 3f);
-                rollHalvesLanded = stage;
+                if (pose.Stage == 1 || pose.Stage == 3)
+                    deformer.SetSquash(step.LandSquash * 1.4f, -1.5f);
+                else if (pose.Stage == 2)
+                    deformer.SetSquash(config.Deformation.JumpTakeoffStretch, 3f);
+                rollHalvesLanded = pose.Stage;
             }
 
             if (t >= 1f)
-            {
-                rolling = false;
-                Invulnerable = false;
-                rollCooldown = config.RollCooldown;
-                rollPivot.localRotation = Quaternion.identity;
-                rollPivot.localPosition = new Vector3(0, config.ColliderHeight * 0.5f, 0);
-                horizontalVelocity *= 0.1f;
-                deformer.BendTarget = Vector2.zero;
-                deformer.SquashTarget = 0f;
-                deformer.DirSquashTarget = 0f;
-            }
+                FinishRoll();
         }
 
-        /// <summary>Направление переката в осях изгиба куба (x — вбок, y — вперёд).</summary>
+        private void FinishRoll()
+        {
+            rolling = false;
+            Invulnerable = false;
+            rollPivot.localRotation = Quaternion.identity;
+            rollPivot.localPosition = new Vector3(0, config.ColliderHeight * 0.5f, 0);
+            horizontalVelocity *= 0.1f;
+            deformer.BendTarget = Vector2.zero;
+            deformer.SquashTarget = 0f;
+            deformer.DirSquashTarget = 0f;
+        }
+
+        /// <summary>Направление отскока в осях изгиба куба (x — вбок, y — вперёд).</summary>
         private Vector2 RollPlane => new Vector2(rollLocal.x, rollLocal.z);
 
-        /// <summary>Направление текущего переката в осях куба (для автотестов).</summary>
+        /// <summary>Направление текущего отскока в осях куба (для автотестов).</summary>
         public Vector3 RollLocalDirection => rollLocal;
 
         /// <summary>Ближайшая из четырёх осей куба (±X, ±Z) на плоскости.</summary>
@@ -515,8 +523,6 @@ namespace ColorsAction.Unity
                 ? new Vector3(Mathf.Sign(v.x), 0f, 0f)
                 : new Vector3(0f, 0f, Mathf.Sign(v.z));
         }
-
-        private static float EaseInOut(float x) => x * x * (3f - 2f * x);
 
         // ------------------------------------------------------------------ слопы
 

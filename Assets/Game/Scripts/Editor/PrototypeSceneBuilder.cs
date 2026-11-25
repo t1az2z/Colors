@@ -50,6 +50,8 @@ namespace ColorsAction.Unity.Editor
             CreateItemPrefab("Sword", new[] { colored, handle });
             CreateItemPrefab("Shield", new[] { colored, rim });
             CreateClubPrefab();
+            // Интерфейс и предметы на земле: создаются, только если их ещё нет (ручные правки сохраняются).
+            UiPrefabBuilder.Build(false);
             var dummyPrefab = CreateDummyPrefab(dummyRed, dummyBase);
 
             // Сцена
@@ -74,10 +76,11 @@ namespace ColorsAction.Unity.Editor
             var so = new SerializedObject(bootstrap);
             so.FindProperty("dontDestroyOnLoad").boolValue = false;
             so.ApplyModifiedPropertiesWithoutUndo();
+            // HUD и экран инвентаря — префабы, их создаёт GameBootstrap при старте.
+            Set(bootstrap, "hudPrefab", UiPrefabBuilder.HudPrefab);
+            Set(bootstrap, "inventoryPrefab", UiPrefabBuilder.InventoryPrefab);
 
             var player = CreatePlayer(layer, body, eyes);
-            var hud = bootstrapGo.AddComponent<Hud>();
-            Set(hud, "interactor", player.GetComponent<PlayerInteractor>());
 
             var levelGo = new GameObject("Level");
             var level = levelGo.AddComponent<LevelBuilder>();
@@ -199,8 +202,11 @@ namespace ColorsAction.Unity.Editor
 
         // ------------------------------------------------------------------ префабы
 
+        /// <summary>Префаб оружия в руках (Resources/Items). Уже существующий не пересоздаётся — его можно доводить руками.</summary>
         private static void CreateItemPrefab(string name, Material[] materials)
         {
+            if (File.Exists($"{ItemsResources}/{name}.prefab"))
+                return;
             var go = new GameObject(name);
             go.AddComponent<MeshFilter>().sharedMesh = LoadMesh(name + ".fbx", name);
             var r = go.AddComponent<MeshRenderer>();

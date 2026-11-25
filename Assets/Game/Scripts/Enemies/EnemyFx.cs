@@ -192,10 +192,15 @@ namespace ColorsAction.Unity
         }
     }
 
-    /// <summary>Осколки: маленькие кубики на физике, разлетаются и через секунду-две исчезают.</summary>
+    /// <summary>
+    /// Осколки: маленькие кубики на физике, разлетаются и через секунду-две исчезают (или летят к игроку как опыт).
+    /// Кубики берутся из пула и возвращаются в него — смерть врага не создаёт и не уничтожает объекты.
+    /// </summary>
     public static class Debris
     {
         private static Material material;
+        private static ComponentPool<DebrisChip> pool;
+        private static MaterialPropertyBlock block;
 
         public static Material Material
         {
@@ -214,31 +219,138 @@ namespace ColorsAction.Unity
         /// <summary>Слой осколков: не мешают движению кубов (их коллизия этот слой не видит).</summary>
         public const int Layer = 2; // Ignore Raycast
 
-        public static List<Rigidbody> Burst(Vector3 at, Color color, int count, float size, float force = 3f, float life = 1.6f)
+        internal static ComponentPool<DebrisChip> Pool => pool ??= new ComponentPool<DebrisChip>("Debris", DebrisChip.Create);
+
+        public static List<DebrisChip> Burst(Vector3 at, Color color, int count, float size, float force = 3f, float life = 1.6f)
         {
-            var list = new List<Rigidbody>();
-            var block = new MaterialPropertyBlock();
+            var list = new List<DebrisChip>(count);
+            block ??= new MaterialPropertyBlock();
             block.SetColor("_BaseColor", color);
             for (int i = 0; i < count; i++)
             {
-                var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                go.name = "Chip";
-                go.layer = Layer;
-                go.transform.position = at + Random.insideUnitSphere * size;
-                go.transform.rotation = Random.rotation;
-                go.transform.localScale = Vector3.one * size * Random.Range(0.7f, 1.3f);
-                var r = go.GetComponent<Renderer>();
-                r.sharedMaterial = Material;
-                r.SetPropertyBlock(block);
-                var rb = go.AddComponent<Rigidbody>();
-                rb.mass = 0.05f;
-                rb.AddForce((Random.onUnitSphere + Vector3.up * 1.2f).normalized * force * Random.Range(0.6f, 1.2f), ForceMode.VelocityChange);
-                rb.AddTorque(Random.onUnitSphere * 10f, ForceMode.VelocityChange);
-                go.AddComponent<FadeAndDie>().Life = life * Random.Range(0.8f, 1.2f);
-                list.Add(rb);
+                var chip = Pool.Get();
+                chip.Launch(at + Random.insideUnitSphere * size, Random.rotation, Vector3.one * size * Random.Range(0.7f, 1.3f), block,
+                    (Random.onUnitSphere + Vector3.up * 1.2f).normalized * force * Random.Range(0.6f, 1.2f),
+                    Random.onUnitSphere * 10f, life * Random.Range(0.8f, 1.2f));
+                list.Add(chip);
             }
 
             return list;
+        }
+    }
+
+    /// <summary>
+    /// Осколок из пула: кубик на физике. Обычно уменьшается к концу жизни и возвращается в пул; осколок-опыт
+    /// (<see cref="FlyToAsExperience"/>) после разлёта летит к игроку с ускорением, долетев — начисляет опыт.
+    /// </summary>
+    public sealed class DebrisChip : MonoBehaviour
+    {
+        private Rigidbody body;
+        private Collider box;
+        private Renderer view;
+        private Vector3 scale;
+        private float life;
+        private float time;
+
+        // Опыт
+        private Transform target;
+        private int amount;
+        private System.Action<int> collected;
+        private float delay;
+        private bool flying;
+        private Vector3 velocity;
+
+        public Rigidbody Body => body;
+
+        internal static DebrisChip Create(Transform root)
+        {
+            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name = "Chip";
+            go.layer = Debris.Layer;
+            go.transform.SetParent(root, false);
+            var chip = go.AddComponent<DebrisChip>();
+            chip.box = go.GetComponent<Collider>();
+            chip.view = go.GetComponent<Renderer>();
+            chip.view.sharedMaterial = Debris.Material;
+            chip.body = go.AddComponent<Rigidbody>();
+            chip.body.mass = 0.05f;
+            return chip;
+        }
+
+        internal void Launch(Vector3 position, Quaternion rotation, Vector3 size, MaterialPropertyBlock color, Vector3 velocityChange,
+            Vector3 torque, float lifetime)
+        {
+            transform.SetPositionAndRotation(position, rotation);
+            transform.localScale = size;
+            scale = size;
+            view.SetPropertyBlock(color);
+            box.enabled = true;
+            body.isKinematic = false;
+            body.linearVelocity = Vector3.zero;
+            body.angularVelocity = Vector3.zero;
+            body.position = position;
+            body.rotation = rotation;
+            body.AddForce(velocityChange, ForceMode.VelocityChange);
+            body.AddTorque(torque, ForceMode.VelocityChange);
+            life = lifetime;
+            time = 0f;
+            target = null;
+            collected = null;
+            flying = false;
+        }
+
+        /// <summary>Сделать осколок опытом: через <paramref name="startDelay"/> секунд летит к цели и начисляет <paramref name="value"/>.</summary>
+        public void FlyToAsExperience(Transform to, int value, float startDelay, System.Action<int> onCollected)
+        {
+            target = to;
+            amount = value;
+            delay = startDelay;
+            collected = onCollected;
+        }
+
+        private void Update()
+        {
+            var dt = Time.deltaTime;
+            time += dt;
+            if (collected != null && target != null)
+            {
+                UpdateExperience(dt);
+                return;
+            }
+
+            // Обычный осколок (или опыт без цели): уменьшается к концу жизни и уходит в пул.
+            var k = Mathf.Clamp01((life - time) / 0.4f);
+            transform.localScale = scale * k;
+            if (time >= life)
+                Debris.Pool.Release(this);
+        }
+
+        private void UpdateExperience(float dt)
+        {
+            if (time < delay)
+                return;
+            if (!flying)
+            {
+                // Разлёт кончился: физика выключается, дальше осколок ведёт себя сам.
+                flying = true;
+                velocity = body.linearVelocity;
+                body.isKinematic = true;
+                box.enabled = false;
+            }
+
+            var aim = target.position + Vector3.up * 0.5f;
+            var to = aim - transform.position;
+            var speed = Mathf.Lerp(4f, 22f, Mathf.Clamp01((time - delay) / 0.8f));
+            velocity = Vector3.Lerp(velocity, to.normalized * speed, 1f - Mathf.Exp(-dt * 8f));
+            transform.position += velocity * dt;
+            transform.Rotate(Vector3.up, 720f * dt, Space.World);
+            if (to.magnitude < 0.45f)
+            {
+                var done = collected;
+                collected = null;
+                done?.Invoke(amount);
+                Debris.Pool.Release(this);
+            }
         }
     }
 
@@ -258,50 +370,6 @@ namespace ColorsAction.Unity
             transform.localScale = scale * k;
             if (time >= Life)
                 Destroy(gameObject);
-        }
-    }
-
-    /// <summary>
-    /// Осколок-опыт: после разлёта по физике летит к игроку с ускорением; долетев, начисляет опыт и исчезает.
-    /// </summary>
-    public sealed class ExperienceShard : MonoBehaviour
-    {
-        public Transform Target;
-        public int Amount;
-        public System.Action<int> Collected;
-        public float Delay = 0.8f;
-
-        private float time;
-        private Vector3 velocity;
-        private Rigidbody body;
-
-        private void Start() => body = GetComponent<Rigidbody>();
-
-        private void Update()
-        {
-            time += Time.deltaTime;
-            if (time < Delay || Target == null)
-                return;
-            if (body != null)
-            {
-                velocity = body.linearVelocity;
-                Destroy(body);
-                body = null;
-                foreach (var c in GetComponents<Collider>())
-                    Destroy(c);
-            }
-
-            var aim = Target.position + Vector3.up * 0.5f;
-            var to = aim - transform.position;
-            var speed = Mathf.Lerp(4f, 22f, Mathf.Clamp01((time - Delay) / 0.8f));
-            velocity = Vector3.Lerp(velocity, to.normalized * speed, 1f - Mathf.Exp(-Time.deltaTime * 8f));
-            transform.position += velocity * Time.deltaTime;
-            transform.Rotate(Vector3.up, 720f * Time.deltaTime, Space.World);
-            if (to.magnitude < 0.45f)
-            {
-                Collected?.Invoke(Amount);
-                Destroy(gameObject);
-            }
         }
     }
 }

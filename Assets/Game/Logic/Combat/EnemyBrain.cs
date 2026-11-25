@@ -97,22 +97,32 @@ namespace ColorsAction.Combat
         /// Сейчас окно парирования текущей атаки (время относительно начала удара в
         /// [<see cref="EnemyAttackConfig.ParryFrom"/>, <see cref="EnemyAttackConfig.ParryTo"/>]).
         /// </summary>
-        public bool InParryWindow
+        public bool InParryWindow => IsInParryWindow(0f);
+
+        /// <summary>
+        /// Окно парирования, расширенное на долю <paramref name="widen"/> своей длины поровну в обе стороны
+        /// (апгрейд щита). Без расширения — то же, что <see cref="InParryWindow"/>.
+        /// </summary>
+        public bool IsInParryWindow(float widen)
         {
-            get
-            {
-                if (Attack == null)
-                    return false;
-                float t;
-                if (State == EnemyState.Windup)
-                    t = StateTime - Attack.Windup;
-                else if (State == EnemyState.Strike)
-                    t = StateTime;
-                else
-                    return false;
-                return t >= Attack.ParryFrom && t <= Attack.ParryTo;
-            }
+            if (Attack == null)
+                return false;
+            float t;
+            if (State == EnemyState.Windup)
+                t = StateTime - Attack.Windup;
+            else if (State == EnemyState.Strike)
+                t = StateTime;
+            else if (State == EnemyState.Hold && widen > 0f)
+                t = Attack.Strike + StateTime; // расширенное окно может заходить за конец удара
+            else
+                return false;
+            Attack.ParryWindow(widen, out var from, out var to);
+            return t >= from && t <= to;
         }
+
+        /// <summary>Атаку ещё можно сорвать парированием, если игрок попал вовремя (замах, удар, фиксация).</summary>
+        public bool CanBeParried => Attack != null &&
+                                    (State == EnemyState.Windup || State == EnemyState.Strike || State == EnemyState.Hold);
 
         /// <summary>Смена состояния (для анимаций и звуков).</summary>
         public event Action<EnemyState> StateChanged;
@@ -267,11 +277,24 @@ namespace ColorsAction.Combat
         /// враг на <see cref="EnemyConfig.ParriedDuration"/> встаёт с опущенным оружием.
         /// </summary>
         /// <returns>true — атака парирована (было окно парирования).</returns>
-        public bool TryParry()
+        public bool TryParry(float widen = 0f)
         {
-            if (!InParryWindow)
+            if (!IsInParryWindow(widen))
+                return false;
+            return Parry();
+        }
+
+        /// <summary>
+        /// Парирование без проверки окна: окно проверено раньше (выстрел дробовика сделан в окно, а пули долетели
+        /// чуть позже). Срабатывает, пока атака не закончилась (<see cref="CanBeParried"/>).
+        /// </summary>
+        public bool Parry()
+        {
+            if (!CanBeParried)
                 return false;
             ParriedAttack = Attack;
+            ParriedFromState = State;
+            ParriedFromProgress = PhaseProgress;
             director.Release(Id);
             director.Leave(Id);
             Attack = null;
@@ -282,6 +305,10 @@ namespace ColorsAction.Combat
 
         /// <summary>Последняя парированная атака (для анимации отскока оружия).</summary>
         public EnemyAttackConfig ParriedAttack { get; private set; }
+
+        /// <summary>В какой фазе и на каком её прогрессе атаку парировали (для анимации недоделанного удара).</summary>
+        public EnemyState ParriedFromState { get; private set; }
+        public float ParriedFromProgress { get; private set; }
 
         /// <summary>
         /// Скорость погони: до <see cref="EnemyConfig.ApproachDistance"/> — бегом, на ней — стоит,
