@@ -100,6 +100,9 @@
   .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line2); border-radius: 10px; padding: 0 7px; font-weight: 400; }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 4px; }
   .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+  .legend .ph { font-weight: 600; }
+  .legend .ph i { height: 8px; }
+  .combo .chead .ctime { font-weight: 400; font-size: 12px; color: var(--muted); }
   table.dmg { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   table.dmg th, table.dmg td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
   table.dmg th { color: var(--muted); font-weight: 600; }
@@ -806,7 +809,8 @@ function renderItems(main, f) {
       card.fields.append(sh);
       $('button', sh).onclick = () => { it.combo = it.combo || []; it.combo.push(clone(it.combo[it.combo.length - 1] || Object.fromEntries(STEP_FIELDS.map(x => [x.k, x.def])))); renderPage(); };
       (it.combo || []).forEach((step, i) => {
-        const box = el(`<div class="combo"><div class="chead">Удар ${i + 1}<span class="right"></span></div><div class="fields"></div></div>`);
+        const box = el(`<div class="combo"><div class="chead">Удар ${i + 1}<span class="ctime" title="Полное время удара: замах + удар + фиксация + возврат"></span><span class="right"></span></div><div class="fields"></div></div>`);
+        addViz($('.ctime', box), st => st ? `${r2(comboStepTime(st))} с` : '', () => f.data[id]?.combo?.[i]);
         const r = $('.right', box);
         const up = el('<button class="icon" title="Выше">↑</button>'), dn = el('<button class="icon" title="Ниже">↓</button>'), cp = el('<button class="icon" title="Копия">⧉</button>'), rm = el('<button class="icon danger" title="Удалить">✕</button>');
         r.append(up, dn, cp, rm);
@@ -960,7 +964,8 @@ function renderEnemies(main, f) {
     card.fields.append(sh);
     $('button', sh).onclick = () => { e.attacks = e.attacks || []; e.attacks.push(clone(e.attacks[e.attacks.length - 1] || ENEMY_ATTACK_DEFAULT())); renderPage(); };
     (e.attacks || []).forEach((a, i) => {
-      const box = el(`<div class="combo"><div class="chead">Атака ${i + 1}<span class="right"></span></div><div class="fields"></div></div>`);
+      const box = el(`<div class="combo"><div class="chead">Атака ${i + 1}<span class="ctime" title="Полное время атаки: замах + удар + фиксация + возврат (без паузы между атаками)"></span><span class="right"></span></div><div class="fields"></div></div>`);
+      addViz($('.ctime', box), a => a ? `${r2(enemyAttackPhases(a).reduce((x, y) => x + y, 0))} с` : '', () => f.data[id]?.attacks?.[i]);
       const r = $('.right', box);
       const up = el('<button class="icon" title="Выше">↑</button>'), dn = el('<button class="icon" title="Ниже">↓</button>'), cp = el('<button class="icon" title="Копия">⧉</button>'), rm = el('<button class="icon danger" title="Удалить">✕</button>');
       r.append(up, dn, cp, rm);
@@ -1268,6 +1273,22 @@ function vizInventory({ d }) {
     + facts([['Ячеек', String(cols * rows)], ['Быстрых слотов', String(q)]]);
 }
 
+// Фазы удара оружия в секундах: замах, удар, фиксация (окно комбо), возврат. Старые поля — как запасной вариант.
+function comboStepPhases(st) {
+  if (st.windup !== undefined || st.strike !== undefined) return { w: num(st.windup, 0.18), s: num(st.strike, 0.08), h: num(st.hold, 0.22), r: num(st.recovery, 0.14) };
+  let d = num(st.duration, 0.38), af = num(st.activeFrom, 0.3), at = num(st.activeTo, 0.65); if (af > at) [af, at] = [at, af];
+  return { w: d * af, s: d * (at - af), h: num(st.hold, 0.22), r: d * (1 - at) };
+}
+// Полное время удара: замах + удар + фиксация + возврат.
+const comboStepTime = st => { const p = comboStepPhases(st); return p.w + p.s + p.h + p.r; };
+// Фазы атаки врага: замах, удар, фиксация, возврат.
+const enemyAttackPhases = a => [num(a.windup, 1.5), num(a.strike, 0.1), num(a.hold, 0.3), num(a.recovery, 0.5)];
+// Пункт легенды таймлайна: подпись того же цвета, что и фаза. Слишком светлые цвета (жёлтый, серый) — чуть темнее, иначе не читаются.
+const LEGEND_TEXT = { [C.yellow]: '#B8900A', [C.grid2]: '#8E949C', [C.grid]: '#8E949C' };
+function legendItem(color, text, swatch) {
+  return `<span class="ph" style="color:${LEGEND_TEXT[color] || color}"><i style="${swatch || `background:${color}`}"></i>${esc(text)}</span>`;
+}
+
 function vizItem({ id, it }) {
   const col = colorHex(it.color);
   const combo = it.combo || [];
@@ -1296,12 +1317,7 @@ function vizItem({ id, it }) {
   g += `<rect x="${cx - s / 2}" y="${cy - s / 2}" width="${s}" height="${s}" fill="#b3b6bd" stroke="#7d818a"/>` + T(cx, cy + s / 2 + 14, 'куб 1×1', { anchor: 'middle', size: 10 });
   // таймлайн
   const cw = num(it.comboWindow, 0);
-  // Фазы удара в секундах: замах, удар, фиксация (окно комбо), возврат. Старые поля — как запасной вариант.
-  const phases = st => {
-    if (st.windup !== undefined || st.strike !== undefined) return { w: num(st.windup, 0.18), s: num(st.strike, 0.08), h: num(st.hold, 0.22), r: num(st.recovery, 0.14) };
-    let d = num(st.duration, 0.38), af = num(st.activeFrom, 0.3), at = num(st.activeTo, 0.65); if (af > at) [af, at] = [at, af];
-    return { w: d * af, s: d * (at - af), h: num(st.hold, 0.22), r: d * (1 - at) };
-  };
+  const phases = comboStepPhases;
   const total = combo.reduce((a, st) => { const p = phases(st); return a + p.w + p.s + p.h + p.r; }, 0) + cw;
   const TW = 290, L = 4, sx = (TW - L * 2) / Math.max(0.01, total); let x = L, tl = '';
   combo.forEach((st, i) => {
@@ -1310,18 +1326,21 @@ function vizItem({ id, it }) {
       + `<rect x="${x + p.w * sx}" y="18" width="${p.s * sx}" height="20" fill="${col}" fill-opacity=".55"/>`
       + `<rect x="${x + (p.w + p.s * num(st.hitFrom, 0)) * sx}" y="18" width="${Math.max(0, p.s * (num(st.hitTo, 1) - num(st.hitFrom, 0))) * sx}" height="20" fill="${col}"/>`
       + `<rect x="${x + (p.w + p.s) * sx}" y="18" width="${p.h * sx}" height="20" fill="${col}" fill-opacity=".35"/>`
-      + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 });
+      + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 })
+      // Полное время удара — под его полосой.
+      + T(x + dur * sx / 2, 56, dur * sx >= 36 ? `${r2(dur)} с` : r2(dur), { size: 10, fill: C.dark, weight: 600, anchor: 'middle' });
     // Окно запрета переката — тёмная полоса под ударом.
     const lf = clamp(num(st.rollLockFrom, 0), 0, dur), ltRaw = num(st.rollLockTo, -1), lt = ltRaw < 0 ? dur : clamp(ltRaw, lf, dur);
     tl += `<rect x="${x + lf * sx}" y="40" width="${Math.max(0, (lt - lf) * sx - 2)}" height="3" rx="1.5" fill="${C.dark}" fill-opacity=".55"/>`;
     x += dur * sx;
   });
   tl += `<rect x="${x}" y="24" width="${cw * sx}" height="8" rx="3" fill="${C.grid}" stroke="${C.grid2}" stroke-dasharray="2 2"/>` + T(x + 2, 13, 'окно', { size: 9 });
-  tl += T(L, 52, '0', { size: 9 }) + T(TW - L, 52, `${r2(total)} с`, { size: 9, anchor: 'end' });
+  tl += T(L, 70, '0', { size: 9 }) + T(TW - L, 70, `вся серия ${r2(total)} с`, { size: 9, anchor: 'end' });
   const dmg = combo.map(st => itemDamage(it, st));
   const sta = combo.reduce((a, st) => a + num(st.staminaCost, 12), 0);
   const cm = num(S.files.Combat?.data?.sameColorMultiplier, 1.5);
-  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени: серый — замах и возврат, цвет — удар (ярко — окно урона), светлый — пауза (окно комбо), тёмная полоса снизу — перекат запрещён</h4>${svgWrap(TW, 56, tl)}
+  return `<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h4>Сверху: дальность и сектор</h4>${svgWrap(W, H, g)}</div><div style="flex:1;min-width:280px"><h4>Серия по времени (под ударом — его полное время)</h4>${svgWrap(TW, 74, tl)}
+    <div class="legend">${legendItem(C.grid2, 'замах и возврат')}${legendItem(col, 'удар', `background:${col};opacity:.55`)}${legendItem(col, 'окно урона')}${legendItem(col, 'фиксация (окно комбо)', `background:${col};opacity:.35`)}${legendItem(C.dark, 'перекат запрещён', `background:${C.dark};opacity:.55;height:3px`)}${legendItem(C.grid2, 'доп. окно комбо', `background:${C.grid};border:1px dashed ${C.grid2};height:6px`)}</div>
     <table class="dmg" style="margin-top:8px"><tr><th>#</th><th>Движение</th><th>Урон</th><th>Цвет ×${r2(cm)}</th><th>Выносл.</th></tr>${combo.map((st, i) => `<tr><td>${i + 1}</td><td>${esc((MOTIONS.find(m => m[0] === st.motion) || [, st.motion])[1])}</td><td>${r2(dmg[i], 1)}</td><td>${r2(dmg[i] * cm, 1)}</td><td>${r2(num(st.staminaCost, 12), 0)}</td></tr>`).join('')}
     <tr><th></th><th>Серия</th><th>${r2(dmg.reduce((a, b) => a + b, 0), 1)}</th><th>${r2(dmg.reduce((a, b) => a + b, 0) * cm, 1)}</th><th>${r2(sta, 0)}</th></tr></table>
     ${facts([['Урон в секунду', r2(dmg.reduce((a, b) => a + b, 0) / Math.max(0.01, total - cw), 1)], ['Рука', ({ Any: 'любая', Left: 'левая', Right: 'правая' })[it.hand || 'Any'] || it.hand], ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']])}</div></div>`;
@@ -1375,7 +1394,7 @@ function vizEnemy({ e }) {
   const col = colorHex(e.color || 'blue');
   const size = num(e.size, 0.8), aggro = num(e.aggroRadius, 7), lose = Math.max(aggro, num(e.loseRadius, 13)), wait = num(e.waitDistance, 3.2);
   const attacks = e.attacks || [];
-  const ph = a => [num(a.windup, 1.5), num(a.strike, 0.1), num(a.hold, 0.3), num(a.recovery, 0.5)];
+  const ph = enemyAttackPhases;
   // 1. Зоны сверху
   const W = 270, H = 270, cx = W / 2, cy = H / 2, s = (W / 2 - 14) / Math.max(1, lose);
   let z = '';
@@ -1432,7 +1451,7 @@ function vizEnemy({ e }) {
   const toFirst = num(e.alertDuration, 2) + Math.max(0, aggro - maxR) / Math.max(0.01, speed);
   const pHp = num(S.files.Player?.data?.maxHealth, 0);
   return `<div style="display:flex;gap:10px;flex-wrap:wrap"><div><h4>Зоны сверху (масштаб по радиусу потери)</h4>${svgWrap(W, H, z)}</div><div><h4>Атаки сверху, цифры — номер атаки</h4>${svgWrap(W2, H2, g)}</div></div>`
-    + `<h4>Атаки по времени</h4>${svgWrap(TW, tlH, tl)}<div class="legend"><span><i style="background:${C.yellow}"></i>замах (реакция игрока)</span><span><i style="background:${C.red}"></i>удар (урон)</span><span><i style="background:${C.orange}"></i>фиксация</span><span><i style="background:${C.grid2}"></i>возврат</span><span><i style="background:${C.lilac}"></i>окно парирования</span><span><i style="border:1px dashed ${C.grid2};height:6px"></i>пауза между атаками</span></div>`
+    + `<h4>Атаки по времени</h4>${svgWrap(TW, tlH, tl)}<div class="legend">${legendItem(C.yellow, 'замах (реакция игрока)')}${legendItem(C.red, 'удар (урон)')}${legendItem(C.orange, 'фиксация')}${legendItem(C.grid2, 'возврат')}${legendItem(C.lilac, 'окно парирования', `border:2px solid ${C.lilac};height:6px`)}${legendItem(C.grid2, 'пауза между атаками', `border:1px dashed ${C.grid2};height:6px`)}</div>`
     + facts([
       ['Скорость', pWalk ? `${r2(speed)} бл/с (${r2(speed / pWalk * 100, 0)}% ходьбы игрока)` : `${r2(speed)} бл/с`],
       ['От агро до первого удара', `≈ ${r2(toFirst + (attacks[0] ? ph(attacks[0])[0] : 0), 1)} с`],
