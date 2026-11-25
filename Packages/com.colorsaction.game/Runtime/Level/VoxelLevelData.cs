@@ -71,7 +71,7 @@ namespace ColorsAction.Level
 
         // ------------------------------------------------------------------ формат блока
 
-        private const string ShapeCodes = "FHSLTXD";
+        private const string ShapeCodes = "FHSLTXDQ";
 
         public static string FormatBlock(Int3 cell, Block block)
         {
@@ -171,7 +171,7 @@ namespace ColorsAction.Level
                 if (rest > 0)
                 {
                     var top = rest * config.Step;
-                    var shape = top >= 0.5f ? BlockShape.Half : BlockShape.Step;
+                    var shape = top >= 0.75f ? BlockShape.ThreeQuarter : top >= 0.5f ? BlockShape.Half : BlockShape.Step;
                     blocks.Add(new KeyValuePair<Int3, Block?>(new Int3(x, full, z), new Block(shape)));
                 }
             }
