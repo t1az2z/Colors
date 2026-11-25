@@ -245,8 +245,11 @@ namespace ColorsAction.Unity
         public void FaceNow(Vector3 direction)
         {
             direction.y = 0f;
-            if (direction.sqrMagnitude > 0.0001f)
-                yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            if (direction.sqrMagnitude < 0.0001f)
+                return;
+            yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            // Сразу, а не в следующем кадре: дуло и следы пуль выстрела уже смотрят в новую сторону.
+            body.rotation = groundTilt * Quaternion.Euler(0, yaw, 0);
         }
 
         /// <summary>Направление на цель фиксации по горизонтали; null — фиксации нет.</summary>

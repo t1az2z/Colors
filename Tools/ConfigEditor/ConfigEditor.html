@@ -733,7 +733,17 @@ function validateItems(d) {
   for (const [id, it] of Object.entries(d || {})) {
     const weapon = it.kind === 'OneHanded' || it.kind === 'TwoHanded';
     if (weapon && !it.ranged && !(it.combo?.length)) w.push(`${id}: у оружия должна быть хотя бы одна атака в серии или стрельба.`);
-    if (it.ranged && num(it.ranged.pellets, 8) < 1) w.push(`${id}: пуль за выстрел должно быть хотя бы 1.`);
+    if (it.ranged) {
+      const r = it.ranged;
+      if (num(r.pellets, 8) < 1) w.push(`${id}: пуль за выстрел должно быть хотя бы 1.`);
+      if (num(r.range, 7) <= 0) w.push(`${id}: дальность стрельбы должна быть больше 0.`);
+      if (num(r.spread, 30) < 0 || num(r.spread, 30) > 180) w.push(`${id}: разброс — от 0 до 180°.`);
+      if (num(r.cooldown, 0.3) < 0) w.push(`${id}: пауза между выстрелами не может быть отрицательной.`);
+      if (num(r.recoil, 0.35) < 0) w.push(`${id}: отдача не может быть отрицательной.`);
+      if (num(r.recoilTime, 0.12) <= 0) w.push(`${id}: время отдачи должно быть больше 0.`);
+      for (const k of ['staminaCost', 'knockback', 'inputBuffer']) if (num(r[k], 0) < 0) w.push(`${id}: ${k} не может быть отрицательным.`);
+      if (it.combo?.length) w.push(`${id}: у стрелкового оружия серия ударов не используется (её можно удалить).`);
+    }
     if (it.color && S.files.Colors && !S.files.Colors.data[it.color]) w.push(`${id}: цвета «${it.color}» нет в Colors.json.`);
     (it.combo || []).forEach((s, i) => {
       if (s.windup === undefined && num(s.activeFrom, 0.3) > num(s.activeTo, 0.65)) w.push(`${id}, удар ${i + 1}: «попадание с» позже, чем «попадание до».`);
@@ -772,7 +782,7 @@ function renderItems(main, f) {
     for (const fd of ITEM_FIELDS) {
       if (fd.onlyShield && !isShield) continue;
       if (fd.onlyWeapon && (isShield || it.kind === 'Consumable')) continue;
-      if (fd.onlyWeapon && it.ranged && fd.k !== 'gripRoll') continue; // окно комбо и след клинка стрелковому не нужны
+      if (fd.onlyWeapon && it.ranged) continue; // окно комбо, след и поворот клинка стрелковому не нужны
       card.fields.append(fieldRow(f, [id, fd.k], fd, () => { if (fd.k === 'kind' || fd.k === 'color' || fd.k === 'name') renderPage(); }));
     }
     const leftovers = collectUnknown(it, [...ITEM_FIELDS.map(x => x.k), 'combo', 'ranged']);
@@ -791,7 +801,7 @@ function renderItems(main, f) {
       $('button', sh).onclick = () => { it.ranged = Object.fromEntries(RANGED_FIELDS.map(x => [x.k, x.def])); renderPage(); };
     }
 
-    if (weapon && !it.ranged || it.combo?.length) {
+    if (weapon && !it.ranged || it.combo?.length && !it.ranged) {
       const sh = el(`<div class="subhead">Серия ударов (комбо) <button class="small">+ удар</button></div>`);
       card.fields.append(sh);
       $('button', sh).onclick = () => { it.combo = it.combo || []; it.combo.push(clone(it.combo[it.combo.length - 1] || Object.fromEntries(STEP_FIELDS.map(x => [x.k, x.def])))); renderPage(); };
@@ -1335,7 +1345,7 @@ function vizRanged(it, col) {
     ['Урон залпа (все пули в цель)', `${r2(dmg, 1)} · своего цвета ${r2(dmg * cm, 1)}`],
     ['Урон в секунду максимум', r2(dmg / cd, 1)],
     ['Ширина веера на дальности', `${r2(width, 1)} бл`],
-    ['Выстрелов на полной выносливости', `${Math.ceil(maxSta / Math.max(1, sta))}`],
+    ['Выстрелов на полной выносливости', sta <= 0 ? '∞' : `${Math.ceil(maxSta / sta)}`],
     ['Отдача', `${r2(num(r.recoil, 0.35), 2)} бл назад за ${r2(num(r.recoilTime, 0.12), 2)} с`],
     ['Тип', it.kind === 'TwoHanded' ? 'двуручное' : 'одноручное']]);
 }

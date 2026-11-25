@@ -467,6 +467,8 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException($"ranged weapon '{id}': range > 0, cooldown >= 0, spread in 0..180");
             if (Recoil < 0f || RecoilTime <= 0f)
                 throw new InvalidOperationException($"ranged weapon '{id}': recoil >= 0, recoilTime > 0");
+            if (StaminaCost < 0f || Knockback < 0f || InputBuffer < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': staminaCost, knockback and inputBuffer must not be negative");
         }
     }
 
