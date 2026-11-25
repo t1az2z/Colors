@@ -82,7 +82,7 @@ namespace ColorsAction.Unity.Voxel
             if (BlockShapes.FillsCell(b.Shape))
                 return true;
             // Соседний «плоский» блок не ниже этой грани тоже её закрывает (два полублока рядом).
-            return (b.Shape == BlockShape.Half || b.Shape == BlockShape.Step) && BlockShapes.CenterTop(b.Shape) >= height - 1e-4f;
+            return (b.Shape == BlockShape.ThreeQuarter || b.Shape == BlockShape.Half || b.Shape == BlockShape.Step) && BlockShapes.CenterTop(b.Shape) >= height - 1e-4f;
         }
 
         private static void AddBlock(VoxelLevel level, Int3 c, Block block, Func<Int3, bool> sameBand, List<int> tris)
@@ -94,6 +94,7 @@ namespace ColorsAction.Unity.Voxel
                     AddBox(o + new Vector3(0.2f, 0f, 0.2f), new Vector3(0.6f, 0.6f, 0.6f), null, tris);
                     return;
                 case BlockShape.Full:
+                case BlockShape.ThreeQuarter:
                 case BlockShape.Half:
                 case BlockShape.Step:
                 {

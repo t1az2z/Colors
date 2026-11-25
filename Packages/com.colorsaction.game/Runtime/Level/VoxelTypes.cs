@@ -25,7 +25,10 @@ namespace ColorsAction.Level
         SteepSlope,
 
         /// <summary>Декоративный блок: рисуется, но не мешает ходьбе и не держит персонажа.</summary>
-        Decor
+        Decor,
+
+        /// <summary>Блок в три четверти, верх 0.75 (шаг высоты столбца 0.25). Код в файле — Q, добавлен в конец, чтобы не сдвигать старые коды.</summary>
+        ThreeQuarter
     }
 
     /// <summary>Блок в клетке: форма, поворот (0..3, куда поднимается слоп: +Z, +X, −Z, −X) и цвет из палитры.</summary>
@@ -98,6 +101,7 @@ namespace ColorsAction.Level
             switch (shape)
             {
                 case BlockShape.Full: return 1f;
+                case BlockShape.ThreeQuarter: return 0.75f;
                 case BlockShape.Half: return 0.5f;
                 case BlockShape.Step: return StepTop;
                 case BlockShape.Decor: return 0f;

@@ -46,7 +46,7 @@ namespace ColorsAction.Level
         }
 
         public static bool IsSmoothable(BlockShape shape) =>
-            shape == BlockShape.Full || shape == BlockShape.Half || shape == BlockShape.Step;
+            shape == BlockShape.Full || shape == BlockShape.ThreeQuarter || shape == BlockShape.Half || shape == BlockShape.Step;
 
         /// <summary>
         /// Углы верха клетки с учётом сглаживания. false — клетка не сглаживается (не плоский блок, над ним что-то

@@ -147,6 +147,7 @@ let PALETTE = {
   teal:   { name: 'Сине-зелёный', hex: '#18B5A8' },
 };
 let ITEMS = ['sword', 'shield', 'fists'];
+let ITEM_NAMES = { sword: 'Меч', shield: 'Щит', fists: 'Кулаки' };
 // Типы врагов из Enemies.json: id → имя и цвет. Манекен — отдельный тип прототипа.
 let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, dummy: { name: 'Манекен', color: null } };
 let ENEMIES = Object.keys(ENEMY_INFO);
@@ -154,12 +155,16 @@ const HINTS = ['interact', 'jump', 'roll', 'inventory', 'attack', 'block', 'run'
 const WORLD_COLOR = '#e4e5e9';
 
 const SHAPES = {
-  F: { name: 'Куб' }, H: { name: 'Полублок' }, S: { name: 'Ступенька' },
+  F: { name: 'Куб' }, Q: { name: '¾ блока' }, H: { name: 'Полублок' }, S: { name: 'Ступенька' },
   L: { name: 'Слоп' }, T: { name: 'Верх слопа' }, X: { name: 'Крутой слоп' }, D: { name: 'Декор' },
 };
+/** Что ставится поверх верхнего блока клетки (высоту столбца не меняет). */
 const TOP_SHAPES = [
-  ['', 'нет'], ['H', '½'], ['S', '¼'], ['L', 'слоп'], ['T', 'верх слопа'], ['X', 'крутой'], ['D', 'декор'],
+  ['', 'нет'], ['L', 'слоп'], ['T', 'верх слопа'], ['X', 'крутой'], ['D', 'декор'],
 ];
+/** Неполный верх столбца для дробной высоты (шаг 0.25). */
+const PART_SHAPE = { 1: 'S', 2: 'H', 3: 'Q' };
+const fmtHeight = v => v === -1 ? 'яма' : fmtH(v);
 const OBJECT_KINDS = {
   PlayerSpawn:    { name: 'Старт игрока',   mk: '★', col: '#23262b' },
   Barrier:        { name: 'Цветной барьер', mk: '▮', col: '#E8413C' },
@@ -190,11 +195,11 @@ const ACTION_DEFAULTS = {
 
 // ============================================================================ геометрия блоков (как BlockShapes в Unity)
 
-function centerTop(s) { return s === 'F' ? 1 : s === 'H' ? .5 : s === 'S' ? .25 : s === 'D' ? 0 : s === 'L' ? .25 : s === 'T' ? .75 : .5; }
+function centerTop(s) { return s === 'F' ? 1 : s === 'Q' ? .75 : s === 'H' ? .5 : s === 'S' ? .25 : s === 'D' ? 0 : s === 'L' ? .25 : s === 'T' ? .75 : .5; }
 function slopeRange(s) { return s === 'L' ? [0, .5] : s === 'T' ? [.5, 1] : s === 'X' ? [0, 1] : null; }
 function isSlope(s) { return s === 'L' || s === 'T' || s === 'X'; }
 function isSolid(s) { return s !== 'D'; }
-function smoothable(s) { return s === 'F' || s === 'H' || s === 'S'; }
+function smoothable(s) { return s === 'F' || s === 'Q' || s === 'H' || s === 'S'; }
 function topAt(s, r, u, v) {
   const sr = slopeRange(s);
   if (!sr) return centerTop(s);
@@ -466,7 +471,7 @@ async function loadSiteData() {
   const tryJson = async u => { try { const r = await fetch(u, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch (e) { return null; } };
   const colors = await tryJson('configs/Colors.json');
   if (colors) { const p = {}; for (const [k, v] of Object.entries(colors)) if (k !== 'none') p[k] = v; PALETTE = p; }
-  const items = await tryJson('configs/Items.json'); if (items) ITEMS = Object.keys(items);
+  const items = await tryJson('configs/Items.json'); if (items) { ITEMS = Object.keys(items); for (const [k, v] of Object.entries(items)) if (v && v.name) ITEM_NAMES[k] = v.name; }
   const enemies = await tryJson('configs/Enemies.json');
   if (enemies) {
     const info = {};
@@ -549,11 +554,19 @@ function colorChips(cur, set, allowWorld) {
   return h('div', { class: 'chips' }, list.map(([k, hex, name]) =>
     h('button', { class: 'swatch' + (cur === k ? ' on' : ''), title: name, style: `background:${hex}`, on: { click: () => { set(k); renderPanel(); } } })));
 }
-function stepper(val, set, min, max, fmt) {
+/** Выпадающий список оружия из Items.json (с названиями). Неизвестный id из файла уровня тоже показывается, чтобы не потерять его. */
+function itemSelect(val, set, allowNone, extra = []) {
+  const ids = [...new Set([...ITEMS, ...extra, ...(val ? [val] : [])])];
+  const opts = ids.map(id => [id, (ITEM_NAMES[id] ? ITEM_NAMES[id] + ' (' + id + ')' : id) + (ITEMS.includes(id) ? '' : ' — нет в Items.json')]);
+  return selectInput(val, allowNone ? [[null, '— нет —'], ...opts] : opts, set);
+}
+function stepper(val, set, min, max, fmt, step = 1) {
+  // ниже нуля сразу к минимуму (яма −1), без дробных отрицательных высот
+  const dec = v => Math.max(min, v > 0 ? v - step : min), inc = v => Math.min(max, v < 0 ? 0 : v + step);
   return h('div', { class: 'stepper' },
-    h('button', { on: { click: () => { set(Math.max(min, val - 1)); renderPanel(); } } }, '−'),
+    h('button', { on: { click: () => { set(dec(val)); renderPanel(); hud(); } } }, '−'),
     h('span', { class: 'val' }, fmt ? fmt(val) : String(val)),
-    h('button', { on: { click: () => { set(Math.min(max, val + 1)); renderPanel(); } } }, '+'));
+    h('button', { on: { click: () => { set(inc(val)); renderPanel(); hud(); } } }, '+'));
 }
 function rotChips(cur, set) {
   return chips([[0, '↑ +Z'], [1, '→ +X'], [2, '↓ −Z'], [3, '← −X']], cur, set);
@@ -573,14 +586,17 @@ function selectInput(val, options, set) {
 function columnOptions(withBrush) {
   const top = activeFloor === 0;
   return [
-    H3('Высота столбца'),
-    desc(top ? 'Сколько кубов над землёй (0 — ровная земля, −1 — яма).' : 'Сколько кубов над низом этажа (0 — только верхний блок или пусто).'),
-    stepper(st.height, v => st.height = v, top ? -1 : 0, 40, v => v === -1 ? 'яма' : String(v)),
-    h('div', { class: 'chips', style: 'margin-top:6px' }, [0, 1, 2, 3, 4, 6, 8].map(v =>
-      h('button', { class: st.height === v ? 'on' : '', style: `border-bottom:4px solid ${heightCss(v + (activeFloor ? L.floors[activeFloor].baseY : 0))}`, on: { click: () => { st.height = v; renderPanel(); } } }, String(v)))),
-    H3('Верх столбца'),
+    H3('Поверх блока'),
+    desc(st.top ? 'Форма ставится на верхний блок выбранной клетки. Высота столбца не меняется. Неполный верх (¼, ½, ¾) и прежний слоп заменяются.' : 'Выбери форму, чтобы ставить её на верхний блок клетки вместо рисования столбца.'),
     chips(TOP_SHAPES.map(([v, n]) => [v, n]), st.top, v => st.top = v),
     isSlope(st.top) ? [H3('Подъём слопа'), rotChips(st.rot, v => st.rot = v)] : null,
+    st.top ? null : [
+      H3('Высота столбца'),
+      desc(top ? 'Сколько кубов над землёй, шаг 0.25 (0 — ровная земля, −1 — яма).' : 'Сколько кубов над низом этажа, шаг 0.25 (0 — пусто).'),
+      stepper(st.height, v => st.height = v, top ? -1 : 0, 40, fmtHeight, 0.25),
+      h('div', { class: 'chips', style: 'margin-top:6px' }, [0, 1, 2, 3, 4, 6, 8].map(v =>
+        h('button', { class: st.height === v ? 'on' : '', style: `border-bottom:4px solid ${heightCss(v + (activeFloor ? L.floors[activeFloor].baseY : 0))}`, on: { click: () => { st.height = v; renderPanel(); } } }, String(v)))),
+    ],
     H3('Цвет'),
     colorChips(st.color, v => st.color = v, true),
     withBrush ? [H3('Кисть'), chips([[1, '1×1'], [2, '2×2'], [3, '3×3'], [5, '5×5']], st.brush, v => st.brush = v)] : null,
@@ -639,6 +655,7 @@ function objectPanel() {
   if (st.objKind === 'Barrier') out.push(H3('Цвет барьера'), colorChips(st.objColor, v => st.objColor = v, false),
     row('Вид', selectInput(st.barrier, Object.entries(BARRIERS), v => st.barrier = v)),
     row('Высота, кубов', stepper(st.barrierHeight, v => st.barrierHeight = v, 1, 12)));
+  if (st.objKind === 'WeaponPedestal') out.push(row('Оружие', itemSelect(st.objItem, v => st.objItem = v)));
   if (st.objKind === 'ShortcutDoor') out.push(
     desc('Дверь открывается только со стороны стрелки и дальше остаётся открытой. Ставьте её в проём стены.'),
     row('Открывается со стороны', chips(DOOR_SIDES, st.doorYaw, v => { st.doorYaw = v; renderPanel(); })),
@@ -668,6 +685,9 @@ function objectPanel() {
     }
     const itemList = o.kind === 'WeaponPedestal' ? ITEMS : o.kind === 'Hint' ? HINTS : null;
     if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })));
+    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire')
+      out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
+
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'ShortcutDoor')
       out.push(row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
     out.push(h('div', { class: 'chips', style: 'margin-top:8px' },
@@ -720,6 +740,8 @@ function pointPanel() {
     out.push(row('Id', textInput(p.id, v => { if (v && !L.points.some(x => x !== p && x.id === v)) edit(() => { renameRefs(p.id, v, 'point'); p.id = v; sel.point = v; }); else renderPanel(); })));
     out.push(row('Действие', selectInput(p.action, Object.entries(ACTIONS).map(([k, v]) => [k, v.name]), v => edit(() => p.action = v))));
     out.push(row('Клетка', h('span', {}, cellStr(p.cell))));
+    out.push(row('Нужен предмет', itemSelect(p.requiredItem, v => edit(() => p.requiredItem = v), true, ['hook', 'flail'])));
+    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Нужен предмет', textInput(p.requiredItem, v => edit(() => p.requiredItem = v), [...ITEMS, 'hook', 'flail'])));
     out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'ShortcutDoor').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Точка B', selectInput(p.targetPoint, [[null, '—'], ...L.points.filter(x => x !== p).map(x => [x.id, x.id])], v => edit(() => p.targetPoint = v))));
@@ -747,9 +769,9 @@ function viewPanel() {
     row('Этажи выше', chips([['show', 'видно'], ['ghost', 'призрак'], ['hide', 'скрыть']], st.upper, v => { st.upper = v; needMesh = true; })),
     row('Затемнять ниже', chips([[true, 'да'], [false, 'нет']], st.darkBelow, v => { st.darkBelow = v; needMesh = true; })),
     H3('Камера'),
-    desc('Двумя пальцами: сдвиг, щипок — масштаб, вращение пальцев — поворот. Кнопки ⟲ ⟳ поворачивают на 90° (как схема Б в игре). Мышью: правая кнопка — поворот и наклон, средняя — сдвиг, колесо — масштаб.'),
+    desc('Двумя пальцами: сдвиг, щипок — масштаб, вращение пальцев — плавный поворот на любой угол. Кнопки ⟲ ⟳ и Q/E поворачивают на 45°, а в режиме «по 90°» на 90° (как схема Б в игре). Мышью: правая кнопка — поворот и наклон, средняя — сдвиг, колесо — масштаб.'),
     row('Наклон', chips([[30, '30°'], [35.26, 'изо'], [50, '50°'], [65, '65°'], [90, 'сверху']], Math.round(cam.pitchT * 100) / 100, v => { cam.pitchT = v; })),
-    row('Поворот', chips([[true, 'по 90°'], [false, 'свободный']], cam.snap, v => { cam.snap = v; if (v) cam.yawT = Math.round((cam.yawT - 45) / 90) * 90 + 45; })),
+    row('Поворот', chips([[false, 'свободный'], [true, 'по 90°']], cam.snap, v => { cam.snap = v; if (v) cam.yawT = Math.round((cam.yawT - 45) / 90) * 90 + 45; })),
     H3('Уровень'),
     row('Название', textInput(L.name, v => { touchMarkup(); L.name = v || 'Уровень'; commit(); renderName(); })),
     row('Имя файла', textInput(L.file, v => { L.file = (v || 'Level').replace(/\.json$/i, '').replace(/[^\w\-]/g, ''); renderName(); autosave(); })),
@@ -861,7 +883,7 @@ let chunks = new Map(); // "cx,cz,floor" -> {mesh, tri: [ключи блоков
 let dirtyChunks = new Set();
 let needMesh = true; // полная пересборка
 
-const cam = { tx: 16, ty: 0, tz: 16, yaw: 45, yawT: 45, pitch: 35.26, pitchT: 35.26, zoom: 14, snap: true };
+const cam = { tx: 16, ty: 0, tz: 16, yaw: 45, yawT: 45, pitch: 35.26, pitchT: 35.26, zoom: 14, snap: false };
 
 function heightColor(absTop) {
   const base = activeFloor === 0 ? 0 : L.floors[activeFloor].baseY;
@@ -1164,7 +1186,7 @@ function hud() {
   const f = L.floors[activeFloor];
   const t = TOOLS.find(x => x.id === st.tool);
   let s = `<b>${f.name}</b> · ${t ? t.name.replace('­', '') : ''}`;
-  if (st.tool === 'column' || st.tool === 'rect') s += ` · высота <b>${st.height === -1 ? 'яма' : st.height}</b>` + (st.top ? ' + ' + SHAPES[st.top].name.toLowerCase() : '');
+  if (st.tool === 'column' || st.tool === 'rect') s += st.top ? ` · поверх блока: <b>${SHAPES[st.top].name.toLowerCase()}</b>` : ` · высота <b>${fmtHeight(st.height)}</b>`;
   if (hoverInfo) s += ' · ' + hoverInfo;
   $('#hud').innerHTML = s;
 }
@@ -1217,16 +1239,32 @@ function applyColumn(x, z) {
   const fi = activeFloor;
   const [lo0, hi] = floorRange(fi);
   const base = fi === 0 ? 0 : L.floors[fi].baseY;
+  if (st.top) { placeOnTop(x, z, fi, base, hi); return; }
   const lo = fi === 0 ? Math.min(-1, bounds.minY) : lo0;
-  const topY = Math.min(hi - 1, Math.max(bounds.maxY, base + st.height + 1));
+  const full = Math.floor(st.height + 1e-6), part = Math.round((st.height - full) * 4); // целые кубы + четверти
+  const topY = Math.min(hi - 1, Math.max(bounds.maxY, base + full + 1));
   const want = new Map();
   if (!(fi === 0 && st.height === -1)) {
-    const fullTop = base + st.height - 1; // последний полный куб
+    const fullTop = base + full - 1; // последний полный куб
     const from = fi === 0 ? -1 : (st.slab ? Math.max(base, fullTop) : base);
     for (let y = from; y <= fullTop; y++) if (y < hi) want.set(y, { s: 'F', r: 0, c: st.color });
-    if (st.top && base + st.height < hi) want.set(base + st.height, { s: st.top, r: st.rot, c: st.color });
+    if (part > 0 && base + full < hi) want.set(base + full, { s: PART_SHAPE[part], r: 0, c: st.color });
   }
   for (let y = lo; y <= topY; y++) setBlock(x, y, z, want.get(y) || null);
+  restandMarkup(x, z, fi);
+}
+/** Ставит выбранную форму (слоп, декор) поверх верхнего блока клетки, не трогая столбец под ним. */
+function placeOnTop(x, z, fi, base, hi) {
+  const t = columnTop(x, z, fi);
+  let y;
+  if (!t) { if (fi === 0) return; y = base; }       // на земле яма — ставить не на что
+  else if (t.b.s === 'F') y = t.y + 1;               // на полный куб — в клетку над ним
+  else y = t.y;                                      // неполный верх или прежний слоп — заменяем
+  if (y >= hi) return;
+  setBlock(x, y, z, { s: st.top, r: st.rot, c: st.color });
+  restandMarkup(x, z, fi);
+}
+function restandMarkup(x, z, fi) {
   // объекты над новой поверхностью: переставляем на неё
   for (const o of L.objects) if (o.cell[0] === x && o.cell[2] === z && floorIndexOf(o.cell[1]) === fi) { const nc = standCell(x, z, fi); if (nc[1] !== o.cell[1]) { touchMarkup(); o.cell = nc; } }
   for (const p of L.points) if (p.cell[0] === x && p.cell[2] === z && floorIndexOf(p.cell[1]) === fi) { const nc = standCell(x, z, fi); if (nc[1] !== p.cell[1]) { touchMarkup(); p.cell = nc; } }
@@ -1243,20 +1281,29 @@ function brushCells(x, z, n) {
   return out;
 }
 function paintAt(px, py) {
+  for (const [x, y, z] of paintCells(px, py)) { const old = getB(x, y, z); if (old) setBlock(x, y, z, { ...old, c: st.color }); }
+}
+/** Блоки, которые перекрасит кисть: блок под пальцем или вся колонка. */
+function paintCells(px, py) {
   const b = pickBlock(px, py);
   let cells = [];
   if (b && cam.pitch < 80 && !st.paintColumn) cells = [b.cell];
   else {
-    const c = pickColumn(px, py); if (!c) return;
+    const c = pickColumn(px, py); if (!c) return cells;
     const [x, z] = c.xz; const [lo, hi] = floorRange(activeFloor);
     if (st.paintColumn) { for (let y = Math.max(lo, bounds.minY); y <= Math.min(hi - 1, bounds.maxY); y++) if (getB(x, y, z)) cells.push([x, y, z]); }
     else { const t = columnTop(x, z, activeFloor); if (t) cells = [[x, t.y, z]]; }
   }
-  for (const [x, y, z] of cells) { const old = getB(x, y, z); if (old) setBlock(x, y, z, { ...old, c: st.color }); }
+  return cells;
 }
 function blockAt(px, py) {
+  const t = blockTarget(px, py); if (!t) return;
+  setBlock(...t.cell, t.remove ? null : { s: st.blockShape, r: st.rot, c: st.color });
+}
+/** Клетка, которую изменит инструмент «Блок»: при удалении — сам блок под пальцем, иначе соседняя клетка со стороны грани. */
+function blockTarget(px, py) {
   const b = pickBlock(px, py);
-  if (st.blockMode === 'remove') { if (b) setBlock(...b.cell, null); return; }
+  if (st.blockMode === 'remove') return b ? { cell: b.cell, remove: true } : null;
   let cell;
   if (b) {
     const n = b.normal, ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
@@ -1268,20 +1315,20 @@ function blockAt(px, py) {
     const own = getB(x, y, z);
     if (n.y > 0.5 && own && own.s !== 'F' && b.floor === activeFloor && cam.pitch < 80) cell = [x, y, z];
   } else {
-    const p = planeHit(px, py, floorPlaneY()); if (!p) return;
+    const p = planeHit(px, py, floorPlaneY()); if (!p) return null;
     cell = [p[0], floorPlaneY(), p[1]];
   }
-  setBlock(...cell, { s: st.blockShape, r: st.rot, c: st.color });
+  return { cell, remove: false };
 }
 function pickAt(px, py) {
   const c = pickColumn(px, py); if (!c) return;
   const [x, z] = c.xz; const t = columnTop(x, z, activeFloor);
   const base = activeFloor === 0 ? 0 : L.floors[activeFloor].baseY;
   if (!t) { st.height = activeFloor === 0 ? -1 : 0; st.top = ''; }
-  else if (t.b.s === 'F') { st.height = t.y + 1 - base; st.top = ''; st.color = t.b.c; }
-  else { st.height = t.y - base; st.top = t.b.s; st.rot = t.b.r; st.color = t.b.c; }
+  else if (TOP_SHAPES.some(([v]) => v && v === t.b.s)) { st.top = t.b.s; st.rot = t.b.r; st.color = t.b.c; }
+  else { st.height = t.y + centerTop(t.b.s) - base; st.top = ''; st.color = t.b.c; }
   st.tool = 'column'; renderTools(); renderPanel();
-  toast('Взята высота ' + (st.height === -1 ? 'яма' : st.height) + (st.top ? ' + ' + SHAPES[st.top].name.toLowerCase() : ''));
+  toast(st.top ? 'Взята форма поверх блока: ' + SHAPES[st.top].name.toLowerCase() : 'Взята высота ' + fmtHeight(st.height));
 }
 function markerAt(px, py) {
   const r = glCanvas.getBoundingClientRect(); const x = px - r.left, y = py - r.top;
@@ -1369,6 +1416,8 @@ view.addEventListener('pointerdown', e => {
   if (st.tool === 'pan' || st.tool === 'view' || touchPan) { gesture = { pan1: true, x: e.clientX, y: e.clientY }; return; }
   stroke = { id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: performance.now(), started: false, cells: new Set(), type: e.pointerType };
   // мышь и стилус начинают сразу; палец ждёт немного, вдруг это жест двумя пальцами
+  // подсветка сразу под пальцем: у касания нет наведения, и рамка иначе стояла бы на прошлом месте
+  hover(e.clientX, e.clientY);
   if (e.pointerType !== 'touch') startStroke(e.clientX, e.clientY);
   else stroke.timer = setTimeout(() => { if (stroke && !stroke.started) startStroke(stroke.x0, stroke.y0); }, 90);
 });
@@ -1479,12 +1528,28 @@ function finishStroke(cancel) {
 function hover(px, py) {
   if (pointers.size > 0 && !stroke) return;
   if (!['column', 'rect', 'erase', 'paint', 'pick', 'block', 'object', 'point'].includes(st.tool)) { cursor.visible = false; hoverInfo = ''; hud(); return; }
+  cursor.scale.set(1, 1, 1);
+  if (st.tool === 'block' || (st.tool === 'paint' && !st.paintColumn)) {
+    // подсветка там, где реально появится, исчезнет или перекрасится блок
+    const pc = st.tool === 'paint' ? paintCells(px, py)[0] : null;
+    const bt = st.tool === 'block' ? blockTarget(px, py) : pc && { cell: pc, remove: false };
+    if (!bt) { cursor.visible = false; hoverInfo = ''; hud(); requestRender(); return; }
+    const [bx, by, bz] = bt.cell;
+    cursor.position.set(bx + .5, by + .5, bz + .5); cursor.visible = true;
+    hoverInfo = `x ${bx}, y ${by}, z ${bz}` + (bt.remove ? ' · удалить' : '');
+    hud(); requestRender(); return;
+  }
   const c = pickColumn(px, py);
   if (!c) { cursor.visible = false; hoverInfo = ''; hud(); requestRender(); return; }
   const [x, z] = c.xz; const t = columnTop(x, z, activeFloor);
   const base = floorPlaneY();
   const top = t ? t.y + centerTop(t.b.s) : base;
-  cursor.position.set(x + .5, (t ? t.y : base) + .5, z + .5); cursor.visible = true;
+  // кисть больше 1: рамка на всю область кисти (те же клетки, что в brushCells)
+  const n = (st.tool === 'column' || st.tool === 'erase') ? st.brush : 1, o = Math.floor((n - 1) / 2);
+  cursor.scale.set(n, 1, n);
+  // «поверх блока»: рамка в клетке, куда встанет форма (над полным кубом)
+  const cy = t ? (st.top && (st.tool === 'column' || st.tool === 'rect') && t.b.s === 'F' ? t.y + 1 : t.y) : base;
+  cursor.position.set(x - o + n / 2, cy + .5, z - o + n / 2); cursor.visible = true;
   hoverInfo = `x ${x}, z ${z}, верх ${t ? fmtH(top - base) : '—'}`;
   hud(); requestRender();
 }
@@ -1503,7 +1568,10 @@ function moveGesture() {
   panBy(s.mx - l.mx, s.my - l.my);
   if (l.d > 10 && s.d > 10) zoomAt(l.d / s.d, s.mx, s.my);
   let da = s.ang - l.ang; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
-  cam.yawT += da * 180 / Math.PI; cam.yaw = cam.yawT; gesture.rotated = (gesture.rotated || 0) + Math.abs(da);
+  // Мёртвая зона: поворот включается, только когда пальцы реально провернулись (~8°), чтобы щипок и сдвиг не крутили камеру.
+  gesture.twist = (gesture.twist || 0) + da;
+  if (!gesture.rotated && Math.abs(gesture.twist) > ROT_DEADZONE) { gesture.rotated = true; da = gesture.twist; }
+  if (gesture.rotated) { cam.yawT += da * 180 / Math.PI; cam.yaw = cam.yawT; }
   gesture.last = s; requestRender();
 }
 function endGesture() {
@@ -1512,6 +1580,7 @@ function endGesture() {
   // оставшийся палец ничего не рисует до следующего касания
   for (const id of pointers.keys()) pointers.delete(id);
 }
+const ROT_DEADZONE = 8 * Math.PI / 180;
 function snapYaw() { cam.yawT = Math.round((cam.yawT - 45) / 90) * 90 + 45; requestRender(); }
 /** Точка на горизонтальной плоскости через цель камеры под экранной точкой (в координатах окна). */
 function groundAt(px, py) {
@@ -1547,7 +1616,7 @@ window.addEventListener('keydown', e => {
   if (e.key >= '0' && e.key <= '9') { st.height = +e.key; renderPanel(); hud(); }
   if (e.key === 'Delete' && sel.obj) { touchMarkup(); removeObject(sel.obj); sel.obj = null; commit(); renderPanel(); }
 });
-function rotateCam(dir) { cam.yawT = (cam.snap ? Math.round((cam.yawT - 45) / 90) * 90 + 45 : cam.yawT) + dir * 90; requestRender(); }
+function rotateCam(dir) { cam.yawT = cam.snap ? Math.round((cam.yawT - 45) / 90) * 90 + 45 + dir * 90 : cam.yawT + dir * 45; requestRender(); }
 
 // ============================================================================ кнопки
 
