@@ -28,6 +28,12 @@ namespace ColorsAction.Configs
         /// <summary>Ключ уровня, например "Levels/Test".</summary>
         public string Level { get; set; }
 
+        /// <summary>
+        /// Отладка прокачки: уровни апгрейдов оружия на старте, например { "sword": 3 } (0..3).
+        /// Позволяет проверять способности апгрейдов без костра.
+        /// </summary>
+        public Dictionary<string, int> DebugWeaponUpgrades { get; set; } = new Dictionary<string, int>();
+
         public void OnConfigLoaded()
         {
             if (string.IsNullOrEmpty(Level))

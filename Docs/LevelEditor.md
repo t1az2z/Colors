@@ -29,7 +29,7 @@
 
 ## Карта пути
 
-Своя воксельная карта с A* (`Packages/com.colorsaction.game/Runtime/Level/Navigation`), не NavMesh.
+Своя воксельная карта с A* (`Assets/Game/Logic/Level/Navigation`), не NavMesh.
 Узел — верх блока со свободным местом над ним. Связи: шаг (перепад до `stepHeight`, слопы), прыжок (до `jumpHeight`),
 спрыгивание (до `maxDrop`), диагонали без срезания углов, особые связи из точек взаимодействия. Закрытый барьер закрывает клетку,
 условия точек проверяются по состоянию мира (`INavContext`).
@@ -41,7 +41,7 @@
 
 - Уровни: `Assets/StreamingAssets/Configs/VoxelLevels/*.json` (формат описан в `VoxelLevelData`). `VoxelLevels/Test` — импорт
   карты высот `Levels/Test` плюс пример башни со спуском на щите и красным барьером.
-- Логика без движка: `Packages/com.colorsaction.game/Runtime/Level` (модель, история правок, кисть, импорт, карта пути), тесты —
+- Логика без движка: `Assets/Game/Logic/Level` (модель, история правок, кисть, импорт, карта пути), тесты —
   `dotnet/tests/ColorsAction.Tests/LevelEditorTests.cs`.
 - Меши: `Assets/Game/Scripts/Level/Voxel` (`VoxelLevelView` — куски 16×16 по этажам, сабмеш на цвет, опционально коллайдеры).
 - Окно: `Assets/Game/Scripts/Editor/LevelEditor` (своя сборка `ColorsAction.LevelEditor`).

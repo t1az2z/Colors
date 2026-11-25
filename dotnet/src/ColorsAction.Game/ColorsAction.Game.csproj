@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Логика игры без движка: Packages/com.colorsaction.game. -->
+  <!-- Логика игры без движка: Assets/Game/Logic. -->
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <LangVersion>9.0</LangVersion>
@@ -9,7 +9,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../../Packages/com.colorsaction.game/Runtime/**/*.cs" />
+    <Compile Include="../../../Assets/Game/Logic/**/*.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../GameCore/GameCore.csproj" />

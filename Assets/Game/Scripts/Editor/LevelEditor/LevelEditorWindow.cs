@@ -74,7 +74,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             w.Show();
         }
 
-        /// <summary>Открытый уровень (для автопроверок через MCP).</summary>
+        /// <summary>Открытый уровень (для автопроверок через Unity CLI).</summary>
         public static LevelEditorSession ActiveSession => HasOpenInstances<LevelEditorWindow>() ? GetWindow<LevelEditorWindow>(false, null, false).session : null;
 
         // ------------------------------------------------------------------ жизненный цикл

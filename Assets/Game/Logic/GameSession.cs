@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
+using ColorsAction.Progression;
 using GameCore.Config;
 using GameCore.Events;
 using GameCore.UI;
@@ -61,6 +62,9 @@ namespace ColorsAction
         /// </summary>
         public HashSet<string> OpenedShortcuts { get; } = new HashSet<string>();
 
+        /// <summary>Апгрейды оружия (костёр). Оружие проверяет Upgrades.Has(itemId, tier).</summary>
+        public WeaponUpgrades Upgrades { get; } = new WeaponUpgrades();
+
         /// <summary>false, когда открыт экран (инвентарь): движение и атаки игнорируются.</summary>
         public ReactiveProperty<bool> PlayerControl { get; } = new ReactiveProperty<bool>(false);
 
@@ -80,6 +84,8 @@ namespace ColorsAction
             Stamina = new Stamina(player.Stamina);
             Vitals = new PlayerVitals(player.MaxHealth, player.HitInvulnerability);
             ControlScheme = new ReactiveProperty<CameraScheme>(configs.Load<CameraConfig>(ConfigKeys.Camera).Scheme);
+            foreach (var pair in configs.Load<GameConfig>(ConfigKeys.Game).DebugWeaponUpgrades)
+                Upgrades.Set(pair.Key, pair.Value);
         }
 
         /// <summary>Переключить схему А ↔ Б.</summary>

@@ -4,7 +4,7 @@ using UnityEngine;
 namespace ColorsAction.Unity.Editor
 {
     /// <summary>
-    /// Для автотестов и прогонов через MCP: когда окно Unity не в фокусе, Play Mode стоит.
+    /// Для автотестов и прогонов через Unity CLI: когда окно Unity не в фокусе, Play Mode стоит.
     /// Степпер ставит паузу и двигает игру по кадру на каждый тик редактора с фиксированным шагом 1/60.
     /// Ввод — через <see cref="GameInput.ScriptPress"/> / <see cref="GameInput.ScriptedMove"/>.
     /// </summary>
