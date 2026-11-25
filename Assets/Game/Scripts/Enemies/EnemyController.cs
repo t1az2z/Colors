@@ -52,6 +52,7 @@ namespace ColorsAction.Unity
         private float flash;
         private float swayPhase;
         private bool hitThisAttack;
+        private bool strikeEndedThisFrame;
         private float lungeDone;
         private Pose handPose = new Pose(new Vector3(0.66f, 0.4f, 0.1f), Quaternion.identity);
         private Pose windupFrom;
@@ -92,7 +93,15 @@ namespace ColorsAction.Unity
         protected override void OnConstruct(IResolver resolver)
         {
             var configs = resolver.Resolve<ConfigService>();
-            config = configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies).Get(typeId);
+            if (!configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies).TryGet(typeId ?? string.Empty, out config))
+            {
+                // Опечатка или переименованный тип в уровне: не роняем остальных врагов, просто не создаём этого.
+                Debug.LogError($"[Enemy] Unknown enemy type '{typeId}' at {transform.position} — not in Enemies.json, skipped.");
+                config = null;
+                Destroy(gameObject);
+                return;
+            }
+
             playerConfig = configs.Load<PlayerConfig>(ConfigKeys.Player);
             session = resolver.Resolve<GameSession>();
             palette = resolver.Resolve<Palette>();
@@ -101,9 +110,17 @@ namespace ColorsAction.Unity
             brain = new EnemyBrain(id, config, resolver.Resolve<CombatDirector>(), id * 7919);
             brain.StateChanged += OnStateChanged;
             BuildBody();
+            if (isActiveAndEnabled && !all.Contains(this))
+                all.Add(this);
         }
 
-        private void OnEnable() => all.Add(this);
+        // В общий список попадает только полностью собранный враг (с конфигом и мозгом).
+        private void OnEnable()
+        {
+            if (brain != null && !all.Contains(this))
+                all.Add(this);
+        }
+
         private void OnDisable() => all.Remove(this);
 
         // ------------------------------------------------------------------ тело
@@ -209,8 +226,13 @@ namespace ColorsAction.Unity
                 yaw = Mathf.MoveTowardsAngle(yaw, Mathf.Atan2(velocity.x, velocity.z) * Mathf.Rad2Deg, config.TurnSpeed * dt);
             body.rotation = Quaternion.Euler(0, yaw, 0);
 
+            // Удар засчитывается во второй половине Strike. Если кадр длинный и Strike целиком «проскочил»
+            // (переход в Hold в этом же кадре), проверяем попадание в момент перехода — иначе удар зависел бы от FPS.
             if (brain.State == EnemyState.Strike)
-                TryHitPlayer(distance, dir);
+                TryHitPlayer(distance, dir, false);
+            else if (strikeEndedThisFrame)
+                TryHitPlayer(distance, dir, true);
+            strikeEndedThisFrame = false;
             UpdateParryWindow();
 
             if (flash > 0f)
@@ -322,11 +344,13 @@ namespace ColorsAction.Unity
             return forward * delta;
         }
 
-        private void TryHitPlayer(float distance, Vector3 dirToPlayer)
+        private void TryHitPlayer(float distance, Vector3 dirToPlayer, bool strikeEnded)
         {
-            if (hitThisAttack || playerDamage == null || brain.PhaseProgress < 0.4f)
+            if (hitThisAttack || playerDamage == null || (!strikeEnded && brain.PhaseProgress < 0.4f))
                 return;
             var attack = brain.Attack;
+            if (attack == null)
+                return;
             var forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
             // Дальность до тела игрока (его полуширина ~0.45).
             if (distance - 0.45f > attack.Range)
@@ -358,6 +382,7 @@ namespace ColorsAction.Unity
                     deformer.Impulse(-1.2f);
                     break;
                 case EnemyState.Hold:
+                    strikeEndedThisFrame = true;
                     deformer.Impulse(-1.6f);
                     break;
                 case EnemyState.Staggered:

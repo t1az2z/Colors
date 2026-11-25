@@ -208,6 +208,15 @@ namespace ColorsAction.Level
                 });
             }
 
+            foreach (var e in config.Enemies)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = level.NewObjectId(LevelObjectKind.EnemySpawn), Kind = LevelObjectKind.EnemySpawn,
+                    Cell = StandCell(e.X, e.Z), Yaw = e.Yaw, Item = e.Type
+                });
+            }
+
             foreach (var h in config.Hints)
             {
                 level.PutObject(new LevelObject

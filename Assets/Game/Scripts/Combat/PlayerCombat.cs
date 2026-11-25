@@ -299,15 +299,17 @@ namespace ColorsAction.Unity
 
         private void UpdateAttack(float dt)
         {
+            var previousTime = attackTime;
             attackTime += dt;
-            var t = StepT;
-            if (attackTime < StrikeEnd && t >= step.ActiveFrom && t <= step.ActiveTo)
-            {
-                // Окно урона внутри удара (HitFrom..HitTo от длительности Strike).
-                var strikeT = (t - step.ActiveFrom) / Mathf.Max(0.0001f, step.ActiveTo - step.ActiveFrom);
-                if (strikeT >= step.HitFrom - 1e-4f && strikeT <= step.HitTo + 1e-4f)
-                    DetectHits();
-            }
+            // Окно урона внутри удара (HitFrom..HitTo от длительности Strike), в секундах от начала удара.
+            // Проверяем, задел ли кадр (previousTime..attackTime] это окно, а не попал ли конец кадра внутрь:
+            // иначе при длинном кадре короткое окно «проскакивало» и удар не наносил урон.
+            var strikeStart = step.Duration * step.ActiveFrom;
+            var strikeLength = StrikeEnd - strikeStart;
+            var hitStart = strikeStart + strikeLength * step.HitFrom;
+            var hitEnd = strikeStart + strikeLength * step.HitTo;
+            if (attackTime >= hitStart - 1e-4f && previousTime <= hitEnd + 1e-4f)
+                DetectHits();
 
             if (InHold)
             {
@@ -466,10 +468,13 @@ namespace ColorsAction.Unity
                 impulse.GenerateImpulseWithVelocity((Random.onUnitSphere + Vector3.down) * strength);
         }
 
-                /// <summary>Рывок вперёд при ударе: отдаётся контроллеру движения по кадрам до конца активной фазы.</summary>
+        /// <summary>
+        /// Рывок при ударе: отдаётся контроллеру движения по кадрам до конца активной фазы.
+        /// Положительный <see cref="AttackStepConfig.Lunge"/> — вперёд, отрицательный — шаг назад.
+        /// </summary>
         public Vector3 ConsumeLunge(Vector3 forward)
         {
-            if (attacking == null || step.Lunge <= 0f)
+            if (attacking == null || Mathf.Approximately(step.Lunge, 0f))
                 return Vector3.zero;
             var t = Mathf.Clamp01(attackTime / (step.Duration * step.ActiveTo));
             var target = step.Lunge * (1f - (1f - t) * (1f - t));

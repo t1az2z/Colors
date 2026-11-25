@@ -43,7 +43,7 @@ namespace ColorsAction.Configs
 
         public float Knockback { get; set; } = 1f;
 
-        /// <summary>Рывок вперёд в момент удара, метры.</summary>
+        /// <summary>Рывок в момент удара, метры: больше нуля — вперёд, меньше нуля — шаг назад.</summary>
         public float Lunge { get; set; } = 0.3f;
 
         /// <summary>Вес при случайном выборе атаки.</summary>

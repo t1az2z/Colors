@@ -288,6 +288,7 @@ namespace ColorsAction.Configs
         public float ActiveFrom { get; set; } = 0.3f;
         public float ActiveTo { get; set; } = 0.65f;
         public float DamageMultiplier { get; set; } = 1f;
+        /// <summary>Рывок куба при ударе, блоки: больше нуля — вперёд, меньше нуля — шаг назад.</summary>
         public float Lunge { get; set; } = 0.25f;
         public float Range { get; set; } = 1.3f;
         public float Arc { get; set; } = 150f;
