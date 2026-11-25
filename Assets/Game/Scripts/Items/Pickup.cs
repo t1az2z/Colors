@@ -8,7 +8,7 @@ namespace ColorsAction.Unity
     /// Предмет на земле. Лежит, слегка покачиваясь, подсвечен своим цветом.
     /// Игрок подбирает его на F / X (<see cref="PlayerInteractor"/>), предмет уходит в сетку инвентаря.
     /// </summary>
-    public sealed class Pickup : GameBehaviour
+    public sealed class Pickup : GameBehaviour, IInteractable
     {
         private static readonly System.Collections.Generic.List<Pickup> all = new System.Collections.Generic.List<Pickup>();
 
@@ -26,6 +26,11 @@ namespace ColorsAction.Unity
         public string ItemId => itemId;
         public string DisplayName => itemsDb != null && itemsDb.Exists(itemId) ? itemsDb.Get(itemId).Name : itemId;
         public bool Available => !taken;
+        public Vector3 InteractPoint => transform.position;
+        public string Prompt => "взять: " + DisplayName;
+        public string BlockedPrompt => string.Empty;
+        public bool CanInteract(Vector3 from) => !taken;
+        public void Interact(Vector3 from) => TryTake();
 
         public void Init(string id) => itemId = id;
 
@@ -36,8 +41,17 @@ namespace ColorsAction.Unity
             palette = resolver.Resolve<Palette>();
         }
 
-        private void OnEnable() => all.Add(this);
-        private void OnDisable() => all.Remove(this);
+        private void OnEnable()
+        {
+            all.Add(this);
+            Interactables.Register(this);
+        }
+
+        private void OnDisable()
+        {
+            all.Remove(this);
+            Interactables.Unregister(this);
+        }
 
         private void Start()
         {

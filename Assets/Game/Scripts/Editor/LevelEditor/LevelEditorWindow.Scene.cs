@@ -235,7 +235,9 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 Id = objectKind == LevelObjectKind.PlayerSpawn && session.Level.FindObject("spawn") == null
                     ? "spawn"
                     : session.Level.NewObjectId(objectKind),
-                Kind = objectKind, Cell = cell.Value, Barrier = barrierKind, Height = barrierHeight,
+                Kind = objectKind, Cell = cell.Value, Barrier = barrierKind,
+                Height = objectKind == LevelObjectKind.ShortcutDoor ? doorHeight : barrierHeight,
+                Yaw = objectKind == LevelObjectKind.ShortcutDoor ? doorYaw : 0f,
                 Color = HasColor(objectKind) ? objectColor : null,
                 Item = string.IsNullOrEmpty(objectItem) ? null : objectItem
             };
@@ -373,6 +375,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 case LevelObjectKind.Bonfire: return new Color(1f, 0.55f, 0.1f);
                 case LevelObjectKind.Npc: return new Color(0.4f, 0.8f, 1f);
                 case LevelObjectKind.Hint: return Color.white;
+                case LevelObjectKind.ShortcutDoor: return new Color(0.6f, 0.4f, 0.25f);
                 default: return Color.gray;
             }
         }
@@ -437,6 +440,22 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     }
                 }
             }
+            else if (o.IsDoor)
+            {
+                // Плита поперёк клетки и стрелка в лицевую сторону — оттуда дверь открывается.
+                var h = Mathf.Max(1, o.Height);
+                top = o.Cell.Y + h;
+                var rot = Quaternion.Euler(0, o.Yaw, 0);
+                var footprint = rot * new Vector3(1f, 0, 0.3f);
+                var size = new Vector3(Mathf.Abs(footprint.x), h, Mathf.Abs(footprint.z));
+                var center = new Vector3(pos.x, o.Cell.Y + h * 0.5f, pos.z);
+                Handles.color = new Color(c.r, c.g, c.b, 0.55f);
+                DrawSolidBox(center, size);
+                Handles.color = c;
+                Handles.DrawWireCube(center, size);
+                Handles.color = new Color(1f, 0.85f, 0.3f);
+                Handles.ArrowHandleCap(0, pos + Vector3.up * 0.15f + rot * Vector3.forward * 0.15f, rot, 0.8f, EventType.Repaint);
+            }
             else
             {
                 Handles.color = c;
@@ -469,7 +488,9 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 Handles.DrawWireCube(new Vector3(pos.x, o.Cell.Y + h * 0.5f, pos.z), new Vector3(1.08f, h + 0.08f, 1.08f));
             }
 
-            var text = enemyName != null ? "Враг: " + enemyName : o.Item != null ? $"{o.Kind}: {o.Item}" : o.Kind.ToString();
+            var text = enemyName != null ? "Враг: " + enemyName
+                : o.IsDoor ? "Дверь-срезка ↦ " + DoorSideLabels[((Mathf.RoundToInt(o.Yaw / 90f) % 4) + 4) % 4]
+                : o.Item != null ? $"{o.Kind}: {o.Item}" : o.Kind.ToString();
             Handles.Label(new Vector3(pos.x, top + 0.2f, pos.z), text, label);
         }
 

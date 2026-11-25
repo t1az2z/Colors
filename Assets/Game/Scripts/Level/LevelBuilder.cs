@@ -11,7 +11,7 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Строит уровень из карты высот (<see cref="LevelConfig"/>): столбики кубов 1×1, объединённые в меши по чанкам 16×16
-    /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены и подсказки на полу.
+    /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены, подсказки на полу и двери-срезки.
     /// В редакторе показывает превью уровня (не сохраняется в сцену).
     /// </summary>
     [ExecuteAlways]
@@ -296,6 +296,16 @@ namespace ColorsAction.Unity
 
             foreach (var hint in config.Hints)
                 hints.Add(HintMarker.Create(root, CellPosition(hint.X, hint.Z), hint.Action, input, hintFont));
+
+            // Двери-срезки: открываются только с лицевой стороны (yaw), дальше открыты навсегда.
+            foreach (var door in config.Doors)
+            {
+                var go = new GameObject($"ShortcutDoor_{door.Id}");
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(CellPosition(door.X, door.Z), Quaternion.Euler(0, door.Yaw, 0));
+                go.AddComponent<ShortcutDoor>().Init(door.Id, door.Height, worldMaterial);
+                bootstrap.Inject(go);
+            }
         }
 
 #if UNITY_EDITOR

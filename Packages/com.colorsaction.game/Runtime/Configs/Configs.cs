@@ -288,6 +288,7 @@ namespace ColorsAction.Configs
         public float ActiveFrom { get; set; } = 0.3f;
         public float ActiveTo { get; set; } = 0.65f;
         public float DamageMultiplier { get; set; } = 1f;
+        /// <summary>Рывок куба при ударе, блоки: больше нуля — вперёд, меньше нуля — шаг назад.</summary>
         public float Lunge { get; set; } = 0.25f;
         public float Range { get; set; } = 1.3f;
         public float Arc { get; set; } = 150f;
@@ -399,11 +400,18 @@ namespace ColorsAction.Configs
 
         public List<AttackStepConfig> Combo { get; set; } = new List<AttackStepConfig>();
 
+        /// <summary>
+        /// Стрелковое оружие (дробовик): если задано, кнопка атаки стреляет вместо серии ударов,
+        /// урон одной пули — <see cref="Damage"/>.
+        /// </summary>
+        public RangedConfig Ranged { get; set; }
+
         /// <summary>Щит: угол перед игроком, в котором блок гасит удар.</summary>
         public float BlockAngle { get; set; } = 120f;
 
         public bool IsWeapon => Kind == ItemKind.OneHanded || Kind == ItemKind.TwoHanded || Kind == ItemKind.Shield;
         public bool IsTwoHanded => Kind == ItemKind.TwoHanded;
+        public bool IsRanged => Ranged != null;
 
         public void OnConfigLoaded()
         {
@@ -412,8 +420,56 @@ namespace ColorsAction.Configs
             // иначе удар молча перестаёт наносить урон.
             foreach (var step in Combo)
                 step?.Normalize();
-            if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Combo.Count == 0)
+            Ranged?.Validate(Id);
+            if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Ranged == null && Combo.Count == 0)
                 throw new InvalidOperationException($"weapon '{Id}' needs at least one combo step");
+        }
+    }
+
+    /// <summary>
+    /// Выстрел стрелкового оружия: залп пуль веером. Цель — из фиксации (СКМ/R3), без неё — направление
+    /// взгляда (правый стик/мышь в схеме Б, иначе куда смотрит персонаж).
+    /// </summary>
+    [Preserve]
+    public sealed class RangedConfig
+    {
+        /// <summary>Пуль за выстрел.</summary>
+        public int Pellets { get; set; } = 8;
+
+        /// <summary>Разброс: ширина веера пуль, градусы (пули распределены по вееру равномерно со случайным сдвигом).</summary>
+        public float Spread { get; set; } = 30f;
+
+        /// <summary>Дальность пули, метры.</summary>
+        public float Range { get; set; } = 7f;
+
+        /// <summary>Пауза между выстрелами, секунды.</summary>
+        public float Cooldown { get; set; } = 0.3f;
+
+        /// <summary>Выносливость за выстрел.</summary>
+        public float StaminaCost { get; set; } = 20f;
+
+        /// <summary>Отбрасывание врага, если в него попали все пули (меньше пуль — пропорционально меньше).</summary>
+        public float Knockback { get; set; } = 1.2f;
+
+        /// <summary>Отдача: на сколько метров выстрел сдвигает персонажа назад.</summary>
+        public float Recoil { get; set; } = 0.35f;
+
+        /// <summary>За сколько секунд проходит сдвиг отдачи.</summary>
+        public float RecoilTime { get; set; } = 0.12f;
+
+        /// <summary>Нажатие раньше конца паузы запоминается на столько секунд и стреляет, как только можно.</summary>
+        public float InputBuffer { get; set; } = 0.12f;
+
+        public void Validate(string id)
+        {
+            if (Pellets < 1)
+                throw new InvalidOperationException($"ranged weapon '{id}': pellets must be at least 1");
+            if (Range <= 0f || Cooldown < 0f || Spread < 0f || Spread > 180f)
+                throw new InvalidOperationException($"ranged weapon '{id}': range > 0, cooldown >= 0, spread in 0..180");
+            if (Recoil < 0f || RecoilTime <= 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': recoil >= 0, recoilTime > 0");
+            if (StaminaCost < 0f || Knockback < 0f || InputBuffer < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': staminaCost, knockback and inputBuffer must not be negative");
         }
     }
 

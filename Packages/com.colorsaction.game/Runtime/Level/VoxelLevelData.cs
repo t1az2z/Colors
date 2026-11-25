@@ -208,12 +208,31 @@ namespace ColorsAction.Level
                 });
             }
 
+            foreach (var e in config.Enemies)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = level.NewObjectId(LevelObjectKind.EnemySpawn), Kind = LevelObjectKind.EnemySpawn,
+                    Cell = StandCell(e.X, e.Z), Yaw = e.Yaw, Item = e.Type
+                });
+            }
+
             foreach (var h in config.Hints)
             {
                 level.PutObject(new LevelObject
                 {
                     Id = level.NewObjectId(LevelObjectKind.Hint), Kind = LevelObjectKind.Hint,
                     Cell = StandCell(h.X, h.Z), Yaw = h.Yaw, Item = h.Action
+                });
+            }
+
+            foreach (var d in config.Doors)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = string.IsNullOrEmpty(d.Id) ? level.NewObjectId(LevelObjectKind.ShortcutDoor) : d.Id,
+                    Kind = LevelObjectKind.ShortcutDoor, Cell = StandCell(d.X, d.Z), Yaw = d.Yaw,
+                    Height = Math.Max(1, (int)Math.Ceiling(d.Height - 1e-3f))
                 });
             }
 

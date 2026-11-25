@@ -224,7 +224,7 @@ namespace ColorsAction.Level
             return removed;
         }
 
-        /// <summary>Барьер, закрывающий клетку, или null.</summary>
+        /// <summary>Барьер или дверь-срезка, закрывающие клетку, или null.</summary>
         public LevelObject BarrierAt(Int3 cell)
         {
             foreach (var o in objects)

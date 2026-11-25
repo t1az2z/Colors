@@ -444,8 +444,12 @@ namespace ColorsAction.Unity.Editor
 
             // 14. Враги: агро с "!", замах, удар по игроку, айфреймы; атакует только один из трёх.
             var director = bootstrap.Resolver.Resolve<ColorsAction.Combat.CombatDirector>();
-            var enemies = new System.Collections.Generic.List<EnemyController>(EnemyController.All);
-            Check(enemies.Count == 3, $"three enemies on the level: {enemies.Count}");
+            // Только враги исходной площадки 64×64: тир с дробовиком (z >= 64) далеко и в проверку не входит.
+            var enemies = new System.Collections.Generic.List<EnemyController>();
+            foreach (var e in EnemyController.All)
+                if (e != null && e.transform.position.z < 63f)
+                    enemies.Add(e);
+            Check(enemies.Count == 3, $"three enemies on the main area: {enemies.Count}");
             if (enemies.Count > 0)
             {
                 session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FreeOrbit;
@@ -516,7 +520,7 @@ namespace ColorsAction.Unity.Editor
 
                 // 16. Парирование: блок щитом в окно парирования — вспышка, оружие отскакивает, враг стоит ~1 с.
                 EnemyController foe = null;
-                foreach (var e in EnemyController.All)
+                foreach (var e in enemies)
                     if (e != null && !e.Dead)
                     {
                         foe = e;

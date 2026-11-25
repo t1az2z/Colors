@@ -197,7 +197,9 @@ namespace ColorsAction.Unity
                 : $"Схема А  ·  [{input.Label("lockOn")}] фиксация  ·  [{input.Label("switchScheme")}] схема Б";
 
             var target = interactor != null ? interactor.Target : null;
-            prompt.text = target != null ? $"[{input.Label("interact")}]  взять: {target.DisplayName}" : string.Empty;
+            prompt.text = target == null ? string.Empty
+                : interactor.TargetUsable ? $"[{input.Label("interact")}]  {target.Prompt}"
+                : target.BlockedPrompt;
 
             if (toastTimer > 0f)
             {
