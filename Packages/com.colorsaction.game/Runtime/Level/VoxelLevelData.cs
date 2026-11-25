@@ -217,6 +217,16 @@ namespace ColorsAction.Level
                 });
             }
 
+            foreach (var d in config.Doors)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = string.IsNullOrEmpty(d.Id) ? level.NewObjectId(LevelObjectKind.ShortcutDoor) : d.Id,
+                    Kind = LevelObjectKind.ShortcutDoor, Cell = StandCell(d.X, d.Z), Yaw = d.Yaw,
+                    Height = Math.Max(1, (int)Math.Ceiling(d.Height - 1e-3f))
+                });
+            }
+
             return level;
         }
     }

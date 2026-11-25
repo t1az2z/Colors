@@ -90,6 +90,20 @@ for x0 in (48, 51, 54, 58):
 rect(46, 20, 47, 25, 2 * JUMP)   # start block 2 m
 rect(46, 26, 47, 27, JUMP)       # entry: 1.0 from the ground
 
+# Shortcut courtyard (Dark Souls style): walls 3 m, interior x 53..60, z 28..32.
+# The long way in: jump stairs 1.0 / 2.0 / 3.0 along the west wall, walk the wall, drop inside.
+# The way out: a one-way door in the south wall at (56, 27), opens only from the inside (yaw 0 = +Z).
+WALL = 12
+rect(52, 27, 61, 27, WALL)
+rect(52, 33, 61, 33, WALL)
+rect(52, 27, 52, 33, WALL)
+rect(61, 27, 61, 33, WALL)
+rect(53, 28, 60, 32, 0)
+rect(56, 27, 56, 27, 0)          # doorway
+rect(50, 29, 51, 29, JUMP)
+rect(50, 30, 51, 30, 2 * JUMP)
+rect(50, 31, 51, 33, WALL)
+
 rows = ["".join(("0123456789abcdefghijklmnopqrstuvwxyz"[v] if v >= 0 else ".") for v in g[z]) for z in range(H)]
 
 level = {
@@ -127,6 +141,11 @@ level = {
         {"action": "jump", "x": 33, "z": 1},
         {"action": "roll", "x": 7, "z": 14},
         {"action": "inventory", "x": 10, "z": 11},
+        {"action": "interact", "x": 56, "z": 29},
+    ],
+    # One-way shortcut door: yaw points to the side it opens from.
+    "doors": [
+        {"id": "courtyard_shortcut", "x": 56, "z": 27, "yaw": 0, "height": 3},
     ],
 }
 

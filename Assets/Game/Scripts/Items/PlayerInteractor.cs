@@ -5,7 +5,10 @@ using UnityEngine;
 
 namespace ColorsAction.Unity
 {
-    /// <summary>Ближайший предмет в радиусе взаимодействия; F / X подбирает его. HUD показывает подсказку.</summary>
+    /// <summary>
+    /// Ближайшее <see cref="IInteractable"/> в радиусе взаимодействия (предмет, дверь-срезка); F / X использует его.
+    /// HUD показывает подсказку: с кнопкой, если можно, или текст <see cref="IInteractable.BlockedPrompt"/>.
+    /// </summary>
     public sealed class PlayerInteractor : GameBehaviour
     {
         private GameInput input;
@@ -14,7 +17,10 @@ namespace ColorsAction.Unity
 
         private PlayerController controller;
 
-        public Pickup Target { get; private set; }
+        public IInteractable Target { get; private set; }
+
+        /// <summary>Можно ли воспользоваться <see cref="Target"/> с текущего места.</summary>
+        public bool TargetUsable { get; private set; }
 
         protected override void OnConstruct(IResolver resolver)
         {
@@ -28,30 +34,49 @@ namespace ColorsAction.Unity
             if (config == null)
                 return;
             Target = null;
+            TargetUsable = false;
             if (!session.PlayerControl.Value)
                 return;
             if (controller == null)
                 controller = GetComponent<PlayerController>();
 
-            var best = config.InteractRadius * config.InteractRadius;
+            // Ближайшее из тех, чем можно воспользоваться; если таких нет — ближайшее недоступное, ради подсказки
+            // (например, дверь с обратной стороны не должна заслонять лежащий рядом предмет).
+            var radius = config.InteractRadius * config.InteractRadius;
+            var bestUsable = radius;
+            var bestBlocked = radius;
+            IInteractable usable = null, blocked = null;
             var position = transform.position;
-            foreach (var pickup in Pickup.All)
+            foreach (var item in Interactables.All)
             {
-                if (!pickup.Available)
+                if (!item.Available)
                     continue;
-                var d = pickup.transform.position - position;
+                var d = item.InteractPoint - position;
                 if (Mathf.Abs(d.y) > 1.2f)
                     continue;
                 d.y = 0;
-                if (d.sqrMagnitude < best)
+                var dist = d.sqrMagnitude;
+                if (item.CanInteract(position))
                 {
-                    best = d.sqrMagnitude;
-                    Target = pickup;
+                    if (dist < bestUsable)
+                    {
+                        bestUsable = dist;
+                        usable = item;
+                    }
+                }
+                else if (dist < bestBlocked)
+                {
+                    bestBlocked = dist;
+                    blocked = item;
                 }
             }
 
-            if (Target != null && controller != null && controller.HasControl && input.Pressed(GameAction.Interact))
-                Target.TryTake();
+            Target = usable ?? blocked;
+            if (Target == null)
+                return;
+            TargetUsable = usable != null;
+            if (TargetUsable && controller != null && controller.HasControl && input.Pressed(GameAction.Interact))
+                Target.Interact(position);
         }
     }
 }

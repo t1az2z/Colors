@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
@@ -53,6 +54,12 @@ namespace ColorsAction
 
         /// <summary>Опыт: копится с осколков побеждённых врагов.</summary>
         public ReactiveProperty<int> Experience { get; } = new ReactiveProperty<int>();
+
+        /// <summary>
+        /// Id открытых дверей-срезок. Открытая срезка остаётся открытой навсегда (смерть и респаун её не закрывают);
+        /// позже это уйдёт в сохранение.
+        /// </summary>
+        public HashSet<string> OpenedShortcuts { get; } = new HashSet<string>();
 
         /// <summary>false, когда открыт экран (инвентарь): движение и атаки игнорируются.</summary>
         public ReactiveProperty<bool> PlayerControl { get; } = new ReactiveProperty<bool>(false);
