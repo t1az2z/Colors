@@ -9,10 +9,17 @@
     "gripRoll": 80,
     "comboWindow": 0,
     "combo": [
-      { "motion": "SlashRight", "tilt": 0, "windup": 0.1, "strike": 0.08, "hold": 0.3, "recovery": 0.1, "damageMultiplier": 1, "lunge": -0.05, "range": 1.85, "arc": 180, "knockback": 1, "staminaCost": 14, "rollLockTo": 0.46 },
-      { "motion": "SlashLeft", "tilt": 18, "windup": 0.1, "strike": 0.08, "hold": 0.3, "recovery": 0.1, "damageMultiplier": 1, "lunge": 0.2, "range": 1.75, "arc": 180, "knockback": 1, "staminaCost": 14, "rollLockTo": 0.44 },
-      { "motion": "Chop", "windup": 0.25, "strike": 0.12, "hitFrom": 0.6, "hitTo": 1, "hold": 0.07, "recovery": 0.16, "damageMultiplier": 1.6, "lunge": 0.8, "range": 2.5, "arc": 70, "knockback": 3, "staminaCost": 22, "rollLockTo": 0.4 }
-    ]
+      { "motion": "SlashRight", "tilt": 0, "windup": 0.1, "strike": 0.08, "hold": 0.3, "recovery": 0.1, "damageMultiplier": 1, "lunge": -0.05, "range": 1.85, "arc": 180, "knockback": 1, "staminaCost": 14, "rollLockTo": 0.46, "fxFrom": 0.12, "fxTo": 0.5 },
+      { "motion": "SlashLeft", "tilt": 18, "windup": 0.1, "strike": 0.08, "hold": 0.3, "recovery": 0.1, "damageMultiplier": 1, "lunge": 0.2, "range": 1.75, "arc": 180, "knockback": 1, "staminaCost": 14, "rollLockTo": 0.44, "fxFrom": 0.12, "fxTo": 0.5 },
+      { "motion": "Thrust", "windup": 0.16, "strike": 0.07, "hitFrom": 0.4, "hitTo": 1, "hold": 0.18, "recovery": 0.14, "damageMultiplier": 1.4, "lunge": 0.55, "range": 2.6, "arc": 40, "knockback": 1.8, "staminaCost": 16, "rollLockTo": 0.35, "fxFrom": 0.25, "fxTo": 0.6,
+        "charge": { "upgrade": 3, "time": 0.35, "maxHold": 0.6, "damageMultiplier": 2, "knockbackMultiplier": 1.6, "staminaCost": 12, "flash": 1 } },
+      { "motion": "Chop", "upgrade": 1, "windup": 0.25, "strike": 0.12, "hitFrom": 0.6, "hitTo": 1, "hold": 0.07, "recovery": 0.16, "damageMultiplier": 1.6, "lunge": 0.8, "range": 2.5, "arc": 70, "knockback": 3, "staminaCost": 22, "rollLockTo": 0.4, "fxFrom": 0.33, "fxTo": 0.75 }
+    ],
+    "finisher": {
+      "upgrade": 2, "minHits": 2, "delayMin": 0.08, "delayMax": 0.6,
+      "step": { "motion": "SlashLeft", "tilt": -30, "windup": 0.12, "strike": 0.1, "hold": 0.25, "recovery": 0.2, "damageMultiplier": 1.8, "lunge": -1.2, "hop": 0.45, "range": 2.2, "arc": 200, "knockback": 2.5, "staminaCost": 20, "rollLockTo": -1, "fxFrom": 0.15, "fxTo": 0.55 }
+    },
+    "plunge": { "upgrade": 0, "minHeight": 0.35, "hang": 0.1, "fallSpeed": 16, "radius": 1.8, "damageMultiplier": 1.5, "knockback": 2.5, "staminaCost": 18, "landHold": 0.25, "recovery": 0.2 }
   },
   "shotgun": {
     "name": "Дробовик",
