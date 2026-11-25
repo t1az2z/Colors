@@ -180,7 +180,7 @@ namespace ColorsAction.Unity.Editor
 
             Check(player.transform.position.y < 0.05f, $"2.0 step not jumpable: y={player.transform.position.y:F3}");
 
-            // 6. Перекат на 1.5 с неуязвимостью.
+            // 6. Отскок (первый шаг серии) с неуязвимостью, затем серия: 2-й шаг и перекат через верх.
             player.Teleport(new Vector3(8.5f, 0f, 5.5f), 90f);
             input.ClearScripted();
             yield return 20;
@@ -196,10 +196,38 @@ namespace ColorsAction.Unity.Editor
                 yield return 1;
             }
 
+            var dodge1 = pc.Dodge.Steps[0];
             var rolled = Vector3.Distance(start, player.transform.position);
-            Check(Mathf.Abs(rolled - pc.RollDistance) < 0.2f, $"roll distance ~{pc.RollDistance}: {rolled:F2}");
-            Check(invuln, "roll has i-frames");
-            Check(lowest <= stamina - pc.Stamina.RollCost + 0.5f, $"roll spends stamina: {stamina:F0} -> {lowest:F0}");
+            Check(Mathf.Abs(rolled - dodge1.Distance) < 0.2f, $"dodge step 1 distance ~{dodge1.Distance}: {rolled:F2}");
+            Check(invuln, "dodge has i-frames");
+            Check(lowest <= stamina - dodge1.StaminaCost + 0.5f, $"dodge spends stamina: {stamina:F0} -> {lowest:F0}");
+
+            // 6б. Серия: нажатия сразу после приземления (в окне комбо) ведут к следующим шагам,
+            // пауза дольше окна — серия начинается заново.
+            player.Teleport(new Vector3(8.5f, 0f, 5.5f), 90f);
+            session.Stamina.Restore();
+            yield return 20;
+            var comboSteps = new List<int>();
+            for (int n = 0; n < Mathf.Min(3, pc.Dodge.Steps.Count); n++)
+            {
+                input.ScriptPress(GameAction.Roll);
+                for (int i = 0; i < 5 && !player.Rolling; i++)
+                    yield return 1;
+                comboSteps.Add(player.Rolling ? player.DodgeStepIndex : -1);
+                for (int i = 0; i < 120 && player.Rolling; i++)
+                    yield return 1;
+            }
+
+            Check(comboSteps.Count == 3 && comboSteps[0] == 0 && comboSteps[1] == 1 && comboSteps[2] == 2,
+                $"dodge combo goes through steps 1-2-3 when pressed in the window: {string.Join(",", comboSteps)}");
+            yield return Mathf.CeilToInt((pc.Dodge.ComboWindow + 0.4f) * 60f);
+            input.ScriptPress(GameAction.Roll);
+            for (int i = 0; i < 5 && !player.Rolling; i++)
+                yield return 1;
+            Check(player.Rolling && player.DodgeStepIndex == 0, $"dodge combo restarts after the window: step {player.DodgeStepIndex}");
+            for (int i = 0; i < 120 && player.Rolling; i++)
+                yield return 1;
+            session.Stamina.Restore();
 
             // 7. Подбор меча и щита на F.
             player.Teleport(new Vector3(12.5f, 0f, 12.7f), 0f);

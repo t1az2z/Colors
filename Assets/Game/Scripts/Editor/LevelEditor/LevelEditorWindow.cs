@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using ColorsAction.Level;
 using ColorsAction.Unity.Voxel;
@@ -204,6 +205,22 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 if (GUILayout.Button("Сохранить", GUILayout.Width(90)))
                     session.Save();
                 GUI.backgroundColor = Color.white;
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                var title = EditorGUILayout.DelayedTextField("Название", session.Level.Name);
+                if (title != session.Level.Name)
+                    session.SetName(title);
+            }
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.FlexibleSpace();
+                if (GUILayout.Button(new GUIContent("Сохранить как…", "Сохранить копию под другим именем файла"), GUILayout.Width(120)))
+                    SaveLevelAs(false);
+                if (GUILayout.Button(new GUIContent("Переименовать…", "Сохранить под другим именем и убрать старый файл"), GUILayout.Width(120)))
+                    SaveLevelAs(true);
             }
 
             using (new EditorGUILayout.HorizontalScope())
@@ -630,6 +647,34 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             activeFloor = 0;
             selectedObject = selectedPoint = null;
             ApplyFloorDisplay(true);
+        }
+
+        /// <summary>«Сохранить как» / «Переименовать»: файл выбирается в папке VoxelLevels.</summary>
+        private void SaveLevelAs(bool rename)
+        {
+            var dir = Path.Combine(LevelEditorSession.ConfigsRoot, LevelEditorSession.Folder);
+            Directory.CreateDirectory(dir);
+            var current = string.IsNullOrEmpty(session.Key) ? newLevelName : Path.GetFileName(session.Key);
+            var path = EditorUtility.SaveFilePanel(rename ? "Переименовать уровень" : "Сохранить уровень как", dir, current, "json");
+            if (string.IsNullOrEmpty(path))
+                return;
+            char[] seps = { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar };
+            if (!string.Equals(Path.GetFullPath(Path.GetDirectoryName(path)!).TrimEnd(seps),
+                    Path.GetFullPath(dir).TrimEnd(seps), StringComparison.OrdinalIgnoreCase))
+            {
+                EditorUtility.DisplayDialog("Уровень", "Уровни хранятся только в папке " + LevelEditorSession.Folder + ".", "OK");
+                return;
+            }
+
+            var key = LevelEditorSession.Folder + "/" + Path.GetFileNameWithoutExtension(path);
+            try
+            {
+                session.SaveAs(key, rename);
+            }
+            catch (Exception e)
+            {
+                EditorUtility.DisplayDialog("Уровень", "Не получилось сохранить: " + e.Message, "OK");
+            }
         }
 
         private bool ConfirmDiscard() =>
