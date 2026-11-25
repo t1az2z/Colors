@@ -132,6 +132,9 @@ namespace ColorsAction.Tests
             session.PickUp("sword");
             session.PickUp("shield");
             session.Experience.Value = 1000;
+            // Game.json может включать отладочные апгрейды — начинаем с нуля.
+            session.Upgrades.Set("sword", 0);
+            session.Upgrades.Set("shield", 0);
 
             host.Events.Publish(new BonfireRestRequested("b"));
             var vm = host.Screens.Find<BonfireScreenViewModel>();

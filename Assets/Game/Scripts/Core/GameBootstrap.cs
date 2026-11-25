@@ -55,8 +55,11 @@ namespace ColorsAction.Unity
                 Instantiate(hudPrefab, parent, false).name = "Hud";
             if (inventoryPrefab == null)
                 inventoryPrefab = Resources.Load<InventoryView>(InventoryResource);
+            // Меню костра: префаб Resources/UI/BonfireMenu, пока его не собрали в редакторе — строится кодом.
+            var bonfirePrefab = Resources.Load<BonfireView>(BonfireView.Resource);
             views = new ScreenViewBinder<GameObject>(host.Screens, Destroy, host.Logger)
-                .Register<InventoryScreenViewModel>(vm => InventoryView.Create(inventoryPrefab, parent, vm, host.Container));
+                .Register<InventoryScreenViewModel>(vm => InventoryView.Create(inventoryPrefab, parent, vm, host.Container))
+                .Register<BonfireScreenViewModel>(vm => BonfireView.Create(bonfirePrefab, parent, vm, host.Container));
 
             // BootState читает все конфиги и переводит игру в PlayState.
             host.Start<BootState>();

@@ -384,6 +384,10 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                                                 "Ставьте её в проём стены.", MessageType.None);
                     }
 
+                    if (objectKind == LevelObjectKind.Bonfire)
+                        EditorGUILayout.HelpBox("Костёр: отдых (F / X) лечит, возрождает всех врагов уровня, становится точкой " +
+                                                "возрождения; у костра — меню апгрейдов оружия. Поворот — где встаёт игрок.", MessageType.None);
+
                     if (objectKind == LevelObjectKind.EnemySpawn)
                         objectItem = DrawEnemyPopup(objectItem);
                     else
