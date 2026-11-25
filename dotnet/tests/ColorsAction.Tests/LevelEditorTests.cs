@@ -257,6 +257,29 @@ namespace ColorsAction.Tests
             Assert.That(start, Is.Not.Null);
             var reachable = new PathFinder(graph).Reachable(start, profiles.Get("player"), new NavContext());
             Assert.That(reachable.Count, Is.GreaterThan(graph.Nodes.Count / 2));
+
+            // Враги карты высот переезжают в воксельный уровень как точки появления своего типа.
+            Assert.That(heightmap.Enemies, Is.Not.Empty);
+            var enemySpawns = level.Objects.Where(o => o.Kind == LevelObjectKind.EnemySpawn && o.Item != "dummy").ToList();
+            Assert.That(enemySpawns.Select(o => o.Item), Is.EquivalentTo(heightmap.Enemies.Select(e => e.Type)));
+        }
+
+        [Test]
+        public void LevelEnemyTypes_ExistInEnemiesConfig()
+        {
+            var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+            while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "Assets", "StreamingAssets", "Configs")))
+                dir = dir.Parent;
+            var root = Path.Combine(dir!.FullName, "Assets", "StreamingAssets", "Configs");
+            var configs = new ConfigService(new FileConfigSource(root), new NewtonsoftConfigSerializer());
+            var enemies = configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies);
+
+            foreach (var file in Directory.GetFiles(Path.Combine(root, "Levels"), "*.json"))
+            {
+                var level = configs.Load<LevelConfig>("Levels/" + Path.GetFileNameWithoutExtension(file));
+                foreach (var e in level.Enemies)
+                    Assert.That(enemies.ContainsKey(e.Type), Is.True, $"{Path.GetFileName(file)}: unknown enemy type '{e.Type}'");
+            }
         }
     
         [Test]

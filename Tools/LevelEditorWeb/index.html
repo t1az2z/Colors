@@ -671,7 +671,7 @@ function objectPanel() {
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'ShortcutDoor')
       out.push(row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
     out.push(h('div', { class: 'chips', style: 'margin-top:8px' },
-      h('button', { class: 'danger', on: { click: () => { touchMarkup(); L.objects = L.objects.filter(x => x !== o); sel.obj = null; commit(); renderPanel(); } } }, 'Удалить объект'),
+      h('button', { class: 'danger', on: { click: () => { touchMarkup(); removeObject(o.id); sel.obj = null; commit(); renderPanel(); } } }, 'Удалить объект'),
       h('button', { on: { click: () => { sel.obj = null; renderPanel(); requestRender(); } } }, 'Снять выбор')));
   }
   out.push(H3('Объекты уровня (' + L.objects.length + ')'), h('div', { class: 'list' }, L.objects.map(x =>
@@ -691,6 +691,14 @@ function enemyList(cur, set) {
       enemyName(id) + (ENEMY_INFO[id] ? '' : ' (нет в Enemies.json)'), h('small', { style: 'color:var(--faint);margin-left:auto' }, id))));
 }
 function norm180(a) { a = ((a + 180) % 360 + 360) % 360 - 180; return a; }
+// Удаляет объект и обнуляет ссылки точек на него (цель рычага, «нужен открытый»), чтобы в JSON не оставались висячие id.
+function removeObject(id) {
+  L.objects = L.objects.filter(o => o.id !== id);
+  for (const p of L.points) {
+    if (p.targetObject === id) p.targetObject = null;
+    if (p.requiredOpen === id) p.requiredOpen = null;
+  }
+}
 function renameRefs(oldId, newIdv, kind) {
   for (const p of L.points) {
     if (kind === 'obj') { if (p.targetObject === oldId) p.targetObject = newIdv; if (p.requiredOpen === oldId) p.requiredOpen = newIdv; }
@@ -1537,7 +1545,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'q' || e.key === 'Q' || e.key === 'й') rotateCam(-1);
   if (e.key === 'e' || e.key === 'E' || e.key === 'у') rotateCam(1);
   if (e.key >= '0' && e.key <= '9') { st.height = +e.key; renderPanel(); hud(); }
-  if (e.key === 'Delete' && sel.obj) { touchMarkup(); L.objects = L.objects.filter(o => o.id !== sel.obj); sel.obj = null; commit(); renderPanel(); }
+  if (e.key === 'Delete' && sel.obj) { touchMarkup(); removeObject(sel.obj); sel.obj = null; commit(); renderPanel(); }
 });
 function rotateCam(dir) { cam.yawT = (cam.snap ? Math.round((cam.yawT - 45) / 90) * 90 + 45 : cam.yawT) + dir * 90; requestRender(); }
 

@@ -96,6 +96,9 @@ namespace ColorsAction.Unity
         {
             Dead = true;
             controller.Frozen = true;
+            // Начатый удар не доигрывается: иначе расколотый куб продолжал бы наносить урон.
+            if (combat != null)
+                combat.CancelAttack();
             SetVisible(false);
             Debris.Burst(transform.position + Vector3.up * 0.5f, new Color(0.62f, 0.63f, 0.65f), 16, 0.24f, 5f, config.RespawnDelay);
             respawnTimer = config.RespawnDelay;
