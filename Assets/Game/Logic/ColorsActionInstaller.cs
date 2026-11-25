@@ -1,6 +1,7 @@
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
+using ColorsAction.Progression;
 using ColorsAction.States;
 using GameCore.Config;
 using GameCore.DI;
@@ -39,7 +40,15 @@ namespace ColorsAction
                 .Register(r => new BootState(r.Resolve<ConfigService>(), r.Resolve<StateMachine>()))
                 .Register(r => new PlayState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(), r.Resolve<IEventBus>()))
                 .Register(r => new InventoryState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(),
-                    r.Resolve<IEventBus>(), r.Resolve<ScreenStack>()));
+                    r.Resolve<IEventBus>(), r.Resolve<ScreenStack>()))
+                .Register(r =>
+                {
+                    var session = r.Resolve<GameSession>();
+                    return new WeaponUpgradeShop(session.Upgrades, session.Experience,
+                        r.Resolve<ConfigService>().LoadTable<WeaponUpgradeConfig>(ConfigKeys.Upgrades));
+                })
+                .Register(r => new BonfireState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(),
+                    r.Resolve<IEventBus>(), r.Resolve<ScreenStack>(), r.Resolve<WeaponUpgradeShop>()));
         }
     }
 }

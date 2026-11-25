@@ -224,5 +224,13 @@
    "yaw": 0,
    "height": 3
   }
+ ],
+ "bonfires": [
+  {
+   "id": "start_bonfire",
+   "x": 7,
+   "z": 7,
+   "yaw": 45
+  }
  ]
 }

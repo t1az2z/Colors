@@ -5,6 +5,7 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Подсказка, "выгравированная" на полу: проявляется, когда игрок рядом; клавиша подстраивается под устройство ввода.
+    /// Подсказка предмета или двери (<see cref="BindTargets"/>) гаснет навсегда, когда предмет подобран / дверь открыта.
     /// </summary>
     public sealed class HintMarker : MonoBehaviour
     {
@@ -16,6 +17,22 @@ namespace ColorsAction.Unity
         private CanvasGroup group;
         private Transform player;
         private bool gamepad;
+        private string verbOverride;
+        private System.Func<bool> done;
+        private System.Action completed;
+        private bool finished;
+
+        /// <summary>
+        /// Привязать подсказку к делу (подобрать предмет, открыть дверь): когда <paramref name="isDone"/> вернёт true,
+        /// подсказка гаснет навсегда и вызывает <paramref name="onDone"/> (запомнить в сессии).
+        /// </summary>
+        public void BindTargets(System.Func<bool> isDone, System.Action onDone, string verb = null)
+        {
+            done = isDone;
+            completed = onDone;
+            verbOverride = verb;
+            Refresh();
+        }
 
         public static HintMarker Create(Transform parent, Vector3 position, string action, GameInput input, Font font)
         {
@@ -68,6 +85,8 @@ namespace ColorsAction.Unity
                 default: verb = string.Empty; break;
             }
 
+            if (!string.IsNullOrEmpty(verbOverride))
+                verb = verbOverride;
             label.text = $"[{key}]  {verb}";
         }
 
@@ -84,9 +103,18 @@ namespace ColorsAction.Unity
             if (input != null && input.UsingGamepad != gamepad)
                 Refresh();
 
+            if (!finished && done != null && done())
+            {
+                finished = true;
+                completed?.Invoke();
+            }
+
             var d = Vector3.Distance(player.position, transform.position);
-            var target = Mathf.Clamp01((ShowDistance - d) / 1.5f);
+            var target = finished ? 0f : Mathf.Clamp01((ShowDistance - d) / 1.5f);
             group.alpha = Mathf.MoveTowards(group.alpha, target, Time.deltaTime * 2f);
+            // Дело сделано и подсказка погасла — больше не появится.
+            if (finished && group.alpha <= 0f)
+                gameObject.SetActive(false);
         }
     }
 }

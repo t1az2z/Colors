@@ -147,6 +147,10 @@ level = {
     "doors": [
         {"id": "courtyard_shortcut", "x": 56, "z": 27, "yaw": 0, "height": 3},
     ],
+    # Костёр у старта: отдых, возрождение врагов, точка возрождения, апгрейды оружия. yaw — куда встаёт игрок.
+    "bonfires": [
+        {"id": "start_bonfire", "x": 7, "z": 7, "yaw": 45},
+    ],
 }
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)

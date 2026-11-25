@@ -1,8 +1,11 @@
 using System.Collections.Generic;
 using System.IO;
+using ColorsAction.Combat;
 using ColorsAction.Configs;
+using ColorsAction.Level;
 using GameCore.Config;
 using GameCore.DI;
+using GameCore.Events;
 using GameCore.Newtonsoft;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -11,7 +14,8 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Строит уровень из карты высот (<see cref="LevelConfig"/>): столбики кубов 1×1, объединённые в меши по чанкам 16×16
-    /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены, подсказки на полу и двери-срезки.
+    /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены, подсказки на полу, двери-срезки
+    /// и костры, обносит карту невидимыми стенами. Отдых у костра (и смерть игрока) возрождает врагов.
     /// В редакторе показывает превью уровня (не сохраняется в сцену).
     /// </summary>
     [ExecuteAlways]
@@ -26,19 +30,42 @@ namespace ColorsAction.Unity
         [SerializeField] private string editorPreviewLevel = "Levels/Test";
 
         private LevelConfig level;
+        private GameConfig game;
         private GameBootstrap bootstrap;
         private GameInput input;
+        private GameSession session;
+        private CombatDirector director;
         private Transform root;
         private readonly List<HintMarker> hints = new List<HintMarker>();
+        private readonly List<EnemyController> enemies = new List<EnemyController>();
+        private readonly List<System.IDisposable> subscriptions = new List<System.IDisposable>();
 
         public LevelConfig Level => level;
 
         protected override void OnConstruct(IResolver resolver)
         {
             var configs = resolver.Resolve<ConfigService>();
-            level = configs.Load<LevelConfig>(configs.Load<GameConfig>(ConfigKeys.Game).Level);
+            game = configs.Load<GameConfig>(ConfigKeys.Game);
+            level = configs.Load<LevelConfig>(game.Level);
             bootstrap = resolver.Resolve<GameBootstrap>();
             input = resolver.Resolve<GameInput>();
+            session = resolver.Resolve<GameSession>();
+            director = resolver.Resolve<CombatDirector>();
+            var events = resolver.Resolve<IEventBus>();
+            // Отдых у костра (и смерть, если так настроено в Game.json) возрождает всех врагов уровня.
+            subscriptions.Add(events.Subscribe<BonfireRested>(RespawnEnemies));
+            subscriptions.Add(events.Subscribe<PlayerRespawned>(() =>
+            {
+                if (game.RespawnEnemiesOnDeath)
+                    RespawnEnemies();
+            }));
+        }
+
+        private void OnDestroy()
+        {
+            foreach (var s in subscriptions)
+                s.Dispose();
+            subscriptions.Clear();
         }
 
         private void OnEnable()
@@ -260,12 +287,15 @@ namespace ColorsAction.Unity
                 player.SetSpawn(spawn, config.Spawn.Yaw);
             }
 
-            foreach (var item in config.Items)
+            var pickups = new Pickup[config.Items.Count];
+            for (int i = 0; i < config.Items.Count; i++)
             {
+                var item = config.Items[i];
                 var go = new GameObject($"Pickup_{item.Item}");
                 go.transform.SetParent(root, false);
                 go.transform.SetPositionAndRotation(CellPosition(item.X, item.Z), Quaternion.Euler(0, item.Yaw, 0));
-                go.AddComponent<Pickup>().Init(item.Item);
+                pickups[i] = go.AddComponent<Pickup>();
+                pickups[i].Init(item.Item);
                 bootstrap.Inject(go);
             }
 
@@ -279,32 +309,151 @@ namespace ColorsAction.Unity
                 }
             }
 
-            // Враги: тело — тот же скруглённый куб, что у игрока (исходный меш и материалы берём у него).
-            if (player != null && config.Enemies.Count > 0)
-            {
-                var playerMesh = player.Deformer;
-                var mesh = playerMesh != null && playerMesh.SourceMesh != null
-                    ? playerMesh.SourceMesh
-                    : playerMesh != null ? playerMesh.GetComponent<MeshFilter>().sharedMesh : null;
-                var materials = playerMesh != null ? playerMesh.GetComponent<Renderer>().sharedMaterials : null;
-                if (mesh != null)
-                {
-                    foreach (var e in config.Enemies)
-                        EnemyController.Spawn(e.Type, CellPosition(e.X, e.Z), e.Yaw, root, bootstrap, mesh, materials);
-                }
-            }
-
-            foreach (var hint in config.Hints)
-                hints.Add(HintMarker.Create(root, CellPosition(hint.X, hint.Z), hint.Action, input, hintFont));
+            SpawnEnemies(config);
 
             // Двери-срезки: открываются только с лицевой стороны (yaw), дальше открыты навсегда.
-            foreach (var door in config.Doors)
+            var doors = new ShortcutDoor[config.Doors.Count];
+            for (int i = 0; i < config.Doors.Count; i++)
             {
+                var door = config.Doors[i];
                 var go = new GameObject($"ShortcutDoor_{door.Id}");
                 go.transform.SetParent(root, false);
                 go.transform.SetPositionAndRotation(CellPosition(door.X, door.Z), Quaternion.Euler(0, door.Yaw, 0));
-                go.AddComponent<ShortcutDoor>().Init(door.Id, door.Height, worldMaterial);
+                doors[i] = go.AddComponent<ShortcutDoor>();
+                doors[i].Init(door.Id, door.Height, worldMaterial);
                 bootstrap.Inject(go);
+            }
+
+            SpawnHints(config, pickups, doors);
+
+            // Костры: отдых, возрождение врагов, точка возрождения, апгрейды оружия.
+            foreach (var b in config.Bonfires)
+            {
+                var go = new GameObject($"Bonfire_{b.Id}");
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(CellPosition(b.X, b.Z), Quaternion.Euler(0, b.Yaw, 0));
+                go.AddComponent<Bonfire>().Init(b.Id, RestPoint(config, b), b.Yaw, worldMaterial);
+                bootstrap.Inject(go);
+            }
+
+            BuildEdgeWalls(config);
+        }
+
+        /// <summary>Враги: тело — тот же скруглённый куб, что у игрока (исходный меш и материалы берём у него).</summary>
+        private void SpawnEnemies(LevelConfig config)
+        {
+            enemies.Clear();
+            if (player == null || config.Enemies.Count == 0)
+                return;
+            var playerMesh = player.Deformer;
+            var mesh = playerMesh != null && playerMesh.SourceMesh != null
+                ? playerMesh.SourceMesh
+                : playerMesh != null ? playerMesh.GetComponent<MeshFilter>().sharedMesh : null;
+            var materials = playerMesh != null ? playerMesh.GetComponent<Renderer>().sharedMaterials : null;
+            if (mesh == null)
+                return;
+            foreach (var e in config.Enemies)
+                enemies.Add(EnemyController.Spawn(e.Type, CellPosition(e.X, e.Z), e.Yaw, root, bootstrap, mesh, materials));
+        }
+
+        /// <summary>
+        /// Все враги уровня заново на своих местах и в исходном состоянии (живые убираются, погибшие возвращаются).
+        /// Очередь атак <see cref="CombatDirector"/> и фиксация игрока сбрасываются, новые враги не помнят игрока.
+        /// </summary>
+        public void RespawnEnemies()
+        {
+            if (!Application.isPlaying || level == null || root == null)
+                return;
+            if (player != null && player.LockOn != null)
+                player.LockOn.Release();
+            foreach (var e in enemies)
+            {
+                if (e == null)
+                    continue;
+                // Сразу выключаем: Destroy сработает в конце кадра, а старый враг не должен успеть встать в очередь атак.
+                e.gameObject.SetActive(false);
+                Destroy(e.gameObject);
+            }
+
+            enemies.Clear();
+            director?.Clear();
+            SpawnEnemies(level);
+        }
+
+        /// <summary>
+        /// Подсказки на полу. Привязанные к предметам и дверям (<see cref="HintTargets"/>) гаснут навсегда, когда всё
+        /// подобрано / открыто; выполненные (<see cref="GameSession.CompletedHints"/>) не создаются вовсе.
+        /// </summary>
+        private void SpawnHints(LevelConfig config, Pickup[] pickups, ShortcutDoor[] doors)
+        {
+            var itemIndices = new List<int>();
+            var doorIndices = new List<int>();
+            foreach (var hint in config.Hints)
+            {
+                if (session != null && session.CompletedHints.Contains(hint.Id))
+                    continue;
+                var marker = HintMarker.Create(root, CellPosition(hint.X, hint.Z), hint.Action, input, hintFont);
+                hints.Add(marker);
+                HintTargets.Resolve(config, hint, itemIndices, doorIndices);
+                if (itemIndices.Count == 0 && doorIndices.Count == 0)
+                    continue;
+
+                var boundPickups = new List<Pickup>();
+                foreach (var i in itemIndices)
+                    boundPickups.Add(pickups[i]);
+                var boundDoors = new List<ShortcutDoor>();
+                foreach (var i in doorIndices)
+                    boundDoors.Add(doors[i]);
+                var id = hint.Id;
+                marker.BindTargets(() =>
+                {
+                    // Подобранный предмет уничтожается (== null), дверь остаётся открытой.
+                    foreach (var p in boundPickups)
+                        if (p != null && p.Available)
+                            return false;
+                    foreach (var d in boundDoors)
+                        if (d != null && !d.IsOpen)
+                            return false;
+                    return true;
+                }, () => session?.CompletedHints.Add(id), boundPickups.Count == 0 ? "открыть" : null);
+            }
+        }
+
+        /// <summary>
+        /// Где игрок появляется после смерти у костра: соседняя клетка в сторону его поворота (yaw), если на неё можно
+        /// встать; иначе — рядом с костром в ту же сторону.
+        /// </summary>
+        private Vector3 RestPoint(LevelConfig config, LevelBonfire b)
+        {
+            var yaw = b.Yaw * Mathf.Deg2Rad;
+            var dx = Mathf.RoundToInt(Mathf.Sin(yaw));
+            var dz = Mathf.RoundToInt(Mathf.Cos(yaw));
+            int x = b.X + dx, z = b.Z + dz;
+            var own = CellPosition(b.X, b.Z);
+            if ((dx != 0 || dz != 0) && config.InBounds(x, z) && config.HeightSteps(x, z) != LevelConfig.Hole)
+            {
+                var p = CellPosition(x, z);
+                if (Mathf.Abs(p.y - own.y) <= 0.3f)
+                    return p;
+            }
+
+            return own + new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw)) * 1.1f;
+        }
+
+        /// <summary>Невидимые стены по внешнему краю карты (<see cref="LevelEdgeWalls"/>): с уровня не упасть.</summary>
+        private void BuildEdgeWalls(LevelConfig config)
+        {
+            var walls = new GameObject("EdgeWalls").transform;
+            walls.SetParent(root, false);
+            var i = 0;
+            foreach (var w in LevelEdgeWalls.Build(config))
+            {
+                var go = new GameObject($"Wall{i++}");
+                go.transform.SetParent(walls, false);
+                go.isStatic = true;
+                var box = go.AddComponent<BoxCollider>();
+                box.center = new Vector3(w.CenterX, w.CenterY, w.CenterZ);
+                box.size = new Vector3(w.SizeX, w.SizeY, w.SizeZ);
             }
         }
 

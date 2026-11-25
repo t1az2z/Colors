@@ -150,8 +150,8 @@ namespace ColorsAction.Level
 
         /// <summary>
         /// Импорт карты высот прототипа (<see cref="LevelConfig"/>): каждый столбик превращается в полные кубы
-        /// и верхушку из полублока/ступенек по остатку высоты. Точка появления, предметы, манекены и подсказки
-        /// переносятся объектами.
+        /// и верхушку из полублока/ступенек по остатку высоты. Точка появления, предметы, манекены, подсказки,
+        /// двери и костры переносятся объектами.
         /// </summary>
         public static VoxelLevel FromHeightmap(LevelConfig config, int depthCells = 1)
         {
@@ -233,6 +233,15 @@ namespace ColorsAction.Level
                     Id = string.IsNullOrEmpty(d.Id) ? level.NewObjectId(LevelObjectKind.ShortcutDoor) : d.Id,
                     Kind = LevelObjectKind.ShortcutDoor, Cell = StandCell(d.X, d.Z), Yaw = d.Yaw,
                     Height = Math.Max(1, (int)Math.Ceiling(d.Height - 1e-3f))
+                });
+            }
+
+            foreach (var b in config.Bonfires)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = string.IsNullOrEmpty(b.Id) ? level.NewObjectId(LevelObjectKind.Bonfire) : b.Id,
+                    Kind = LevelObjectKind.Bonfire, Cell = StandCell(b.X, b.Z), Yaw = b.Yaw
                 });
             }
 

@@ -62,6 +62,15 @@ namespace ColorsAction
         /// </summary>
         public HashSet<string> OpenedShortcuts { get; } = new HashSet<string>();
 
+        /// <summary>
+        /// Id подсказок на полу, чьё дело сделано (предмет подобран, дверь открыта): больше не показываются.
+        /// Как и срезки, держится всю сессию; позже уйдёт в сохранение.
+        /// </summary>
+        public HashSet<string> CompletedHints { get; } = new HashSet<string>();
+
+        /// <summary>Id костра, у которого игрок отдыхал последним (точка возрождения), null — ещё нигде.</summary>
+        public string LastBonfire { get; set; }
+
         /// <summary>Апгрейды оружия (костёр). Оружие проверяет Upgrades.Has(itemId, tier).</summary>
         public WeaponUpgrades Upgrades { get; } = new WeaponUpgrades();
 

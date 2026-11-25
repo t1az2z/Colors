@@ -95,6 +95,14 @@ namespace ColorsAction.Combat
             attackerIds.Remove(enemyId);
         }
 
+        /// <summary>Забыть всех атакующих и очередь (враги уровня возрождены у костра заново).</summary>
+        public void Clear()
+        {
+            attackers.Clear();
+            attackerIds.Clear();
+            queue.Clear();
+        }
+
         public void Tick(float deltaTime) => now += deltaTime;
     }
 }

@@ -17,6 +17,7 @@ namespace ColorsAction.Configs
         public const string Dummy = "Dummy";
         public const string Inventory = "Inventory";
         public const string Enemies = "Enemies";
+        public const string Upgrades = "Upgrades";
     }
 
     /// <summary>Configs/Game.json — что загружать при старте.</summary>
@@ -33,6 +34,12 @@ namespace ColorsAction.Configs
         /// Позволяет проверять способности апгрейдов без костра.
         /// </summary>
         public Dictionary<string, int> DebugWeaponUpgrades { get; set; } = new Dictionary<string, int>();
+
+        /// <summary>
+        /// Смерть игрока возрождает всех врагов уровня, как отдых у костра (Dark Souls).
+        /// false — враги остаются как были, игрок просто появляется у последнего костра.
+        /// </summary>
+        public bool RespawnEnemiesOnDeath { get; set; } = true;
 
         public void OnConfigLoaded()
         {

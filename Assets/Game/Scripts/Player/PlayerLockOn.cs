@@ -11,7 +11,8 @@ namespace ColorsAction.Unity
     /// <summary>
     /// Фиксация на цели (СКМ / R3): персонаж всегда смотрит на цель, перекаты идут относительно неё (вбок — через бок
     /// персонажа), свободная камера доворачивается за спину. Повторное нажатие снимает фиксацию; она снимается и сама,
-    /// если цель умерла или ушла дальше <see cref="CombatConfig.LockOnBreakRange"/>.
+    /// если цель ушла дальше <see cref="CombatConfig.LockOnBreakRange"/>. Если цель-враг умерла, фиксация переходит
+    /// на врага, ближайшего к погибшему (в радиусе <see cref="CombatConfig.LockOnRange"/>), а если такого нет — снимается.
     /// Переключение на соседнюю цель — рывок правым стиком или мышью влево/вправо. Числа — Configs/Combat.json.
     /// </summary>
     [DefaultExecutionOrder(-50)]
@@ -31,6 +32,8 @@ namespace ColorsAction.Unity
 
         private Component target;
         private Renderer[] targetRenderers;
+        private bool targetIsEnemy;
+        private Vector3 lastTargetPosition;
         private bool switchArmed = true;
         private float mouseSwipe;
         private float mouseSwipeTimer;
@@ -85,6 +88,7 @@ namespace ColorsAction.Unity
         {
             target = null;
             targetRenderers = null;
+            targetIsEnemy = false;
         }
 
         private void Update()
@@ -96,8 +100,18 @@ namespace ColorsAction.Unity
             if (control && input.Pressed(GameAction.LockOn))
                 Toggle();
 
-            if (target != null && !IsValid(target, config.LockOnBreakRange))
+            // Цель-враг погибла (или уже уничтожена): фиксация переходит на врага, ближайшего к месту гибели.
+            if (targetIsEnemy && (target == null || ((EnemyController)target).Dead))
+            {
+                if (target != null)
+                    lastTargetPosition = target.transform.position;
+                RetargetNear(lastTargetPosition);
+            }
+            else if (target != null && !IsValid(target, config.LockOnBreakRange))
                 Release();
+
+            if (target != null)
+                lastTargetPosition = target.transform.position;
 
             if (target != null && control)
                 UpdateSwitch();
@@ -173,7 +187,26 @@ namespace ColorsAction.Unity
         {
             target = value;
             targetRenderers = value.GetComponentsInChildren<Renderer>();
+            targetIsEnemy = value is EnemyController;
+            lastTargetPosition = value.transform.position;
             markerVisible = 0f;
+        }
+
+        /// <summary>Перевести фиксацию на живого врага, ближайшего к точке (в радиусе фиксации от игрока); нет такого — снять.</summary>
+        private void RetargetNear(Vector3 from)
+        {
+            Release();
+            targets.Clear();
+            candidates.Clear();
+            foreach (var enemy in EnemyController.All)
+                Add(enemy);
+            var p = transform.position;
+            var index = LockOnRules.Nearest(from.x, from.z, p.x, p.z, candidates, config.LockOnRange);
+            if (index >= 0)
+            {
+                SetTarget(targets[index]);
+                markerVisible = 1f; // маркер не мигает, а сразу переезжает на новую цель
+            }
         }
 
         private void Gather()

@@ -82,6 +82,34 @@ namespace ColorsAction.Combat
             return best;
         }
 
+        /// <summary>
+        /// Цель умерла: фиксация переходит на кандидата, ближайшего к месту гибели (<paramref name="fromX"/>, <paramref name="fromZ"/>),
+        /// но только из тех, что в радиусе фиксации <paramref name="range"/> от игрока.
+        /// </summary>
+        /// <returns>Индекс кандидата или -1 — фиксацию снять.</returns>
+        public static int Nearest(float fromX, float fromZ, float px, float pz, IReadOnlyList<LockOnCandidate> candidates, float range)
+        {
+            var best = -1;
+            var bestDistance = float.MaxValue;
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                var dx = candidates[i].X - px;
+                var dz = candidates[i].Z - pz;
+                if (dx * dx + dz * dz > range * range)
+                    continue;
+                var fx = candidates[i].X - fromX;
+                var fz = candidates[i].Z - fromZ;
+                var d = fx * fx + fz * fz;
+                if (d < bestDistance)
+                {
+                    bestDistance = d;
+                    best = i;
+                }
+            }
+
+            return best;
+        }
+
         public static float Yaw(float dx, float dz) => (float)(Math.Atan2(dx, dz) * 180.0 / Math.PI);
 
         /// <summary>Кратчайшая разница углов в диапазоне (-180, 180].</summary>

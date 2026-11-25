@@ -37,6 +37,7 @@ namespace ColorsAction.Configs
         public List<LevelEnemy> Enemies { get; set; } = new List<LevelEnemy>();
         public List<LevelHint> Hints { get; set; } = new List<LevelHint>();
         public List<LevelDoor> Doors { get; set; } = new List<LevelDoor>();
+        public List<LevelBonfire> Bonfires { get; set; } = new List<LevelBonfire>();
 
         public int Width { get; private set; }
         public int Length { get; private set; }
@@ -66,6 +67,18 @@ namespace ColorsAction.Configs
             {
                 if (string.IsNullOrEmpty(Doors[i].Id))
                     Doors[i].Id = $"door_{Doors[i].X}_{Doors[i].Z}";
+            }
+            Bonfires ??= new List<LevelBonfire>();
+            foreach (var b in Bonfires)
+            {
+                if (string.IsNullOrEmpty(b.Id))
+                    b.Id = $"bonfire_{b.X}_{b.Z}";
+            }
+
+            foreach (var h in Hints)
+            {
+                if (string.IsNullOrEmpty(h.Id))
+                    h.Id = $"hint_{h.X}_{h.Z}";
             }
             Spawn ??= new LevelPoint();
         }
@@ -175,11 +188,35 @@ namespace ColorsAction.Configs
         public string Type { get; set; }
     }
 
-    /// <summary>Подсказка на полу: иконка действия (jump, roll, interact...).</summary>
+    /// <summary>
+    /// Подсказка на полу: иконка действия (jump, roll, interact...).
+    /// Подсказка, привязанная к предмету или двери, после подбора / открытия больше не показывается
+    /// (см. <see cref="ColorsAction.Level.HintTargets"/>).
+    /// </summary>
     [Preserve]
     public sealed class LevelHint : LevelPoint
     {
+        /// <summary>Id подсказки (для запоминания выполненных). Пусто — "hint_x_z".</summary>
+        public string Id { get; set; }
+
         public string Action { get; set; }
+
+        /// <summary>
+        /// К чему привязана: id двери или id предмета (ближайший такой предмет на карте). Пусто — подсказка
+        /// "interact" сама привязывается к предметам и дверям рядом с ней.
+        /// </summary>
+        public string Target { get; set; }
+    }
+
+    /// <summary>
+    /// Костёр: отдых восстанавливает здоровье и выносливость, возрождает врагов, становится точкой возрождения;
+    /// у костра — меню апгрейдов оружия. <see cref="LevelPoint.Yaw"/> — куда смотрит место отдыха (там появляется игрок).
+    /// </summary>
+    [Preserve]
+    public sealed class LevelBonfire : LevelPoint
+    {
+        /// <summary>Id костра. Пусто — "bonfire_x_z".</summary>
+        public string Id { get; set; }
     }
 
     /// <summary>

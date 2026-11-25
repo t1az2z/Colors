@@ -11,7 +11,8 @@ namespace ColorsAction.Unity
     /// <summary>
     /// Урон по игроку: перекат уворачивает (i-frames), щит в блоке гасит удар спереди за выносливость,
     /// иначе — урон, отбрасывание, сжатие куба, толчок камеры, красная цифра и 2 секунды неуязвимости с миганием.
-    /// При смерти куб раскалывается и через пару секунд игрок появляется на старте.
+    /// При смерти куб раскалывается и через пару секунд игрок появляется у последнего костра (или на старте),
+    /// публикуется <see cref="PlayerRespawned"/>.
     /// </summary>
     [RequireComponent(typeof(PlayerController))]
     public sealed class PlayerDamageReceiver : GameBehaviour
@@ -118,6 +119,7 @@ namespace ColorsAction.Unity
                     session.Stamina.Restore();
                     controller.Frozen = false;
                     Dead = false;
+                    events.Publish(new PlayerRespawned());
                 }
 
                 return;
