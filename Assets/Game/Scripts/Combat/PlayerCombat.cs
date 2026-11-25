@@ -82,10 +82,7 @@ namespace ColorsAction.Unity
         private float hitStopTimer;
         private float timeScaleBeforeHitStop = 1f;
 
-        // Стрелковое оружие (дробовик)
-        private readonly RaycastHit[] rayHits = new RaycastHit[32];
-        private readonly Collider[] aimOverlap = new Collider[32];
-        private readonly Dictionary<IHittable, int> pelletHits = new Dictionary<IHittable, int>();
+        // Стрелковое оружие (дробовик): выстрел, пули и заряд — PlayerCombat.Shotgun.cs
         private Vector3 recoilVector;
         private float recoilDuration;
         private float recoilElapsed;
@@ -111,7 +108,9 @@ namespace ColorsAction.Unity
             {
                 if (attacking != null)
                     return playerConfig.AttackMoveMultiplier;
-                if (Blocking)
+                if (Bashing)
+                    return playerConfig.AttackMoveMultiplier;
+                if (Blocking || GunCharging)
                     return playerConfig.BlockMoveMultiplier;
                 return 1f;
             }
@@ -230,12 +229,13 @@ namespace ColorsAction.Unity
             UpdateHand(right, control, input.Pressed(GameAction.Primary), input.Held(GameAction.Primary));
             UpdateHand(left, control, input.Pressed(GameAction.Secondary), input.Held(GameAction.Secondary));
             UpdateGun(control, dt);
+            UpdateShieldBash(control, dt);
 
             var wasBlocking = Blocking;
-            Blocking = control && attacking == null &&
+            Blocking = control && attacking == null && !Bashing &&
                        ((right.Item?.Kind == ItemKind.Shield && right.Holding) || (left.Item?.Kind == ItemKind.Shield && left.Holding));
             session.Stamina.Blocking = Blocking;
-            if (Blocking && !wasBlocking && !session.Stamina.TrySpend(playerConfig.Stamina.BlockStartCost))
+            if (Blocking && !wasBlocking && !session.Stamina.TrySpend(playerConfig.Stamina.BlockStartCost * BlockCostMultiplier))
                 Blocking = false;
             // Парирование: блок поставлен ровно в окно парирования вражеской атаки.
             if (Blocking && !wasBlocking)
@@ -472,231 +472,7 @@ namespace ColorsAction.Unity
             }
         }
 
-        // ------------------------------------------------------------------ стрельба
-
-        /// <summary>
-        /// Стрелковое оружие: двуручное стреляет на любую кнопку атаки, одноручное — на кнопку своей руки.
-        /// Курок держит паузу между выстрелами и запоминает раннее нажатие.
-        /// </summary>
-        private void UpdateGun(bool control, float dt)
-        {
-            foreach (var hand in hands)
-            {
-                hand.ShotTime += dt;
-                if (hand.Item == null || !hand.Item.IsRanged)
-                {
-                    hand.Gun.Reset();
-                    continue;
-                }
-
-                bool pressed;
-                if (hand.Item.IsTwoHanded)
-                {
-                    // Двуручное держит и стреляет правая рука, левая ничего не делает.
-                    if (hand.Hand == Hand.Left)
-                    {
-                        hand.Gun.Reset();
-                        continue;
-                    }
-
-                    pressed = input.Pressed(GameAction.Primary) || input.Pressed(GameAction.Secondary);
-                }
-                else
-                {
-                    pressed = input.Pressed(hand.Hand == Hand.Right ? GameAction.Primary : GameAction.Secondary);
-                }
-
-                var config = hand.Item.Ranged;
-                if (!hand.Gun.Tick(dt, control && pressed && attacking == null, config) || !control || attacking != null)
-                    continue;
-                if (!session.Stamina.TrySpend(config.StaminaCost))
-                {
-                    hand.Gun.Failed();
-                    continue;
-                }
-
-                hand.Gun.Fired(config);
-                Fire(hand, config);
-            }
-        }
-
-        /// <summary>
-        /// Выстрел: цель фиксации (СКМ/R3), без неё — прицел схемы Б (правый стик/мышь), иначе — куда смотрит
-        /// персонаж. Пули летят веером мгновенно (луч), урон по цели суммируется в одно попадание.
-        /// </summary>
-        private void Fire(HandState hand, RangedConfig config)
-        {
-            var weapon = hand.Item;
-            var origin = transform.position + Vector3.up * playerConfig.ColliderHeight * 0.5f;
-            var lockOn = controller.LockOn;
-            var locked = lockOn != null && lockOn.Active;
-            var dir = locked ? lockOn.TargetPoint - origin : controller.LookAim ?? controller.Forward;
-            if (dir.sqrMagnitude < 0.0001f)
-                dir = controller.Forward;
-            dir.Normalize();
-            var flat = new Vector3(dir.x, 0f, dir.z);
-            flat = flat.sqrMagnitude > 0.0001f ? flat.normalized : controller.Forward;
-            // Без фиксации прицел только по горизонтали: наклоняем залп к ближайшей цели в веере,
-            // чтобы попадать по врагам выше или ниже (уступ, склон).
-            if (!locked)
-                dir = PitchToTarget(origin, flat, config);
-            controller.FaceNow(flat);
-            hand.ShotTime = 0f;
-            ShotCount++;
-
-            var muzzle = hand.Visual != null ? hand.Visual.transform.TransformPoint(MuzzleOffset) : origin + flat * 0.7f;
-            var color = palette.Get(weapon.Color);
-            var mask = ~((1 << gameObject.layer) | (1 << Debris.Layer));
-            pelletHits.Clear();
-            foreach (var angle in ShotPattern.PelletAngles(config.Pellets, config.Spread, () => Random.value))
-            {
-                var pellet = Quaternion.AngleAxis(angle, Vector3.up) * dir;
-                var end = origin + pellet * config.Range;
-                // Сначала — ближайшая твёрдая преграда (стена, враг); дальше неё пуля не летит.
-                var reach = config.Range;
-                if (Physics.Raycast(origin, pellet, out var block, config.Range, mask, QueryTriggerInteraction.Ignore))
-                {
-                    reach = block.distance;
-                    end = block.point;
-                }
-
-                // Цели до преграды (у некоторых тело — триггер); подсказки и предметы пули пропускают.
-                var count = Physics.RaycastNonAlloc(origin, pellet, rayHits, reach + 0.01f, mask, QueryTriggerInteraction.Collide);
-                System.Array.Sort(rayHits, 0, count, HitDistanceComparer.Instance);
-                for (int i = 0; i < count; i++)
-                {
-                    var target = rayHits[i].collider.GetComponentInParent<IHittable>();
-                    if (target == null)
-                        continue;
-                    pelletHits.TryGetValue(target, out var n);
-                    pelletHits[target] = n + 1;
-                    end = rayHits[i].point;
-                    break;
-                }
-
-                ShotFx.Tracer(muzzle, end, color);
-            }
-
-            foreach (var pair in pelletHits)
-            {
-                var target = pair.Key;
-                var result = rules.Calculate(weapon, null, target.ColorId);
-                var damage = result.Damage * pair.Value;
-                var to = target.HitPoint - origin;
-                to.y = 0f;
-                PelletHitCount += pair.Value;
-                target.ReceiveHit(new HitInfo
-                {
-                    Damage = damage,
-                    ColorBonus = result.ColorBonus,
-                    WeaponColor = color,
-                    Direction = to.sqrMagnitude > 0.0001f ? to.normalized : flat,
-                    Point = target.HitPoint,
-                    Knockback = config.Knockback * pair.Value / Mathf.Max(1, config.Pellets)
-                });
-                events.Publish(new DamageDealt(target.HitPoint, damage, result.ColorBonus, color));
-            }
-
-            // Отдача: персонаж отъезжает назад, куб сжимается и откидывается, камера толкается от выстрела.
-            recoilVector = -flat * config.Recoil;
-            recoilDuration = config.RecoilTime;
-            recoilElapsed = 0f;
-            recoilDone = 0f;
-            ParryFlash.Spawn(muzzle, 0.3f);
-            controller.Deformer.Impulse(-0.9f, new Vector2(0f, -2.2f));
-            if (impulse != null && combatConfig.HitShake > 0f)
-                impulse.GenerateImpulseWithVelocity((-flat + Vector3.down * 0.3f) * (combatConfig.HitShake * 1.2f));
-            if (pelletHits.Count > 0 && combatConfig.HitStop > 0f)
-                StartHitStop(combatConfig.HitStop * 0.6f);
-        }
-
-        /// <summary>
-        /// Направление залпа без фиксации: горизонталь <paramref name="flat"/>, наклонённая к ближайшей цели внутри веера
-        /// (по горизонтали в пределах разброса, по высоте не дальше 3 м). Целей нет — горизонтально.
-        /// </summary>
-        private Vector3 PitchToTarget(Vector3 origin, Vector3 flat, RangedConfig config)
-        {
-            var count = Physics.OverlapSphereNonAlloc(origin, config.Range, aimOverlap, ~((1 << gameObject.layer) | (1 << Debris.Layer)),
-                QueryTriggerInteraction.Collide);
-            var best = float.MaxValue;
-            var result = flat;
-            for (int i = 0; i < count; i++)
-            {
-                var target = aimOverlap[i].GetComponentInParent<IHittable>();
-                if (target == null || target is EnemyController { Dead: true })
-                    continue;
-                var to = target.HitPoint - origin;
-                var horizontal = new Vector3(to.x, 0f, to.z);
-                var distance = horizontal.magnitude;
-                if (distance < 0.01f || distance > config.Range || Mathf.Abs(to.y) > 3f)
-                    continue;
-                if (Vector3.Angle(flat, horizontal) > config.Spread * 0.5f + 5f || distance >= best)
-                    continue;
-                best = distance;
-                result = (flat * distance + Vector3.up * to.y).normalized;
-            }
-
-            return result;
-        }
-
-        /// <summary>Дуло в координатах модели оружия (ствол вдоль +Z).</summary>
-        private static readonly Vector3 MuzzleOffset = new Vector3(0f, 0.05f, 0.84f);
-
-        private sealed class HitDistanceComparer : IComparer<RaycastHit>
-        {
-            public static readonly HitDistanceComparer Instance = new HitDistanceComparer();
-            public int Compare(RaycastHit a, RaycastHit b) => a.distance.CompareTo(b.distance);
-        }
-
-        /// <summary>Поза рук со стрелковым оружием: у бедра, после выстрела — у плеча с отбросом ствола вверх-назад.</summary>
-        private Pose GunPose(HandState hand)
-        {
-            var s = hand.Side;
-            var aim = 1f - Mathf.Clamp01((hand.ShotTime - 0.45f) / 0.3f);
-            var kick = Mathf.Exp(-hand.ShotTime * 14f);
-            var pos = Vector3.Lerp(new Vector3(0.66f * s, 0.4f, 0.05f), new Vector3(0.63f * s, 0.52f, 0.18f), aim)
-                      + new Vector3(0f, 0.06f * kick, -0.16f * kick);
-            var pitch = Mathf.Lerp(16f, 0f, aim) - 30f * kick;
-            return new Pose(pos, Quaternion.Euler(pitch, 0f, 0f));
-        }
-
-        /// <summary>Сколько атак парировано за игру (для автотестов).</summary>
-        public int ParryCount { get; private set; }
-
-        private void TryParry()
-        {
-            var shield = hands[(int)Hand.Left].Item?.Kind == ItemKind.Shield ? hands[(int)Hand.Left].Item
-                : hands[(int)Hand.Right].Item?.Kind == ItemKind.Shield ? hands[(int)Hand.Right].Item : null;
-            if (shield == null)
-                return;
-            var count = 0;
-            var point = Vector3.zero;
-            foreach (var enemy in EnemyController.All)
-            {
-                if (enemy == null || enemy.Dead || !enemy.Brain.InParryWindow)
-                    continue;
-                var to = enemy.transform.position - transform.position;
-                to.y = 0f;
-                var reach = (enemy.Brain.Attack?.Range ?? 2f) + 0.8f;
-                if (to.magnitude > reach || Vector3.Angle(controller.Forward, to) > shield.BlockAngle * 0.5f)
-                    continue;
-                if (!enemy.TryParry(transform.position))
-                    continue;
-                count++;
-                point += enemy.HitPoint;
-            }
-
-            if (count == 0)
-                return;
-            ParryCount += count;
-            // Отдача в щит: короткое сжатие, фриз-кадры, толчок камеры.
-            controller.Deformer.SetSquash(-0.2f, -1.2f);
-            controller.Deformer.Impulse(-0.5f, new Vector2(0f, -1.8f));
-            Shake(combatConfig.ParryShake);
-            if (combatConfig.ParryHitStop > 0f)
-                StartHitStop(combatConfig.ParryHitStop);
-            events.Publish(new ParrySucceeded(point / count, count));
-        }
+        // Стрельба — PlayerCombat.Shotgun.cs; блок, парирование и удар щитом — PlayerCombat.Shield.cs.
 
         /// <summary>Толчок камеры (попадание по игроку, блок).</summary>
         public void Shake(float strength)
@@ -711,7 +487,7 @@ namespace ColorsAction.Unity
         /// </summary>
         public Vector3 ConsumeLunge(Vector3 forward)
         {
-            var recoil = ConsumeRecoil();
+            var recoil = ConsumeRecoil() + ConsumeBashLunge(forward);
             // Отрицательный выпад — шаг назад.
             if (attacking == null || Mathf.Abs(step.Lunge) < 1e-4f)
                 return recoil;
@@ -828,13 +604,15 @@ namespace ColorsAction.Unity
                     pose = AttackPose(hand, StepT);
                 else if (gunHand)
                     pose = GunPose(hand);
+                else if (bashHand == hand)
+                    pose = BashPose(hand);
                 else if (Blocking && hand.Item?.Kind == ItemKind.Shield && hand.Holding)
                     pose = BlockPose(hand);
                 else
                     pose = RestPose(hand);
 
                 // Плавный возврат после отмены удара и при смене позы.
-                var k = attacking == hand || gunHand ? 1f : 1f - Mathf.Exp(-dt * 25f);
+                var k = attacking == hand || gunHand || bashHand == hand ? 1f : 1f - Mathf.Exp(-dt * 25f);
                 if (hand.ResetPose)
                 {
                     k = 1f;

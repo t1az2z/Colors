@@ -52,6 +52,25 @@ namespace ColorsAction.Tests
             Assert.That(shotgun.Ranged.IdleHold.Pitch, Is.GreaterThan(0f), "idle: barrel tilted down");
         }
 
+        [Test]
+        public void ChargedShot_MorePellets_WiderFartherStrongerBrighter()
+        {
+            var ranged = Configs().LoadTable<ItemConfig>(ConfigKeys.Items).Get("shotgun").Ranged;
+            Assert.That(ranged.Charge, Is.Not.Null, "shotgun charges with the generic charge mechanism");
+            Assert.That(ranged.Charge.Upgrade, Is.EqualTo(3), "charged shot is upgrade 3");
+            Assert.That(ranged.Charge.StaminaCost, Is.GreaterThan(0f), "charging costs extra stamina");
+            var normal = ShotParams.From(ranged);
+            var charged = normal.Charged(ranged.ChargedShot, ranged.Charge);
+            Assert.That(charged.Pellets, Is.GreaterThan(normal.Pellets));
+            Assert.That(charged.Spread, Is.EqualTo(normal.Spread * 1.15f).Within(1e-3), "~15% wider");
+            Assert.That(charged.Range, Is.GreaterThan(normal.Range));
+            Assert.That(charged.DamageMultiplier, Is.GreaterThan(1f));
+            Assert.That(charged.Knockback, Is.GreaterThan(normal.Knockback));
+            Assert.That(charged.Glow, Is.GreaterThan(normal.Glow));
+            Assert.That(charged.PelletSize, Is.GreaterThan(normal.PelletSize));
+            Assert.That(normal.Pellets, Is.EqualTo(ranged.Pellets), "the normal shot is untouched (struct copy)");
+        }
+
         // ------------------------------------------------------------------ парирование выстрелом
 
         [Test]

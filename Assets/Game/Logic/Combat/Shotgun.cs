@@ -68,6 +68,33 @@ namespace ColorsAction.Combat
         }
     }
 
+    public static class ShotParamsExtensions
+    {
+        /// <summary>
+        /// Заряженный залп из обычного: пуль <see cref="ChargedShotConfig.Pellets"/>, веер, дальность, скорость, размер,
+        /// свечение и отдача — по множителям; урон и отбрасывание — по множителям заряда.
+        /// </summary>
+        public static ShotParams Charged(this ShotParams shot, ChargedShotConfig charged, ChargeConfig charge)
+        {
+            if (charged == null)
+                throw new ArgumentNullException(nameof(charged));
+            shot.Pellets = charged.Pellets;
+            shot.Spread = Math.Min(180f, shot.Spread * charged.SpreadMultiplier);
+            shot.Range *= charged.RangeMultiplier;
+            shot.Speed *= charged.SpeedMultiplier;
+            shot.PelletSize *= charged.PelletSizeMultiplier;
+            shot.Glow *= charged.GlowMultiplier;
+            shot.Recoil *= charged.RecoilMultiplier;
+            if (charge != null)
+            {
+                shot.DamageMultiplier *= charge.DamageMultiplier;
+                shot.Knockback *= charge.KnockbackMultiplier;
+            }
+
+            return shot;
+        }
+    }
+
     /// <summary>Как вылетает одна пуля: поворот от направления выстрела (по горизонтали и вертикали) и скорость.</summary>
     public readonly struct PelletLaunch
     {

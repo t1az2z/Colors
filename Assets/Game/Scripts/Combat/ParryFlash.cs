@@ -5,12 +5,14 @@ namespace ColorsAction.Unity
     /// <summary>
     /// Вспышка успешного парирования: яркая звезда из лучей-брусков, повёрнутая к камере. Лучи выстреливают
     /// за пару кадров и тают. Время реальное — вспышка видна и во время фриз-кадров (time scale = 0).
+    /// Вспышки (их много: каждый выстрел) берутся из пула.
     /// </summary>
     public sealed class ParryFlash : MonoBehaviour
     {
         private const int Rays = 8;
         private const float Life = 0.28f;
         private static Material material;
+        private static ComponentPool<ParryFlash> pool;
 
         private readonly Transform[] rays = new Transform[Rays];
         private Transform core;
@@ -34,21 +36,27 @@ namespace ColorsAction.Unity
 
         public static ParryFlash Spawn(Vector3 position, float size = 1f)
         {
-            var go = new GameObject("ParryFlash");
-            go.transform.position = position;
-            var flash = go.AddComponent<ParryFlash>();
+            pool ??= new ComponentPool<ParryFlash>("ParryFlash", Create);
+            var flash = pool.Get();
+            flash.transform.position = position;
             flash.size = size;
+            flash.time = 0f;
+            // Лучи разной длины, чуть случайный поворот — вспышка не выглядит штампом.
             for (int i = 0; i < Rays; i++)
-            {
-                var ray = Part(go.transform, "Ray");
-                // Лучи разной длины, чуть случайный поворот — вспышка не выглядит штампом.
-                ray.localRotation = Quaternion.Euler(0f, 0f, i * 360f / Rays + Random.Range(-8f, 8f));
-                flash.rays[i] = ray;
-            }
+                flash.rays[i].localRotation = Quaternion.Euler(0f, 0f, i * 360f / Rays + Random.Range(-8f, 8f));
+            flash.Apply();
+            return flash;
+        }
 
+        private static ParryFlash Create(Transform root)
+        {
+            var go = new GameObject("ParryFlash");
+            go.transform.SetParent(root, false);
+            var flash = go.AddComponent<ParryFlash>();
+            for (int i = 0; i < Rays; i++)
+                flash.rays[i] = Part(go.transform, "Ray");
             flash.core = Part(go.transform, "Core");
             flash.core.localRotation = Quaternion.Euler(0f, 0f, 45f);
-            flash.Apply();
             return flash;
         }
 
@@ -71,7 +79,7 @@ namespace ColorsAction.Unity
             time += Time.unscaledDeltaTime;
             if (time >= Life)
             {
-                Destroy(gameObject);
+                pool.Release(this);
                 return;
             }
 

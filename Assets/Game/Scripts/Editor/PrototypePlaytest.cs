@@ -580,7 +580,14 @@ namespace ColorsAction.Unity.Editor
                             input.ScriptHold(GameAction.Secondary, true);
                             yield return 2;
                             parried = foe.Brain.State == ColorsAction.Combat.EnemyState.Parried;
-                            flashSeen = Object.FindAnyObjectByType<ParryFlash>() != null;
+                            // Вспышка — в момент столкновения: враг ещё доводит удар до середины (ParryContactTime).
+                            for (int w = 0; w < 20 && !flashSeen; w++)
+                            {
+                                flashSeen = Object.FindAnyObjectByType<ParryFlash>() != null;
+                                if (!flashSeen)
+                                    yield return 1;
+                            }
+
                             break;
                         }
 
@@ -592,7 +599,7 @@ namespace ColorsAction.Unity.Editor
                     Check(flashSeen, "parry shows a flash");
                     if (parried)
                     {
-                        yield return 50;
+                        yield return 35;
                         Check(foe.Brain.State == ColorsAction.Combat.EnemyState.Parried, "parried enemy stands with the weapon lowered");
                         yield return Mathf.CeilToInt(foe.Brain.Config.ParriedDuration * 60f);
                         Check(foe.Brain.State != ColorsAction.Combat.EnemyState.Parried, "after the stun the enemy fights again");

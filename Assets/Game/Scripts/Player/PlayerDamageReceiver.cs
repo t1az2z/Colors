@@ -54,7 +54,8 @@ namespace ColorsAction.Unity
             // Блок щитом: удар спереди гасится за выносливость; не хватило — блок пробит.
             if (combat != null && combat.Blocking && BlockCovers(-away))
             {
-                var cost = config.Stamina.BlockStartCost + damage * 1.2f;
+                // Апгрейд 1 щита: блок дешевле.
+                var cost = (config.Stamina.BlockStartCost + damage * 1.2f) * combat.BlockCostMultiplier;
                 var hadStamina = session.Stamina.Current.Value >= cost;
                 session.Stamina.TrySpend(cost);
                 if (hadStamina)

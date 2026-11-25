@@ -538,11 +538,24 @@ namespace ColorsAction.Configs
         /// <summary>Апгрейды на костре.</summary>
         public RangedUpgradesConfig Upgrades { get; set; } = new RangedUpgradesConfig();
 
+        /// <summary>
+        /// Заряд выстрела удержанием кнопки (общий механизм заряда, апгрейд <see cref="ChargeConfig.Upgrade"/>):
+        /// время, выносливость за полный заряд, множители урона и отбрасывания. null — выстрел не заряжается.
+        /// С зарядом выстрел уходит при отпускании кнопки (короткое нажатие — обычный выстрел).
+        /// </summary>
+        public ChargeConfig Charge { get; set; }
+
+        /// <summary>Каким становится залп при полном заряде (пуль больше, веер шире, дальше, ярче).</summary>
+        public ChargedShotConfig ChargedShot { get; set; } = new ChargedShotConfig();
+
         public void Validate(string id)
         {
             IdleHold ??= new GunHoldConfig();
             AimHold ??= new GunHoldConfig { Height = 0.5f, Forward = 0.62f, Pitch = 0f };
             Upgrades ??= new RangedUpgradesConfig();
+            ChargedShot ??= new ChargedShotConfig();
+            Charge?.Validate(id);
+            ChargedShot.Validate(id);
             if (PelletSpeed <= 0f || SpeedJitter < 0f || SpeedJitter >= 1f || AngleJitter < 0f || VerticalJitter < 0f)
                 throw new InvalidOperationException($"ranged weapon '{id}': pelletSpeed > 0, speedJitter in 0..1, jitters not negative");
             if (PelletSize <= 0f || HitRadius < 0f)
@@ -578,9 +591,41 @@ namespace ColorsAction.Configs
     }
 
     /// <summary>
+    /// Заряженный выстрел: изменения залпа относительно обычного. Урон и отбрасывание задаёт заряд
+    /// (<see cref="ChargeConfig.DamageMultiplier"/>, <see cref="ChargeConfig.KnockbackMultiplier"/>).
+    /// </summary>
+    [Preserve]
+    public sealed class ChargedShotConfig
+    {
+        /// <summary>Пуль в заряженном залпе.</summary>
+        public int Pellets { get; set; } = 12;
+
+        /// <summary>Множитель ширины веера (1.15 — на 15% шире).</summary>
+        public float SpreadMultiplier { get; set; } = 1.15f;
+
+        /// <summary>Множители дальности и скорости пуль.</summary>
+        public float RangeMultiplier { get; set; } = 1.5f;
+        public float SpeedMultiplier { get; set; } = 1.15f;
+
+        /// <summary>Множитель размера шарика пули и яркости её свечения.</summary>
+        public float PelletSizeMultiplier { get; set; } = 1.4f;
+        public float GlowMultiplier { get; set; } = 2f;
+
+        /// <summary>Множитель отдачи.</summary>
+        public float RecoilMultiplier { get; set; } = 1.6f;
+
+        public void Validate(string id)
+        {
+            if (Pellets < 1 || SpreadMultiplier <= 0f || RangeMultiplier <= 0f || SpeedMultiplier <= 0f ||
+                PelletSizeMultiplier <= 0f || GlowMultiplier < 0f || RecoilMultiplier < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': chargedShot pellets >= 1, multipliers positive");
+        }
+    }
+
+    /// <summary>
     /// Апгрейды стрелкового оружия (id предмета в WeaponUpgrades). 1 — дешевле выстрел; 2 — парирование выстрелом:
     /// залп в окно парирования вражеской атаки парирует её, если в врага попало не меньше <see cref="ParryPellets"/> пуль,
-    /// и урон этих пуль умножается на <see cref="ParryDamageMultiplier"/>. 3 — заряженный выстрел (отдельно).
+    /// и урон этих пуль умножается на <see cref="ParryDamageMultiplier"/>. 3 — заряженный выстрел (<see cref="RangedConfig.Charge"/>, <see cref="RangedConfig.ChargedShot"/>).
     /// </summary>
     [Preserve]
     public sealed class RangedUpgradesConfig

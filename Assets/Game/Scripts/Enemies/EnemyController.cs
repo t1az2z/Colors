@@ -234,6 +234,7 @@ namespace ColorsAction.Unity
                 TryHitPlayer(distance, dir, true);
             strikeEndedThisFrame = false;
             UpdateParryWindow();
+            UpdateParryContact();
 
             if (flash > 0f)
             {
@@ -295,22 +296,91 @@ namespace ColorsAction.Unity
         private float parryGlint;
         private Pose parriedFrom;
 
+        // Подача парирования: удар ещё идёт до столкновения (ParryContactTime), потом отскок.
+        private bool parryContactPending;
+        private float parryArcFrom;
+        private float parryArcTo;
+        private Vector3 parryFromPoint;
+        private System.Action<Vector3> parryContact;
+
         /// <summary>
-        /// Игрок поставил блок щитом: если сейчас окно парирования, атака парирована — вспышка у оружия,
-        /// оружие отскакивает, враг отшатывается и стоит с опущенным оружием (<see cref="EnemyConfig.ParriedDuration"/>).
+        /// Игрок поставил блок щитом (или ударил щитом): если сейчас окно парирования (расширенное на долю
+        /// <paramref name="widen"/> апгрейдом щита), атака парирована. Враг ещё доводит удар до середины дуги,
+        /// оружие сталкивается со щитом (вспышка, <paramref name="onContact"/> — фриз-кадры у игрока), отскакивает,
+        /// враг отшатывается и стоит с опущенным оружием (<see cref="EnemyConfig.ParriedDuration"/>).
         /// </summary>
         /// <returns>true — парировано.</returns>
-        public bool TryParry(Vector3 from)
+        public bool TryParry(Vector3 from, float widen = 0f, System.Action<Vector3> onContact = null)
         {
-            if (brain == null || Dead || !brain.TryParry())
+            if (brain == null || Dead || !brain.IsInParryWindow(widen))
                 return false;
-            var away = transform.position - from;
-            away.y = 0f;
-            away = away.sqrMagnitude > 0.001f ? away.normalized : -(Quaternion.Euler(0, yaw, 0) * Vector3.forward);
-            push = away * 2.2f;
-            ParryFlash.Spawn(WeaponTip(), 0.9f);
+            return Parry(from, onContact);
+        }
+
+        /// <summary>
+        /// Парировать без проверки окна (окно проверено раньше — выстрел дробовика в окно, пули долетели позже).
+        /// Срабатывает, пока атака идёт (<see cref="EnemyBrain.CanBeParried"/>).
+        /// </summary>
+        public bool Parry(Vector3 from, System.Action<Vector3> onContact = null)
+        {
+            if (brain == null || Dead || !brain.CanBeParried)
+                return false;
+            // Где по дуге сейчас оружие: на замахе — в начале, в ударе — по прогрессу удара.
+            var arcNow = brain.State == EnemyState.Windup ? 0f
+                : brain.State == EnemyState.Strike ? StrikeArc(brain.PhaseProgress)
+                : 1f;
+            if (!brain.Parry())
+                return false;
+            parryArcFrom = arcNow;
+            parryArcTo = Mathf.Max(arcNow, config.ParryContactArc);
+            parryFromPoint = from;
+            parryContact = onContact;
+            parryContactPending = true;
+            if (config.ParryContactTime <= 0f)
+                ParryContact();
             return true;
         }
+
+        /// <summary>Доля дуги удара по прогрессу фазы удара (удар резкий: быстро набирает ход).</summary>
+        private static float StrikeArc(float p) => 1f - (1f - p) * (1f - p) * (1f - p);
+
+        private void UpdateParryContact()
+        {
+            if (!parryContactPending)
+                return;
+            if (brain.State != EnemyState.Parried)
+            {
+                parryContactPending = false;
+                parryContact = null;
+                return;
+            }
+
+            if (brain.StateTime >= config.ParryContactTime)
+                ParryContact();
+        }
+
+        /// <summary>Оружие встретило щит: вспышка у оружия, отдача и отскок назад.</summary>
+        private void ParryContact()
+        {
+            parryContactPending = false;
+            var away = transform.position - parryFromPoint;
+            away.y = 0f;
+            away = away.sqrMagnitude > 0.001f ? away.normalized : -(Quaternion.Euler(0, yaw, 0) * Vector3.forward);
+            // Удар щитом мог уже толкнуть сильнее — не ослабляем.
+            push = away * Mathf.Max(2.2f, push.magnitude);
+            parriedFrom = handPose;
+            deformer.SetSquash(-0.3f, -2f);
+            deformer.Impulse(-1f, new Vector2(0f, -3.5f));
+            flash = 0.08f;
+            var tip = WeaponTip();
+            ParryFlash.Spawn(tip, 0.9f);
+            var callback = parryContact;
+            parryContact = null;
+            callback?.Invoke(tip);
+        }
+
+        /// <summary>Время с парирования, считая от столкновения оружия (до него — отрицательное).</summary>
+        private float ParryRecoilTime => brain.StateTime - Mathf.Max(0f, config.ParryContactTime);
 
         /// <summary>Точка у головы дубины в мире (для вспышки).</summary>
         private Vector3 WeaponTip() => hand != null ? hand.TransformPoint(Vector3.up * 0.55f) : HitPoint;
@@ -390,11 +460,9 @@ namespace ColorsAction.Unity
                     marker.Hide();
                     break;
                 case EnemyState.Parried:
-                    // Отдача: оружие отскакивает из текущей позы, куб сжимается и откидывается назад.
+                    // Удар ещё идёт (до столкновения со щитом): отдача и отскок — в ParryContact.
                     parriedFrom = handPose;
-                    deformer.SetSquash(-0.3f, -2f);
-                    deformer.Impulse(-1f, new Vector2(0f, -3.5f));
-                    flash = 0.08f;
+                    deformer.Impulse(-1.2f);
                     break;
                 case EnemyState.Dead:
                     Die();
@@ -435,20 +503,14 @@ namespace ColorsAction.Unity
             var size = config.Size;
             var center = transform.position + Vector3.up * size * 0.5f;
             var pieces = Debris.Burst(center, color, config.DeathPieces, 0.24f * size, 4.5f, 2.4f);
-            // Часть осколков после разлёта летит к игроку как опыт.
+            // Часть осколков после разлёта летит к игроку как опыт (осколки — из пула).
             var shards = Mathf.Min(config.ExperiencePieces, pieces.Count);
             var per = shards > 0 ? Mathf.Max(1, config.Experience / shards) : 0;
             var rest = config.Experience - per * shards;
+            var experience = session.Experience;
             for (int i = 0; i < shards; i++)
-            {
-                var piece = pieces[i];
-                Destroy(piece.GetComponent<FadeAndDie>());
-                var shard = piece.gameObject.AddComponent<ExperienceShard>();
-                shard.Target = player != null ? player.transform : null;
-                shard.Amount = per + (i == 0 ? rest : 0);
-                shard.Delay = 0.7f + i * 0.06f;
-                shard.Collected = amount => session.Experience.Value += amount;
-            }
+                pieces[i].FlyToAsExperience(player != null ? player.transform : null, per + (i == 0 ? rest : 0), 0.7f + i * 0.06f,
+                    amount => experience.Value += amount);
 
             Destroy(gameObject);
         }
@@ -485,9 +547,22 @@ namespace ColorsAction.Unity
         private static Pose Lowered => new Pose(new Vector3(0.64f, 0.24f, 0.18f),
             Quaternion.FromToRotation(Vector3.up, new Vector3(0.18f, -0.72f, 0.67f).normalized));
 
+        /// <param name="t">Время с момента столкновения оружия со щитом (до него — отрицательное).</param>
         private Pose ParriedPose(float t)
         {
             const float bounce = 0.14f, lower = 0.5f;
+            if (t < 0f)
+            {
+                // Удар не закончен: оружие идёт по дуге парированной атаки до точки столкновения (до середины удара),
+                // с ускорением, как настоящий удар.
+                var attack = brain.ParriedAttack;
+                if (attack == null)
+                    return parriedFrom;
+                var u = Mathf.Clamp01(1f + t / Mathf.Max(0.001f, config.ParryContactTime));
+                var arc = Mathf.Lerp(parryArcFrom, parryArcTo, u * u);
+                return PlayerCombat.AroundBody(parriedFrom, ArcPose(attack.Motion, arc), Mathf.Clamp01(u * 2f));
+            }
+
             if (t < bounce)
             {
                 var u = t / bounce;
@@ -509,7 +584,7 @@ namespace ColorsAction.Unity
         private Pose HandPose()
         {
             if (brain.State == EnemyState.Parried)
-                return ParriedPose(brain.StateTime);
+                return ParriedPose(ParryRecoilTime);
             var attack = brain.Attack;
             if (attack == null)
                 return Rest;
@@ -602,11 +677,22 @@ namespace ColorsAction.Unity
 
             if (state == EnemyState.Parried)
             {
-                // Отшатнулся назад, потом обмяк: поклон вперёд с опущенным оружием.
-                var t = brain.StateTime;
-                pitch = t < 0.2f ? -16f : 7f;
-                twist = 0f;
-                deformer.SquashTarget = t < 0.2f ? 0f : -0.06f;
+                var t = ParryRecoilTime;
+                var parried = brain.ParriedAttack;
+                if (t < 0f && parried != null)
+                {
+                    // До столкновения — тело ещё бьёт: поклон и раскрутка удара.
+                    var sweep = parried.Motion == EnemyAttackMotion.Sweep;
+                    twist = sweep ? 24f : 0f;
+                    pitch = sweep ? 10f : 28f;
+                }
+                else
+                {
+                    // Отшатнулся назад, потом обмяк: поклон вперёд с опущенным оружием.
+                    pitch = t < 0.2f ? -16f : 7f;
+                    twist = 0f;
+                    deformer.SquashTarget = t < 0.2f ? 0f : -0.06f;
+                }
             }
 
             deformer.TwistTarget = twist;
