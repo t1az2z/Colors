@@ -415,6 +415,9 @@ namespace ColorsAction.Configs
         /// <summary>Щит: угол перед игроком, в котором блок гасит удар.</summary>
         public float BlockAngle { get; set; } = 120f;
 
+        /// <summary>Щит: параметры апгрейдов (дешевле блок, шире окно парирования, удар щитом).</summary>
+        public ShieldConfig Shield { get; set; }
+
         public bool IsWeapon => Kind == ItemKind.OneHanded || Kind == ItemKind.TwoHanded || Kind == ItemKind.Shield;
         public bool IsTwoHanded => Kind == ItemKind.TwoHanded;
         public bool IsRanged => Ranged != null;
@@ -427,6 +430,9 @@ namespace ColorsAction.Configs
             foreach (var step in Combo)
                 step?.Normalize();
             Ranged?.Validate(Id);
+            if (Kind == ItemKind.Shield)
+                Shield ??= new ShieldConfig();
+            Shield?.Validate(Id);
             if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Ranged == null && Combo.Count == 0)
                 throw new InvalidOperationException($"weapon '{Id}' needs at least one combo step");
         }
@@ -466,8 +472,47 @@ namespace ColorsAction.Configs
         /// <summary>Нажатие раньше конца паузы запоминается на столько секунд и стреляет, как только можно.</summary>
         public float InputBuffer { get; set; } = 0.12f;
 
+        // Пули — настоящие снаряды: летят со скоростью, попадают при касании, останавливаются о стены.
+
+        /// <summary>Скорость пули, м/с.</summary>
+        public float PelletSpeed { get; set; } = 45f;
+
+        /// <summary>Разброс скорости пуль, доля: 0.15 — каждая пуля от 85% до 115% скорости.</summary>
+        public float SpeedJitter { get; set; } = 0.15f;
+
+        /// <summary>Случайный сдвиг угла каждой пули поверх веера, ± градусы: залп не выглядит ровным веером.</summary>
+        public float AngleJitter { get; set; } = 3f;
+
+        /// <summary>Случайный наклон пули вверх-вниз, ± градусы.</summary>
+        public float VerticalJitter { get; set; } = 1f;
+
+        /// <summary>Диаметр шарика пули (визуал), метры.</summary>
+        public float PelletSize { get; set; } = 0.1f;
+
+        /// <summary>Радиус попадания пули (толщина проверки касания), метры.</summary>
+        public float HitRadius { get; set; } = 0.08f;
+
+        /// <summary>Яркость свечения пули (HDR-множитель цвета оружия).</summary>
+        public float PelletGlow { get; set; } = 2.2f;
+
+        /// <summary>Поза в руках: в покое — перед кубом стволом чуть вниз; после выстрела — на прицеле.</summary>
+        public GunHoldConfig IdleHold { get; set; } = new GunHoldConfig();
+        public GunHoldConfig AimHold { get; set; } = new GunHoldConfig { Height = 0.5f, Forward = 0.62f, Pitch = 0f };
+
+        /// <summary>Апгрейды на костре.</summary>
+        public RangedUpgradesConfig Upgrades { get; set; } = new RangedUpgradesConfig();
+
         public void Validate(string id)
         {
+            IdleHold ??= new GunHoldConfig();
+            AimHold ??= new GunHoldConfig { Height = 0.5f, Forward = 0.62f, Pitch = 0f };
+            Upgrades ??= new RangedUpgradesConfig();
+            if (PelletSpeed <= 0f || SpeedJitter < 0f || SpeedJitter >= 1f || AngleJitter < 0f || VerticalJitter < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': pelletSpeed > 0, speedJitter in 0..1, jitters not negative");
+            if (PelletSize <= 0f || HitRadius < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': pelletSize > 0, hitRadius >= 0");
+            if (Upgrades.StaminaCostMultiplier < 0f || Upgrades.ParryPellets < 1 || Upgrades.ParryDamageMultiplier < 1f)
+                throw new InvalidOperationException($"ranged weapon '{id}': upgrades staminaCostMultiplier >= 0, parryPellets >= 1, parryDamageMultiplier >= 1");
             if (Pellets < 1)
                 throw new InvalidOperationException($"ranged weapon '{id}': pellets must be at least 1");
             if (Range <= 0f || Cooldown < 0f || Spread < 0f || Spread > 180f)
@@ -476,6 +521,92 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException($"ranged weapon '{id}': recoil >= 0, recoilTime > 0");
             if (StaminaCost < 0f || Knockback < 0f || InputBuffer < 0f)
                 throw new InvalidOperationException($"ranged weapon '{id}': staminaCost, knockback and inputBuffer must not be negative");
+        }
+    }
+
+    /// <summary>Поза стрелкового оружия в руке (координаты меша куба: +X вправо, +Y вверх, +Z вперёд).</summary>
+    [Preserve]
+    public sealed class GunHoldConfig
+    {
+        /// <summary>Сдвиг вбок от центра куба (для правой руки вправо), метры.</summary>
+        public float Side { get; set; } = 0.22f;
+
+        /// <summary>Высота хвата над низом куба, метры.</summary>
+        public float Height { get; set; } = 0.42f;
+
+        /// <summary>Вынос вперёд от центра куба (передняя грань — 0.5), метры.</summary>
+        public float Forward { get; set; } = 0.58f;
+
+        /// <summary>Наклон ствола вниз, градусы.</summary>
+        public float Pitch { get; set; } = 16f;
+    }
+
+    /// <summary>
+    /// Апгрейды стрелкового оружия (id предмета в WeaponUpgrades). 1 — дешевле выстрел; 2 — парирование выстрелом:
+    /// залп в окно парирования вражеской атаки парирует её, если в врага попало не меньше <see cref="ParryPellets"/> пуль,
+    /// и урон этих пуль умножается на <see cref="ParryDamageMultiplier"/>. 3 — заряженный выстрел (отдельно).
+    /// </summary>
+    [Preserve]
+    public sealed class RangedUpgradesConfig
+    {
+        /// <summary>Апгрейд 1: множитель выносливости за выстрел.</summary>
+        public float StaminaCostMultiplier { get; set; } = 0.6f;
+
+        /// <summary>Апгрейд 2: сколько пуль залпа должно попасть во врага, чтобы парировать.</summary>
+        public int ParryPellets { get; set; } = 3;
+
+        /// <summary>Апгрейд 2: множитель урона пуль парирующего залпа.</summary>
+        public float ParryDamageMultiplier { get; set; } = 3f;
+    }
+
+    /// <summary>
+    /// Щит и его апгрейды (id предмета в WeaponUpgrades). 1 — дешевле блок; 2 — шире окно парирования;
+    /// 3 — удар щитом: отпустить блок и сразу нажать снова.
+    /// </summary>
+    [Preserve]
+    public sealed class ShieldConfig
+    {
+        /// <summary>Апгрейд 1: множитель выносливости на блок (поднять щит и принять удар).</summary>
+        public float BlockCostMultiplier { get; set; } = 0.6f;
+
+        /// <summary>
+        /// Апгрейд 2: окно парирования шире на эту долю своей длины, поровну в обе стороны
+        /// (0.5 — окно в 1.5 раза длиннее: по 25% длины раньше и позже).
+        /// </summary>
+        public float ParryWindowBonus { get; set; } = 0.5f;
+
+        /// <summary>Апгрейд 3: удар щитом, если блок отпущен и нажат снова не позже чем через столько секунд.</summary>
+        public float BashMaxGap { get; set; } = 0.25f;
+
+        public float BashStaminaCost { get; set; } = 12f;
+        public float BashDamage { get; set; } = 8f;
+
+        /// <summary>Отбрасывание врага ударом щитом (как knockback удара).</summary>
+        public float BashKnockback { get; set; } = 2.5f;
+
+        /// <summary>Дальность и ширина сектора удара щитом.</summary>
+        public float BashRange { get; set; } = 1.7f;
+        public float BashArc { get; set; } = 110f;
+
+        /// <summary>Фазы удара щитом, секунды: замах, толчок (в конце — попадание), возврат.</summary>
+        public float BashWindup { get; set; } = 0.06f;
+        public float BashStrike { get; set; } = 0.08f;
+        public float BashRecovery { get; set; } = 0.22f;
+
+        /// <summary>Рывок вперёд при ударе щитом, метры.</summary>
+        public float BashLunge { get; set; } = 0.4f;
+
+        /// <summary>Удар щитом в окно парирования вражеской атаки: множитель урона и отбрасывания (и атака парирована).</summary>
+        public float BashParryMultiplier { get; set; } = 2f;
+
+        public float BashDuration => BashWindup + BashStrike + BashRecovery;
+
+        public void Validate(string id)
+        {
+            if (BlockCostMultiplier < 0f || ParryWindowBonus < 0f || BashMaxGap < 0f || BashStaminaCost < 0f)
+                throw new InvalidOperationException($"shield '{id}': blockCostMultiplier, parryWindowBonus, bashMaxGap, bashStaminaCost must not be negative");
+            if (BashWindup < 0f || BashStrike <= 0f || BashRecovery < 0f || BashRange <= 0f || BashParryMultiplier < 1f)
+                throw new InvalidOperationException($"shield '{id}': bash phases (strike > 0), bashRange > 0, bashParryMultiplier >= 1");
         }
     }
 

@@ -20,7 +20,13 @@
     "kind": "TwoHanded",
     "damage": 3,
     "prefab": "Items/Shotgun",
-    "ranged": { "pellets": 8, "spread": 30, "range": 7, "cooldown": 0.3, "staminaCost": 20, "knockback": 1.2, "recoil": 0.35, "recoilTime": 0.12, "inputBuffer": 0.12 }
+    "ranged": {
+      "pellets": 8, "spread": 30, "range": 7, "cooldown": 0.3, "staminaCost": 20, "knockback": 1.2, "recoil": 0.35, "recoilTime": 0.12, "inputBuffer": 0.12,
+      "pelletSpeed": 45, "speedJitter": 0.15, "angleJitter": 3, "verticalJitter": 1, "pelletSize": 0.1, "hitRadius": 0.08, "pelletGlow": 2.2,
+      "idleHold": { "side": 0.22, "height": 0.42, "forward": 0.58, "pitch": 16 },
+      "aimHold": { "side": 0.22, "height": 0.5, "forward": 0.62, "pitch": 0 },
+      "upgrades": { "staminaCostMultiplier": 0.6, "parryPellets": 3, "parryDamageMultiplier": 3 }
+    }
   },
   "shield": {
     "name": "Щит",
@@ -29,7 +35,13 @@
     "hand": "Left",
     "damage": 0,
     "prefab": "Items/Shield",
-    "blockAngle": 120
+    "blockAngle": 120,
+    "shield": {
+      "blockCostMultiplier": 0.6,
+      "parryWindowBonus": 0.5,
+      "bashMaxGap": 0.25, "bashStaminaCost": 12, "bashDamage": 8, "bashKnockback": 2.5, "bashRange": 1.7, "bashArc": 110,
+      "bashWindup": 0.06, "bashStrike": 0.08, "bashRecovery": 0.22, "bashLunge": 0.4, "bashParryMultiplier": 2
+    }
   },
   "fists": {
     "name": "Кулаки",

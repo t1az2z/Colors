@@ -56,6 +56,17 @@ namespace ColorsAction.Configs
         public float ParryFrom { get; set; } = -0.18f;
         public float ParryTo { get; set; } = 0.06f;
 
+        /// <summary>
+        /// Окно парирования, расширенное на долю <paramref name="widen"/> своей длины поровну в обе стороны
+        /// (апгрейд щита: 0.5 — по четверти длины раньше и позже).
+        /// </summary>
+        public void ParryWindow(float widen, out float from, out float to)
+        {
+            var extra = Math.Max(0f, ParryTo - ParryFrom) * Math.Max(0f, widen) * 0.5f;
+            from = ParryFrom - extra;
+            to = ParryTo + extra;
+        }
+
         public float Total => Windup + Strike + Hold + Recovery;
     }
 
@@ -100,6 +111,15 @@ namespace ColorsAction.Configs
 
         /// <summary>После парирования: враг стоит с опущенным оружием столько секунд.</summary>
         public float ParriedDuration { get; set; } = 1f;
+
+        /// <summary>
+        /// Подача парирования: враг ещё успевает начать удар и встречает щит на полпути — через столько секунд
+        /// после парирования оружие "сталкивается" (вспышка, фриз-кадры) и отскакивает.
+        /// </summary>
+        public float ParryContactTime { get; set; } = 0.07f;
+
+        /// <summary>Докуда по дуге удара (0..1) оружие успевает дойти до столкновения при парировании.</summary>
+        public float ParryContactArc { get; set; } = 0.45f;
 
         /// <summary>Насколько стремится зайти игроку за спину, пока ждёт очереди: 0 — где стоит, 1 — точно сзади.</summary>
         public float FlankBias { get; set; } = 1f;
