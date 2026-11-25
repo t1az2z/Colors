@@ -2,6 +2,7 @@
   "title": "ColorsAction",
   "level": "Levels/Test",
   "debugWeaponUpgrades": {
+    "sword": 3,
     "shield": 3,
     "shotgun": 3
   }

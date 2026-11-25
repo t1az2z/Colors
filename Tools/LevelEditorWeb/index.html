@@ -30,7 +30,7 @@
   #app { display: grid; grid-template-columns: 68px 1fr 300px; grid-template-rows: 54px 1fr; height: 100vh; height: 100dvh; }
   header { grid-column: 1 / 4; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); min-width: 0; }
   header h1 { font-size: 15px; font-weight: 650; margin: 0 6px 0 2px; display: flex; gap: 8px; align-items: center; white-space: nowrap; }
-  header .name { font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+  header .name { font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; cursor: pointer; }
   header .name b { color: var(--text); }
   header .name { cursor: pointer; }
   .modal textarea { width: 100%; height: 90px; font: 12px ui-monospace, monospace; border: 1px solid var(--line2); border-radius: 7px; padding: 6px; resize: vertical; }
@@ -131,7 +131,7 @@
 
   <div id="panel"></div>
 </div>
-<input type="file" id="fileInput" accept=".json,application/json" class="hidden">
+<input type="file" id="fileInput" accept=".json,.txt,application/json,text/plain" class="hidden">
 
 <script src="three.min.js"></script>
 <script>
@@ -512,14 +512,17 @@ function manualCopy(title, text) {
 }
 async function share() {
   const fileName = L.file + '.json';
-  const file = new File([levelBlob()], fileName, { type: 'application/json' });
+  // Chrome на Android не пускает .json в «Поделиться» — пробуем тот же текст файлом .json.txt (после получения убрать «.txt»).
+  const blob = levelBlob();
+  const file = [new File([blob], fileName, { type: 'application/json' }), new File([blob], fileName + '.txt', { type: 'text/plain' })].find(canShareFile)
+    || new File([blob], fileName, { type: 'application/json' });
   const fileOk = canShareFile(file);
   let link = null;
   if (/^https?:$/.test(location.protocol)) { try { link = await levelLink(); } catch (e) { link = null; } }
   modal((m, close) => {
     const item = (title, sub, fn) => h('button', { on: { click: () => { close(); fn(); } } }, title, sub ? h('small', {}, sub) : null);
     const sendFile = async () => {
-      try { await navigator.share({ files: [file], title: fileName }); toast('Отправлен ' + fileName); }
+      try { await navigator.share({ files: [file], title: fileName }); toast(file.name === fileName ? 'Отправлен ' + fileName : 'Отправлен ' + file.name + '. На ПК убери «.txt» в конце имени', 4000); }
       catch (e) { if (e.name !== 'AbortError') { toast('Система не дала отправить файл (' + (e.message || e.name) + '), скачиваю', 3500); download(); } }
     };
     const copyLink = async () => { if (await copyText(link)) toast('Ссылка на уровень скопирована — вставь её в сообщение', 3000); else manualCopy('Ссылка на уровень', link); };
@@ -542,7 +545,7 @@ async function share() {
 function openFile() { $('#fileInput').value = ''; $('#fileInput').click(); }
 $('#fileInput').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
-  try { fromJSON(JSON.parse(await f.text()), f.name.replace(/\.json$/i, '')); toast('Открыт ' + f.name); }
+  try { fromJSON(JSON.parse(await f.text()), f.name.replace(/(\.json)?(\.txt)?$/i, '')); toast('Открыт ' + f.name); }
   catch (err) { toast('Не получилось открыть: ' + err.message, 4000); }
 });
 
@@ -853,8 +856,8 @@ function viewPanel() {
     row('Наклон', chips([[30, '30°'], [35.26, 'изо'], [50, '50°'], [65, '65°'], [90, 'сверху']], Math.round(cam.pitchT * 100) / 100, v => { cam.pitchT = v; })),
     row('Поворот', chips([[false, 'свободный'], [true, 'по 90°']], cam.snap, v => { cam.snap = v; if (v) cam.yawT = Math.round((cam.yawT - 45) / 90) * 90 + 45; })),
     H3('Уровень'),
-    row('Название', textInput(L.name, v => { touchMarkup(); L.name = v || 'Уровень'; commit(); renderName(); })),
-    row('Имя файла', textInput(L.file, v => { L.file = (v || 'Level').replace(/\.json$/i, '').replace(/[^\w\-]/g, ''); renderName(); autosave(); })),
+    row('Название', textInput(L.name, v => setLevelName(v, L.file === fileNameFrom(L.name) ? null : L.file))),
+    row('Имя файла', textInput(L.file, v => setLevelName(L.name, v || 'Level'))),
     h('div', { class: 'note' }, `Блоков: ${L.blocks.size}, объектов: ${L.objects.length}, точек: ${L.points.length}. Размер: ${bounds.maxX - bounds.minX + 1}×${bounds.maxZ - bounds.minZ + 1}, высота ${bounds.minY}…${bounds.maxY}.`),
   ];
 }
@@ -915,6 +918,15 @@ function confirmBox(text, ok) {
   modal((m, close) => m.append(h('h2', {}, 'Точно?'), h('p', {}, text), h('div', { class: 'actions' },
     h('button', { on: { click: close } }, 'Отмена'), h('button', { class: 'primary', on: { click: () => { close(); ok(); } } }, 'Да'))));
 }
+const cleanFileName = v => String(v || '').trim().replace(/\.json$/i, '').replace(/[^\w\-]/g, '');
+function setLevelName(name, file) {
+  name = String(name || '').trim() || L.name;
+  file = cleanFileName(file) || fileNameFrom(name);
+  if (name !== L.name) { touchMarkup(); L.name = name; commit(); }
+  L.file = file;
+  renderName(); renderPanel(); autosave();
+  toast('Уровень сохранится как ' + file + '.json');
+}
 function fileMenu() {
   modal((m, close) => {
     const item = (title, sub, fn) => h('button', { on: { click: () => { close(); fn(); } } }, title, sub ? h('small', {}, sub) : null);
@@ -940,9 +952,8 @@ function renameDialog(saveAfter) {
       const f = String(file || '').trim().replace(/\.json$/i, '').replace(/[^\w\-]/g, '');
       if (!f) { toast('Имя файла: латиница, цифры, _ и -', 3000); return; }
       close();
-      L.name = name.trim() || 'Уровень'; L.file = f;
-      renderName(); renderPanel(); autosave();
-      if (saveAfter) download(); else toast('Уровень: ' + L.name + ' · ' + L.file + '.json');
+      setLevelName(name.trim() || 'Уровень', f);
+      if (saveAfter) download();
     };
     const enter = e => { if (e.key === 'Enter') ok(); };
     nameInp.addEventListener('keydown', enter); fileInp.addEventListener('keydown', enter);
@@ -1726,6 +1737,7 @@ function rotateCam(dir) { cam.yawT = cam.snap ? Math.round((cam.yawT - 45) / 90)
 // ============================================================================ кнопки
 
 $('#bFile').onclick = fileMenu;
+$('#levelName').title = 'Переименовать';
 $('#bSave').onclick = download;
 $('#levelName').onclick = () => renameDialog(false);
 $('#bUndo').onclick = undo;

@@ -297,6 +297,22 @@ namespace ColorsAction.Configs
         /// </summary>
         public float RollLockFrom { get; set; }
         public float RollLockTo { get; set; } = -1f;
+
+        /// <summary>
+        /// Окно эффекта удара (след клинка), доли всего удара (замах + удар + фиксация + возврат, 0..1).
+        /// Меньше нуля — автоматически: чуть до удара и до конца фиксации позы.
+        /// </summary>
+        public float FxFrom { get; set; } = -1f;
+        public float FxTo { get; set; } = -1f;
+
+        /// <summary>Удар доступен только с этим апгрейдом оружия (1..3); 0 — всегда. Закрытые удары серия пропускает.</summary>
+        public int Upgrade { get; set; }
+
+        /// <summary>Подскок в начале удара, блоки высоты (0 — без подскока). Вместе с отрицательным выпадом — отскок назад.</summary>
+        public float Hop { get; set; }
+
+        /// <summary>Заряд удержанием кнопки атаки (null — удар не заряжается).</summary>
+        public ChargeConfig Charge { get; set; }
     }
 
     public static class AttackStepTiming
@@ -347,6 +363,36 @@ namespace ColorsAction.Configs
             step.Duration = step.Windup + step.Strike + step.Recovery;
             step.ActiveFrom = step.Windup / step.Duration;
             step.ActiveTo = (step.Windup + step.Strike) / step.Duration;
+            if (step.FxFrom >= 0f && step.FxTo >= 0f)
+            {
+                step.FxFrom = Math.Min(1f, step.FxFrom);
+                step.FxTo = Math.Max(step.FxFrom, Math.Min(1f, step.FxTo));
+            }
+        }
+
+        /// <summary>
+        /// Окно эффекта (след клинка) в секундах от начала удара. Без FxFrom/FxTo — как раньше:
+        /// с 0.1 длительности до удара и до 0.12 длительности после фиксации позы.
+        /// </summary>
+        public static void FxWindow(this AttackStepConfig step, out float from, out float to)
+        {
+            var total = step.TotalTime();
+            if (step.FxFrom < 0f || step.FxTo < 0f)
+            {
+                from = Math.Max(0f, step.Windup - 0.1f * step.Duration);
+                to = Math.Min(total, step.Windup + step.Strike + step.Hold + 0.12f * step.Duration);
+                return;
+            }
+
+            from = step.FxFrom * total;
+            to = step.FxTo * total;
+        }
+
+        /// <summary>Эффект удара включён в момент <paramref name="time"/> (секунды от начала удара).</summary>
+        public static bool FxActive(this AttackStepConfig step, float time)
+        {
+            step.FxWindow(out var from, out var to);
+            return time >= from && time <= to;
         }
     }
 
@@ -384,6 +430,12 @@ namespace ColorsAction.Configs
 
         public List<AttackStepConfig> Combo { get; set; } = new List<AttackStepConfig>();
 
+        /// <summary>Добивающий удар после паузы в серии (null — нет).</summary>
+        public FinisherConfig Finisher { get; set; }
+
+        /// <summary>Удар в прыжке: падение вниз и удар по площади при приземлении (null — в воздухе обычная серия).</summary>
+        public PlungeConfig Plunge { get; set; }
+
         /// <summary>
         /// Стрелковое оружие (дробовик): если задано, кнопка атаки стреляет вместо серии ударов,
         /// урон одной пули — <see cref="Damage"/>.
@@ -406,7 +458,13 @@ namespace ColorsAction.Configs
             // Окно попадания должно идти вперёд по времени: перепутанные границы меняем местами,
             // иначе удар молча перестаёт наносить урон.
             foreach (var step in Combo)
+            {
                 step?.Normalize();
+                step?.Charge?.Validate(Id);
+            }
+
+            Finisher?.Validate(Id);
+            Plunge?.Validate(Id);
             Ranged?.Validate(Id);
             if (Kind == ItemKind.Shield)
                 Shield ??= new ShieldConfig();
