@@ -224,6 +224,7 @@ namespace ColorsAction.Unity
             if (locked.HasValue)
                 AimPoint = null;
             var aim = locked ?? (HasControl ? AimDirection() : null);
+            LookAim = locked.HasValue ? null : aim;
             var facing = aim ?? move;
             var turn = locked.HasValue ? lockOn.Config.LockOnTurnSpeed
                 : aim.HasValue ? config.TurnSpeed * 2f : config.TurnSpeed;
@@ -232,6 +233,20 @@ namespace ColorsAction.Unity
                 var targetYaw = Mathf.Atan2(facing.x, facing.z) * Mathf.Rad2Deg;
                 yaw = Mathf.MoveTowardsAngle(yaw, targetYaw, turn * dt);
             }
+        }
+
+        /// <summary>
+        /// Направление взгляда с прицела (схема Б: правый стик или мышь) в этом кадре; null — прицела нет,
+        /// персонаж смотрит по движению (<see cref="Forward"/>).
+        /// </summary>
+        public Vector3? LookAim { get; private set; }
+
+        /// <summary>Мгновенно развернуть персонажа по горизонтали (выстрел в сторону прицела).</summary>
+        public void FaceNow(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude > 0.0001f)
+                yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
         }
 
         /// <summary>Направление на цель фиксации по горизонтали; null — фиксации нет.</summary>

@@ -88,13 +88,13 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void TestLevel_Is64x64_WithAllStepHeights()
+        public void TestLevel_Is64Wide_WithAllStepHeights()
         {
             using var host = CreateHost();
             var configs = host.Container.Resolve<ConfigService>();
             var level = configs.Load<LevelConfig>(configs.Load<GameConfig>(ConfigKeys.Game).Level);
             Assert.That(level.Width, Is.EqualTo(64));
-            Assert.That(level.Length, Is.EqualTo(64));
+            Assert.That(level.Length, Is.EqualTo(86), "64x64 square plus the shooting field in the north");
 
             bool walk = false, jump = false, block = false;
             for (int z = 0; z < level.Length; z++)

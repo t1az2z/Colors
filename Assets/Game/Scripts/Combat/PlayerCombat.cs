@@ -82,9 +82,25 @@ namespace ColorsAction.Unity
         private float hitStopTimer;
         private float timeScaleBeforeHitStop = 1f;
 
+        // Стрелковое оружие (дробовик)
+        private readonly GunTrigger gun = new GunTrigger();
+        private readonly RaycastHit[] rayHits = new RaycastHit[16];
+        private readonly Dictionary<IHittable, int> pelletHits = new Dictionary<IHittable, int>();
+        private float gunShotTime = 10f;
+        private Vector3 recoilVector;
+        private float recoilDuration;
+        private float recoilElapsed;
+        private float recoilDone;
+
+        /// <summary>Сколько выстрелов сделано за игру (для автотестов).</summary>
+        public int ShotCount { get; private set; }
+
+        /// <summary>Сколько пуль попало в цели за игру (для автотестов).</summary>
+        public int PelletHitCount { get; private set; }
+
         public bool IsBusy => attacking != null;
         public bool Blocking { get; private set; }
-        public bool LockFacing => attacking != null && attackTime > step.Duration * step.ActiveFrom * 0.5f;
+        public bool LockFacing => (attacking != null && attackTime > step.Duration * step.ActiveFrom * 0.5f) || gunShotTime < 0.25f;
         public Vector3? FacingOverride => null;
 
         /// <summary>Перекат разрешён: нет удара или удар вне своего окна запрета переката (RollLockFrom..RollLockTo).</summary>
@@ -168,7 +184,8 @@ namespace ColorsAction.Unity
                 // Пустая рука ничего не держит: удар "кулаком" идёт самим кубом, без отдельной модели.
                 hand.Visual = item != null ? SpawnItem(item.Config, hand.Socket) : null;
                 hand.Trail = null;
-                if (hand.Visual != null && (item.Config.Kind == ItemKind.OneHanded || item.Config.Kind == ItemKind.TwoHanded))
+                if (hand.Visual != null && !item.Config.IsRanged &&
+                    (item.Config.Kind == ItemKind.OneHanded || item.Config.Kind == ItemKind.TwoHanded))
                     hand.Trail = WeaponTrail.Attach(hand.Visual, hand.Socket.parent != null ? hand.Socket.parent.parent : transform,
                         palette.Get(item.Config.Color));
             }
@@ -213,6 +230,7 @@ namespace ColorsAction.Unity
             var left = hands[(int)Hand.Left];
             UpdateHand(right, control, input.Pressed(GameAction.Primary), input.Held(GameAction.Primary));
             UpdateHand(left, control, input.Pressed(GameAction.Secondary), input.Held(GameAction.Secondary));
+            UpdateGun(control, dt);
 
             var wasBlocking = Blocking;
             Blocking = control && attacking == null &&
@@ -232,7 +250,8 @@ namespace ColorsAction.Unity
         private void UpdateHand(HandState hand, bool control, bool pressed, bool held)
         {
             hand.Holding = control && held;
-            if (!control || !pressed || hand.Item == null || hand.Item.Kind == ItemKind.Shield || hand.Item.Combo.Count == 0)
+            if (!control || !pressed || hand.Item == null || hand.Item.Kind == ItemKind.Shield || hand.Item.IsRanged ||
+                hand.Item.Combo.Count == 0)
                 return;
 
             // Двуручное: обе кнопки управляют правой рукой.
@@ -421,6 +440,157 @@ namespace ColorsAction.Unity
             }
         }
 
+        // ------------------------------------------------------------------ стрельба
+
+        /// <summary>
+        /// Стрелковое оружие: двуручное стреляет на любую кнопку атаки, одноручное — на кнопку своей руки.
+        /// Курок держит паузу между выстрелами и запоминает раннее нажатие.
+        /// </summary>
+        private void UpdateGun(bool control, float dt)
+        {
+            gunShotTime += dt;
+            HandState shooter = null;
+            var pressed = false;
+            foreach (var hand in hands)
+            {
+                if (hand.Item == null || !hand.Item.IsRanged)
+                    continue;
+                if (hand.Item.IsTwoHanded)
+                {
+                    shooter = hands[(int)Hand.Right];
+                    pressed = input.Pressed(GameAction.Primary) || input.Pressed(GameAction.Secondary);
+                    break;
+                }
+
+                shooter ??= hand;
+                pressed |= input.Pressed(hand.Hand == Hand.Right ? GameAction.Primary : GameAction.Secondary);
+            }
+
+            if (shooter == null)
+            {
+                gun.Reset();
+                return;
+            }
+
+            var config = shooter.Item.Ranged;
+            if (!gun.Tick(dt, control && pressed && attacking == null, config) || !control || attacking != null)
+                return;
+            if (!session.Stamina.TrySpend(config.StaminaCost))
+            {
+                gun.Failed();
+                return;
+            }
+
+            gun.Fired(config);
+            Fire(shooter, config);
+        }
+
+        /// <summary>
+        /// Выстрел: цель фиксации (СКМ/R3), без неё — прицел схемы Б (правый стик/мышь), иначе — куда смотрит
+        /// персонаж. Пули летят веером мгновенно (луч), урон по цели суммируется в одно попадание.
+        /// </summary>
+        private void Fire(HandState hand, RangedConfig config)
+        {
+            var weapon = hand.Item;
+            var origin = transform.position + Vector3.up * playerConfig.ColliderHeight * 0.5f;
+            var lockOn = controller.LockOn;
+            var dir = lockOn != null && lockOn.Active ? lockOn.TargetPoint - origin : controller.LookAim ?? controller.Forward;
+            if (dir.sqrMagnitude < 0.0001f)
+                dir = controller.Forward;
+            dir.Normalize();
+            var flat = new Vector3(dir.x, 0f, dir.z);
+            flat = flat.sqrMagnitude > 0.0001f ? flat.normalized : controller.Forward;
+            controller.FaceNow(flat);
+            gunShotTime = 0f;
+            ShotCount++;
+
+            var muzzle = hand.Visual != null ? hand.Visual.transform.TransformPoint(MuzzleOffset) : origin + flat * 0.7f;
+            var color = palette.Get(weapon.Color);
+            var mask = ~((1 << gameObject.layer) | (1 << Debris.Layer));
+            pelletHits.Clear();
+            foreach (var angle in ShotPattern.PelletAngles(config.Pellets, config.Spread, () => Random.value))
+            {
+                var pellet = Quaternion.AngleAxis(angle, Vector3.up) * dir;
+                var end = origin + pellet * config.Range;
+                var count = Physics.RaycastNonAlloc(origin, pellet, rayHits, config.Range, mask, QueryTriggerInteraction.Collide);
+                System.Array.Sort(rayHits, 0, count, HitDistanceComparer.Instance);
+                for (int i = 0; i < count; i++)
+                {
+                    var col = rayHits[i].collider;
+                    var target = col.GetComponentInParent<IHittable>();
+                    if (target != null)
+                    {
+                        pelletHits.TryGetValue(target, out var n);
+                        pelletHits[target] = n + 1;
+                        end = rayHits[i].point;
+                        break;
+                    }
+
+                    // Триггеры (подсказки, предметы) пули пропускают, стены останавливают.
+                    if (!col.isTrigger)
+                    {
+                        end = rayHits[i].point;
+                        break;
+                    }
+                }
+
+                ShotFx.Tracer(muzzle, end, color);
+            }
+
+            foreach (var pair in pelletHits)
+            {
+                var target = pair.Key;
+                var result = rules.Calculate(weapon, null, target.ColorId);
+                var damage = result.Damage * pair.Value;
+                var to = target.HitPoint - origin;
+                to.y = 0f;
+                PelletHitCount += pair.Value;
+                target.ReceiveHit(new HitInfo
+                {
+                    Damage = damage,
+                    ColorBonus = result.ColorBonus,
+                    WeaponColor = color,
+                    Direction = to.sqrMagnitude > 0.0001f ? to.normalized : flat,
+                    Point = target.HitPoint,
+                    Knockback = config.Knockback * pair.Value / Mathf.Max(1, config.Pellets)
+                });
+                events.Publish(new DamageDealt(target.HitPoint, damage, result.ColorBonus, color));
+            }
+
+            // Отдача: персонаж отъезжает назад, куб сжимается и откидывается, камера толкается от выстрела.
+            recoilVector = -flat * config.Recoil;
+            recoilDuration = config.RecoilTime;
+            recoilElapsed = 0f;
+            recoilDone = 0f;
+            ParryFlash.Spawn(muzzle, 0.3f);
+            controller.Deformer.Impulse(-0.9f, new Vector2(0f, -2.2f));
+            if (impulse != null && combatConfig.HitShake > 0f)
+                impulse.GenerateImpulseWithVelocity((-flat + Vector3.down * 0.3f) * (combatConfig.HitShake * 1.2f));
+            if (pelletHits.Count > 0 && combatConfig.HitStop > 0f)
+                StartHitStop(combatConfig.HitStop * 0.6f);
+        }
+
+        /// <summary>Дуло в координатах модели оружия (ствол вдоль +Z).</summary>
+        private static readonly Vector3 MuzzleOffset = new Vector3(0f, 0.05f, 0.84f);
+
+        private sealed class HitDistanceComparer : IComparer<RaycastHit>
+        {
+            public static readonly HitDistanceComparer Instance = new HitDistanceComparer();
+            public int Compare(RaycastHit a, RaycastHit b) => a.distance.CompareTo(b.distance);
+        }
+
+        /// <summary>Поза рук со стрелковым оружием: у бедра, после выстрела — у плеча с отбросом ствола вверх-назад.</summary>
+        private Pose GunPose(HandState hand)
+        {
+            var s = hand.Side;
+            var aim = 1f - Mathf.Clamp01((gunShotTime - 0.45f) / 0.3f);
+            var kick = Mathf.Exp(-gunShotTime * 14f);
+            var pos = Vector3.Lerp(new Vector3(0.66f * s, 0.4f, 0.05f), new Vector3(0.63f * s, 0.52f, 0.18f), aim)
+                      + new Vector3(0f, 0.06f * kick, -0.16f * kick);
+            var pitch = Mathf.Lerp(16f, 0f, aim) - 30f * kick;
+            return new Pose(pos, Quaternion.Euler(pitch, 0f, 0f));
+        }
+
         /// <summary>Сколько атак парировано за игру (для автотестов).</summary>
         public int ParryCount { get; private set; }
 
@@ -469,13 +639,26 @@ namespace ColorsAction.Unity
                 /// <summary>Рывок вперёд при ударе: отдаётся контроллеру движения по кадрам до конца активной фазы.</summary>
         public Vector3 ConsumeLunge(Vector3 forward)
         {
+            var recoil = ConsumeRecoil();
             if (attacking == null || step.Lunge <= 0f)
-                return Vector3.zero;
+                return recoil;
             var t = Mathf.Clamp01(attackTime / (step.Duration * step.ActiveTo));
             var target = step.Lunge * (1f - (1f - t) * (1f - t));
             var delta = target - lungeDone;
             lungeDone = target;
-            return forward * delta;
+            return forward * delta + recoil;
+        }
+
+        /// <summary>Сдвиг отдачи выстрела за кадр: быстрый толчок назад с замедлением, всего Recoil метров.</summary>
+        private Vector3 ConsumeRecoil()
+        {
+            if (recoilElapsed >= recoilDuration || recoilVector == Vector3.zero)
+                return Vector3.zero;
+            recoilElapsed += Time.deltaTime;
+            var k = EaseOut(Mathf.Clamp01(recoilElapsed / recoilDuration));
+            var delta = recoilVector * (k - recoilDone);
+            recoilDone = k;
+            return delta;
         }
 
         // ------------------------------------------------------------------ попадания
@@ -567,15 +750,18 @@ namespace ColorsAction.Unity
                 if (hand.Socket == null)
                     continue;
                 Pose pose;
+                var gunHand = attacking != hand && hand.Item != null && hand.Item.IsRanged && hand.Visual != null;
                 if (attacking == hand)
                     pose = AttackPose(hand, StepT);
+                else if (gunHand)
+                    pose = GunPose(hand);
                 else if (Blocking && hand.Item?.Kind == ItemKind.Shield && hand.Holding)
                     pose = BlockPose(hand);
                 else
                     pose = RestPose(hand);
 
                 // Плавный возврат после отмены удара и при смене позы.
-                var k = attacking == hand ? 1f : 1f - Mathf.Exp(-dt * 25f);
+                var k = attacking == hand || gunHand ? 1f : 1f - Mathf.Exp(-dt * 25f);
                 if (hand.ResetPose)
                 {
                     k = 1f;
