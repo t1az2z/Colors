@@ -176,8 +176,9 @@ namespace ColorsAction.Configs
 
     /// <summary>
     /// Урон от падения: высота считается от верхней точки полёта до места приземления, в блоках.
-    /// Три ступени: с <see cref="LightHeight"/> — <see cref="LightDamage"/> доли здоровья, с <see cref="HeavyHeight"/> —
-    /// <see cref="HeavyDamage"/>, с <see cref="LethalHeight"/> — смерть. Ниже первой ступени урона нет.
+    /// Опорные точки: с <see cref="LightHeight"/> — <see cref="LightDamage"/> доли здоровья, с <see cref="HeavyHeight"/> —
+    /// <see cref="HeavyDamage"/>, с <see cref="LethalHeight"/> — смерть; между ними урон растёт плавно (линейно).
+    /// Ниже первой точки урона нет.
     /// </summary>
     [Preserve]
     public sealed class FallDamageConfig
@@ -201,8 +202,14 @@ namespace ColorsAction.Configs
             if (h >= LethalHeight)
                 return 1f;
             if (h >= HeavyHeight)
-                return HeavyDamage;
-            return h >= LightHeight ? LightDamage : 0f;
+                return Lerp(HeavyDamage, 1f, HeavyHeight, LethalHeight, h);
+            return h >= LightHeight ? Lerp(LightDamage, HeavyDamage, LightHeight, HeavyHeight, h) : 0f;
+        }
+
+        private static float Lerp(float from, float to, float h0, float h1, float h)
+        {
+            var t = h1 > h0 ? Math.Min(1f, (h - h0) / (h1 - h0)) : 1f;
+            return from + (to - from) * t;
         }
 
         public void Validate()

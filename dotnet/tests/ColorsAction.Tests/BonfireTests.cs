@@ -272,9 +272,10 @@ namespace ColorsAction.Tests
             using var host = CreateHost();
             var fall = host.Container.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player).FallDamage;
             Assert.That(fall.DamageFraction(3.7f), Is.Zero, "a jump off a 3-block ledge is safe");
-            Assert.That(fall.DamageFraction(3.99f), Is.EqualTo(0.2f), "exactly 4 blocks, minus collision skin");
-            Assert.That(fall.DamageFraction(4.6f), Is.EqualTo(0.2f));
-            Assert.That(fall.DamageFraction(5f), Is.EqualTo(0.7f));
+            Assert.That(fall.DamageFraction(3.99f), Is.EqualTo(0.2f).Within(0.02f), "exactly 4 blocks, minus collision skin");
+            Assert.That(fall.DamageFraction(4.5f - FallDamageConfig.HeightTolerance), Is.EqualTo(0.45f).Within(0.001f), "halfway 4..5 grows smoothly");
+            Assert.That(fall.DamageFraction(5.5f - FallDamageConfig.HeightTolerance), Is.EqualTo(0.85f).Within(0.001f), "halfway 5..6");
+            Assert.That(fall.DamageFraction(5f), Is.EqualTo(0.7f).Within(0.02f));
             Assert.That(fall.DamageFraction(6f), Is.EqualTo(1f));
             Assert.That(fall.DamageFraction(40f), Is.EqualTo(1f));
 
@@ -284,7 +285,7 @@ namespace ColorsAction.Tests
 
             var vitals = new ColorsAction.Combat.PlayerVitals(100f, 2f);
             vitals.TryHit(10f);
-            vitals.TakeFallDamage(100f * fall.DamageFraction(5f));
+            vitals.TakeFallDamage(70f);
             Assert.That(vitals.Health.Current.Value, Is.EqualTo(20f).Within(0.001f), "lands during i-frames still hurts");
         }
 
