@@ -318,7 +318,12 @@ namespace ColorsAction.Configs
         /// <summary>Подскок в начале удара, блоки высоты (0 — без подскока). Вместе с отрицательным выпадом — отскок назад.</summary>
         public float Hop { get; set; }
 
-        /// <summary>Заряд удержанием кнопки атаки (null — удар не заряжается).</summary>
+        /// <summary>
+        /// Удар заряжается удержанием кнопки атаки с общими параметрами заряда оружия (<see cref="ItemConfig.Charge"/>).
+        /// </summary>
+        public bool Chargeable { get; set; }
+
+        /// <summary>Собственные параметры заряда этого удара (поверх <see cref="ItemConfig.Charge"/>; null — общие).</summary>
         public ChargeConfig Charge { get; set; }
     }
 
@@ -443,6 +448,17 @@ namespace ColorsAction.Configs
         /// <summary>Удар в прыжке: падение вниз и удар по площади при приземлении (null — в воздухе обычная серия).</summary>
         public PlungeConfig Plunge { get; set; }
 
+        /// <summary>Общие параметры заряда ударов ближнего боя, отмеченных <see cref="AttackStepConfig.Chargeable"/>.</summary>
+        public ChargeConfig Charge { get; set; }
+
+        /// <summary>Заряд удара: собственный у удара, иначе общий оружия, если удар отмечен заряжаемым; null — не заряжается.</summary>
+        public ChargeConfig ChargeFor(AttackStepConfig step)
+        {
+            if (step == null)
+                return null;
+            return step.Charge ?? (step.Chargeable ? Charge : null);
+        }
+
         /// <summary>
         /// Стрелковое оружие (дробовик): если задано, кнопка атаки стреляет вместо серии ударов,
         /// урон одной пули — <see cref="Damage"/>.
@@ -470,6 +486,7 @@ namespace ColorsAction.Configs
                 step?.Charge?.Validate(Id);
             }
 
+            Charge?.Validate(Id);
             Finisher?.Validate(Id);
             Plunge?.Validate(Id);
             Ranged?.Validate(Id);
@@ -595,6 +612,15 @@ namespace ColorsAction.Configs
 
         /// <summary>Наклон ствола вниз, градусы.</summary>
         public float Pitch { get; set; } = 16f;
+
+        /// <summary>
+        /// Положение модели оружия относительно руки [x, y, z] (например, в покое — вдоль тела).
+        /// null — модель в руке без сдвига.
+        /// </summary>
+        public float[] ModelPosition { get; set; }
+
+        /// <summary>Поворот модели оружия относительно руки [x, y, z], градусы (Euler). null — без поворота (только хват).</summary>
+        public float[] ModelRotation { get; set; }
     }
 
     /// <summary>

@@ -5,8 +5,10 @@ namespace ColorsAction.Configs
 {
     /// <summary>
     /// Заряд атаки удержанием кнопки (общий механизм: удар серии, позже — заряженный выстрел).
-    /// Пока кнопка зажата, атака стоит на конце замаха и копит заряд; полный заряд — вспышка оружия,
-    /// дополнительная выносливость и усиленный удар. Отпустили раньше — обычный удар без бонуса.
+    /// Пока кнопка зажата, атака стоит на конце замаха и копит заряд; пик заряда — вспышка оружия
+    /// и дополнительная выносливость. Отпустили во вспышку (<see cref="PerfectWindow"/>) — полный бонус
+    /// <see cref="DamageMultiplier"/>; держат дольше — множитель за <see cref="Falloff"/> спадает до
+    /// <see cref="HeldMultiplier"/>. Отпустили до пика — обычный удар без бонуса.
     /// </summary>
     [Preserve]
     public sealed class ChargeConfig
@@ -20,10 +22,19 @@ namespace ColorsAction.Configs
         /// <summary>Сколько полный заряд можно держать, секунды; потом удар срывается сам. 0 — сразу после заряда.</summary>
         public float MaxHold { get; set; } = 0.5f;
 
-        /// <summary>Множитель урона заряженного удара (поверх множителя удара).</summary>
+        /// <summary>Окно вспышки после пика заряда, секунды: отпустили в нём — полный множитель <see cref="DamageMultiplier"/>.</summary>
+        public float PerfectWindow { get; set; } = 0.12f;
+
+        /// <summary>За сколько секунд после окна вспышки множитель спадает до <see cref="HeldMultiplier"/>.</summary>
+        public float Falloff { get; set; } = 0.25f;
+
+        /// <summary>Множитель урона во вспышку (поверх множителя удара).</summary>
         public float DamageMultiplier { get; set; } = 2f;
 
-        /// <summary>Множитель отбрасывания заряженного удара.</summary>
+        /// <summary>Множитель урона, если заряд передержали (после спада).</summary>
+        public float HeldMultiplier { get; set; } = 1.3f;
+
+        /// <summary>Множитель отбрасывания во вспышку; при спаде уменьшается вместе с уроном.</summary>
         public float KnockbackMultiplier { get; set; } = 1.5f;
 
         /// <summary>Дополнительная выносливость за полный заряд (списывается в момент заряда; не хватило — без бонуса).</summary>
@@ -34,7 +45,8 @@ namespace ColorsAction.Configs
 
         public void Validate(string id)
         {
-            if (Time < 0f || MaxHold < 0f || StaminaCost < 0f || DamageMultiplier < 0f || KnockbackMultiplier < 0f || Flash < 0f)
+            if (Time < 0f || MaxHold < 0f || PerfectWindow < 0f || Falloff < 0f || StaminaCost < 0f || DamageMultiplier < 0f ||
+                HeldMultiplier < 0f || KnockbackMultiplier < 0f || Flash < 0f)
                 throw new InvalidOperationException($"weapon '{id}': charge values must not be negative");
         }
     }
@@ -72,8 +84,8 @@ namespace ColorsAction.Configs
     }
 
     /// <summary>
-    /// Удар в прыжке: атака в воздухе прерывает полёт — короткое зависание с мечом над головой,
-    /// быстрое падение с ударом сверху вниз и удар по площади вокруг точки приземления с отбрасыванием.
+    /// Удар в прыжке: атака в воздухе не прерывает полёт — меч поднимается над головой, куб долетает
+    /// по той же дуге, что и без удара, и при приземлении бьёт сверху вниз по площади вокруг себя с отбрасыванием.
     /// </summary>
     [Preserve]
     public sealed class PlungeConfig
@@ -84,11 +96,8 @@ namespace ColorsAction.Configs
         /// <summary>Наименьшая высота над землёй, с которой начинается удар (ниже — обычный удар), блоки.</summary>
         public float MinHeight { get; set; } = 0.35f;
 
-        /// <summary>Зависание в воздухе с мечом над головой перед падением, секунды.</summary>
+        /// <summary>Замах в воздухе (меч поднимается над головой), секунды.</summary>
         public float Hang { get; set; } = 0.1f;
-
-        /// <summary>Скорость падения, блоки в секунду.</summary>
-        public float FallSpeed { get; set; } = 16f;
 
         /// <summary>Радиус удара вокруг точки приземления, блоки.</summary>
         public float Radius { get; set; } = 1.8f;
@@ -113,14 +122,14 @@ namespace ColorsAction.Configs
 
         public void Validate(string id)
         {
-            if (FallSpeed <= 0f || Radius <= 0f)
-                throw new InvalidOperationException($"weapon '{id}': plunge fallSpeed and radius must be positive");
+            if (Radius <= 0f)
+                throw new InvalidOperationException($"weapon '{id}': plunge radius must be positive");
             if (Hang < 0f || MinHeight < 0f || LandHold < 0f || Recovery < 0f || StaminaCost < 0f || DamageMultiplier < 0f || Knockback < 0f)
                 throw new InvalidOperationException($"weapon '{id}': plunge values must not be negative");
         }
 
         /// <summary>
-        /// Удар в прыжке как шаг атаки (для поз и таймингов): замах — зависание, удар — от падения до земли
+        /// Удар в прыжке как шаг атаки (для поз и таймингов): замах — подъём меча, удар — от конца замаха до земли
         /// (время удара стоит на середине, пока куб не коснётся земли), фиксация — поза после приземления.
         /// </summary>
         public AttackStepConfig ToStep()

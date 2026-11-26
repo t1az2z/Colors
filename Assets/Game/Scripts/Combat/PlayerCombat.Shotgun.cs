@@ -126,7 +126,11 @@ namespace ColorsAction.Unity
                     var full = gunCharge.Full;
                     var shot = ShotParams.From(config);
                     if (full)
-                        shot = shot.Charged(config.ChargedShot, gunCharge.Config);
+                    {
+                        shot = shot.Charged(config.ChargedShot, gunCharge.DamageMultiplier, gunCharge.KnockbackMultiplier);
+                        if (gunCharge.Perfect && flash > 0f)
+                            ParryFlash.Spawn(MuzzleWorld(hand, controller.Forward), 0.35f * flash);
+                    }
                     gunCharge.Reset();
                     gunChargeHand = null;
                     TryFire(hand, shot, full);
@@ -136,7 +140,7 @@ namespace ColorsAction.Unity
 
             // Заряд копится: свечение растёт, куб мелко дрожит.
             var level = gunCharge.Level;
-            glow?.Hold(gunCharge.Full ? 1f : level * 0.6f);
+            glow?.Hold(gunCharge.Full ? 0.5f + 0.5f * gunCharge.Bonus : level * 0.6f);
             controller.Deformer.Impulse(Random.Range(-1f, 1f) * 0.3f * level);
         }
 
@@ -206,7 +210,12 @@ namespace ColorsAction.Unity
                 foreach (var enemy in EnemyController.All)
                     if (enemy != null && !enemy.Dead && enemy.Brain.InParryWindow &&
                         (enemy.transform.position - origin).sqrMagnitude < (shot.Range + 1f) * (shot.Range + 1f))
+                    {
                         volley.WindowAtFire.Add(enemy);
+                        // Пули ещё летят: удар врага ждёт их, чтобы парирование не опоздало к уже нанесённому урону.
+                        var flight = Vector3.Distance(enemy.transform.position, origin) / Mathf.Max(1f, shot.Speed);
+                        enemy.HoldHitForParry(flight + 0.1f);
+                    }
             }
 
             var right = Vector3.Cross(Vector3.up, flat);
@@ -283,7 +292,37 @@ namespace ColorsAction.Unity
             if (charging)
                 pos += Random.insideUnitSphere * (0.008f * gunCharge.Level);
             var pitch = Mathf.Lerp(ranged.IdleHold.Pitch, ranged.AimHold.Pitch, aim) - 30f * kick;
+            hand.GunAim = aim;
             return new Pose(pos, Quaternion.Euler(pitch, 0f, 0f));
+        }
+
+        /// <summary>
+        /// Модель стрелкового оружия в руке: в покое — по <see cref="GunHoldConfig.ModelPosition"/>/<see cref="GunHoldConfig.ModelRotation"/>
+        /// позы покоя (дробовик вдоль тела), на прицеле — по позе прицела; между ними — плавно по доле прицела.
+        /// </summary>
+        private void UpdateGunModel(HandState hand)
+        {
+            var ranged = hand.Item.Ranged;
+            var grip = Quaternion.Euler(0f, hand.Item.GripRoll, 0f);
+            var idlePos = ModelPosition(ranged.IdleHold);
+            var aimPos = ModelPosition(ranged.AimHold);
+            var idleRot = ModelRotation(ranged.IdleHold, grip);
+            var aimRot = ModelRotation(ranged.AimHold, grip);
+            var t = hand.Visual.transform;
+            t.localPosition = Vector3.Lerp(idlePos, aimPos, hand.GunAim);
+            t.localRotation = Quaternion.Slerp(idleRot, aimRot, hand.GunAim);
+        }
+
+        private static Vector3 ModelPosition(GunHoldConfig hold)
+        {
+            var p = hold.ModelPosition;
+            return p != null && p.Length >= 3 ? new Vector3(p[0], p[1], p[2]) : Vector3.zero;
+        }
+
+        private static Quaternion ModelRotation(GunHoldConfig hold, Quaternion grip)
+        {
+            var r = hold.ModelRotation;
+            return r != null && r.Length >= 3 ? Quaternion.Euler(r[0], r[1], r[2]) : grip;
         }
 
         private static Vector3 HoldPosition(GunHoldConfig hold, float side) => new Vector3(hold.Side * side, hold.Height, hold.Forward);
