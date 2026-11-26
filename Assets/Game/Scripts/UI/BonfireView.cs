@@ -107,8 +107,8 @@ namespace ColorsAction.Unity
                 switch (status)
                 {
                     case UpgradeTierStatus.Owned: color = ownedColor; state = "изучено"; break;
-                    case UpgradeTierStatus.Available: color = availableColor; state = $"{tier?.Cost} опыта"; break;
-                    case UpgradeTierStatus.TooExpensive: color = expensiveColor; state = $"{tier?.Cost} опыта"; break;
+                    case UpgradeTierStatus.Available: color = availableColor; state = vm.Price(cell.Cell); break;
+                    case UpgradeTierStatus.TooExpensive: color = expensiveColor; state = vm.Price(cell.Cell); break;
                     default: color = lockedColor; state = "закрыто"; break;
                 }
 

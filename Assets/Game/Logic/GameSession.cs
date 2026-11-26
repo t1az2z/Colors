@@ -31,6 +31,21 @@ namespace ColorsAction
         }
     }
 
+    /// <summary>Игрок получил ресурсы (из сундука): id предмета-ресурса, сколько и сколько теперь всего.</summary>
+    public readonly struct ResourcesGained
+    {
+        public readonly ItemConfig Item;
+        public readonly int Count;
+        public readonly int Total;
+
+        public ResourcesGained(ItemConfig item, int count, int total)
+        {
+            Item = item;
+            Count = count;
+            Total = total;
+        }
+    }
+
     /// <summary>Запрос открыть/закрыть инвентарь (TAB / View).</summary>
     public sealed class InventoryToggleRequested
     {
@@ -87,6 +102,9 @@ namespace ColorsAction
 
         /// <summary>Id разбитых стопок ящиков: как открытые срезки, больше не появляются (позже уйдёт в сохранение).</summary>
         public HashSet<string> BrokenCrates { get; } = new HashSet<string>();
+
+        /// <summary>Id открытых сундуков: открытый сундук остаётся пустым навсегда (позже уйдёт в сохранение).</summary>
+        public HashSet<string> OpenedChests { get; } = new HashSet<string>();
 
         /// <summary>Id костра, у которого игрок отдыхал последним (точка возрождения), null — ещё нигде.</summary>
         public string LastBonfire { get; set; }
@@ -157,6 +175,31 @@ namespace ColorsAction
                 EquipIfHandFree(item);
             return true;
         }
+
+        /// <summary>
+        /// Выдать <paramref name="count"/> штук ресурса (сундук): досыпается в стопки инвентаря.
+        /// Не помещается целиком — <see cref="InventoryFull"/> и false, ничего не выдаётся.
+        /// </summary>
+        public bool GiveResources(string itemId, int count)
+        {
+            if (string.IsNullOrEmpty(itemId) || !items.Exists(itemId))
+                return false;
+            if (count <= 0)
+                return true;
+            var config = items.Get(itemId);
+            if (!Inventory.TryAddCount(config, count, () => items.Create(itemId)))
+            {
+                events.Publish(new InventoryFull(itemId));
+                return false;
+            }
+
+            events.Publish(new ResourcesGained(config, count, Inventory.CountOf(itemId)));
+            return true;
+        }
+
+        /// <summary>Поместится ли столько ресурса в инвентарь.</summary>
+        public bool CanGiveResources(string itemId, int count) =>
+            !string.IsNullOrEmpty(itemId) && items.Exists(itemId) && Inventory.Capacity(items.Get(itemId)) >= count;
 
         /// <summary>
         /// Нажат быстрый слот <paramref name="index"/> (клавиши 1–4): лечилка лечит и тратит заряд.

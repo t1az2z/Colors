@@ -22,6 +22,8 @@ namespace ColorsAction.Unity
         private Item shown;
         private bool shownShadow;
         private bool hasShown;
+        private int shownCount;
+        private Text count;
 
         public SlotRef Slot { get; private set; }
 
@@ -52,13 +54,39 @@ namespace ColorsAction.Unity
 
         public void SetItem(Item item, Color color, bool shadow, ItemIcons icons)
         {
-            if (hasShown && item == shown && shadow == shownShadow)
+            var stack = item != null && item.Config.IsStackable ? item.Count : 0;
+            if (hasShown && item == shown && shadow == shownShadow && stack == shownCount)
                 return;
             hasShown = true;
             shown = item;
             shownShadow = shadow;
+            shownCount = stack;
             if (icons != null)
                 icons.Apply(icon, item, color, shadow ? 0.3f : 1f);
+            SetCount(stack, shadow);
+        }
+
+        /// <summary>Число в стопке (ресурсы) в правом нижнем углу клетки.</summary>
+        private void SetCount(int stack, bool shadow)
+        {
+            if (stack <= 0)
+            {
+                if (count != null)
+                    count.gameObject.SetActive(false);
+                return;
+            }
+
+            if (count == null)
+            {
+                count = UiFactory.Text(transform, "Count", string.Empty, 20, TextAnchor.LowerRight, UiFactory.TextColor);
+                UiFactory.Stretch(count.rectTransform, 6);
+                UiFactory.Outline(count);
+                count.raycastTarget = false;
+            }
+
+            count.gameObject.SetActive(true);
+            count.text = stack.ToString();
+            count.color = shadow ? UiFactory.MutedText : UiFactory.TextColor;
         }
 
         public void SetState(bool highlighted, bool underCursor, bool held)

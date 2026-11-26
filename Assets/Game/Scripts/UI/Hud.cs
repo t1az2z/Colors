@@ -95,6 +95,8 @@ namespace ColorsAction.Unity
             subscriptions.Add(events.Subscribe<ItemPickedUp>(e =>
                 ShowToast($"{e.Item.Config.Name} в инвентаре  ·  [{input.Label("inventory")}] открыть")));
             subscriptions.Add(events.Subscribe<InventoryFull>(_ => ShowToast("Инвентарь полон")));
+            subscriptions.Add(events.Subscribe<ResourcesGained>(e =>
+                ShowToast($"{e.Item.Name} +{e.Count}  (всего {e.Total})")));
             subscriptions.Add(events.Subscribe<DamageDealt>(OnDamage));
             subscriptions.Add(events.Subscribe<QuickItemUsed>(OnQuickItemUsed));
             subscriptions.Add(session.Vitals.Health.Current.Subscribe(_ => healthShake = 0.35f, false));

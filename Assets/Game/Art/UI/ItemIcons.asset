@@ -19,4 +19,10 @@ MonoBehaviour:
     sprite: {fileID: 21300000, guid: 80f94ea4403d9a440a65e8eeb2e02ff3, type: 3}
   - itemId: shield
     sprite: {fileID: 21300000, guid: a595b3e3ba459cb4d8241dc78e417e0f, type: 3}
+  - itemId: metal
+    sprite: {fileID: 21300000, guid: 883492d230fb44a19be0500dcb846a94, type: 3}
+  - itemId: rivets
+    sprite: {fileID: 21300000, guid: 3033e020a3b7423caffc5557e4df1f6b, type: 3}
+  - itemId: gears
+    sprite: {fileID: 21300000, guid: c1e4b33c4a2a44d396abc72909c5d8d3, type: 3}
   fallback: {fileID: 21300000, guid: b2141ab52a2a543479001e4d59304760, type: 3}

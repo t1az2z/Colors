@@ -45,7 +45,7 @@ namespace ColorsAction.UI
     /// <summary>
     /// Модель меню костра: оружие игрока (строки) и по 3 последовательных апгрейда (столбцы).
     /// Геймпад/клавиатура: <see cref="Navigate"/> + <see cref="Confirm"/>, мышь: <see cref="Hover"/> + <see cref="Select"/>.
-    /// Покупка — <see cref="WeaponUpgradeShop"/> (за опыт).
+    /// Покупка — <see cref="WeaponUpgradeShop"/> (за опыт и ресурс оружия).
     /// </summary>
     public sealed class BonfireScreenViewModel : ViewModel, IExclusiveScreen
     {
@@ -62,7 +62,7 @@ namespace ColorsAction.UI
         /// <summary>Описание ячейки под курсором.</summary>
         public ReactiveProperty<string> Description { get; } = new ReactiveProperty<string>(string.Empty);
 
-        /// <summary>Короткое сообщение после действия: «Куплено», «Не хватает опыта».</summary>
+        /// <summary>Короткое сообщение после действия: «Изучено», «Не хватает опыта», «Не хватает: Металл».</summary>
         public ReactiveProperty<string> Message { get; } = new ReactiveProperty<string>(string.Empty);
 
         public IReadOnlyReactiveProperty<int> Experience => shop.Experience;
@@ -80,6 +80,8 @@ namespace ColorsAction.UI
             Own(Cursor.Subscribe(_ => Refresh(), false));
             Own(shop.Experience.Subscribe(_ => Changed(), false));
             shop.Upgrades.Changed += OnUpgradesChanged;
+            if (shop.Inventory != null)
+                shop.Inventory.Changed += OnInventoryChanged;
             Refresh();
         }
 
@@ -91,6 +93,27 @@ namespace ColorsAction.UI
             InRange(cell) ? shop.Status(rows[cell.Row].ItemId, cell.Tier) : UpgradeTierStatus.Locked;
 
         public int Level(int row) => row >= 0 && row < rows.Count ? shop.Upgrades.Level(rows[row].ItemId) : 0;
+
+        /// <summary>Цена ступени коротко: «40 опыта + 1 Металл».</summary>
+        public string Price(UpgradeCell cell)
+        {
+            var tier = TierConfig(cell);
+            if (tier == null)
+                return string.Empty;
+            var id = rows[cell.Row].ItemId;
+            var resources = shop.ResourceCost(id, cell.Tier);
+            return resources > 0 ? $"{tier.Cost} опыта + {resources} {shop.ResourceName(id)}" : $"{tier.Cost} опыта";
+        }
+
+        /// <summary>Ресурс оружия в строке: «Металл: 2» (пусто — ресурса нет).</summary>
+        public string ResourceLine(int row)
+        {
+            if (row < 0 || row >= rows.Count || shop.Inventory == null)
+                return string.Empty;
+            var id = rows[row].ItemId;
+            var name = shop.ResourceName(id);
+            return string.IsNullOrEmpty(name) ? string.Empty : $"{name}: {shop.ResourceOwned(id)}";
+        }
 
         // ------------------------------------------------------------------ ввод
 
@@ -138,7 +161,7 @@ namespace ColorsAction.UI
                     Message.Value = "Сначала изучите предыдущее улучшение";
                     return false;
                 case UpgradeTierStatus.TooExpensive:
-                    Message.Value = "Не хватает опыта";
+                    Message.Value = ShortageText(id, cell.Tier);
                     return false;
             }
 
@@ -187,6 +210,17 @@ namespace ColorsAction.UI
 
         private void OnUpgradesChanged(string itemId, int level) => Changed();
 
+        private void OnInventoryChanged() => Changed();
+
+        private string ShortageText(string itemId, int tier)
+        {
+            var missing = shop.Missing(itemId, tier);
+            var resource = shop.ResourceName(itemId);
+            if (missing == (UpgradeShortage.Experience | UpgradeShortage.Resource))
+                return $"Не хватает опыта и ресурса: {resource}";
+            return missing == UpgradeShortage.Resource ? $"Не хватает ресурса: {resource}" : "Не хватает опыта";
+        }
+
         private void Changed()
         {
             Revision.Value++;
@@ -204,13 +238,18 @@ namespace ColorsAction.UI
             }
 
             string state;
+            var price = Price(cell);
             switch (Status(cell))
             {
                 case UpgradeTierStatus.Owned: state = "Изучено"; break;
-                case UpgradeTierStatus.Available: state = $"Цена: {tier.Cost} опыта"; break;
-                case UpgradeTierStatus.TooExpensive: state = $"Цена: {tier.Cost} опыта — не хватает"; break;
-                default: state = $"Цена: {tier.Cost} опыта — сначала предыдущее улучшение"; break;
+                case UpgradeTierStatus.Available: state = $"Цена: {price}"; break;
+                case UpgradeTierStatus.TooExpensive: state = $"Цена: {price} — {ShortageText(rows[cell.Row].ItemId, cell.Tier).ToLowerInvariant()}"; break;
+                default: state = $"Цена: {price} — сначала предыдущее улучшение"; break;
             }
+
+            var owned = ResourceLine(cell.Row);
+            if (!string.IsNullOrEmpty(owned))
+                state += $"\nУ вас — {owned}";
 
             Description.Value = $"{rows[cell.Row].Name} · {cell.Tier}. {tier.Name}\n{tier.Description}\n{state}";
         }
@@ -218,6 +257,8 @@ namespace ColorsAction.UI
         protected override void OnDispose()
         {
             shop.Upgrades.Changed -= OnUpgradesChanged;
+            if (shop.Inventory != null)
+                shop.Inventory.Changed -= OnInventoryChanged;
         }
     }
 }

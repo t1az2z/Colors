@@ -1,0 +1,20 @@
+{
+  "width": 0.86,
+  "depth": 0.62,
+  "bodyHeight": 0.42,
+  "lidHeight": 0.2,
+  "tint": "#9A9DA6",
+  "trimShade": 0.55,
+  "showResourceColor": true,
+  "prompt": "открыть сундук",
+  "squashTime": 0.12,
+  "openTime": 0.35,
+  "lidAngle": 105,
+  "piecesPerResource": 2,
+  "maxPieces": 14,
+  "pieceSize": 0.14,
+  "burstForce": 3.2,
+  "flyDelay": 0.55,
+  "flyStagger": 0.05,
+  "grantTimeout": 4
+}

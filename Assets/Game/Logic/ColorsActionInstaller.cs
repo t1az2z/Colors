@@ -48,8 +48,10 @@ namespace ColorsAction
                 .Register(r =>
                 {
                     var session = r.Resolve<GameSession>();
+                    var items = r.Resolve<ItemDatabase>();
                     return new WeaponUpgradeShop(session.Upgrades, session.Experience,
-                        r.Resolve<ConfigService>().LoadTable<WeaponUpgradeConfig>(ConfigKeys.Upgrades));
+                        r.Resolve<ConfigService>().LoadTable<WeaponUpgradeConfig>(ConfigKeys.Upgrades), session.Inventory,
+                        id => items.Exists(id) ? items.Get(id).Name ?? id : id);
                 })
                 .Register(r => new BonfireState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(),
                     r.Resolve<IEventBus>(), r.Resolve<ScreenStack>(), r.Resolve<WeaponUpgradeShop>()));

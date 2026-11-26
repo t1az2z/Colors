@@ -19,6 +19,7 @@ namespace ColorsAction.Configs
         public const string Enemies = "Enemies";
         public const string Upgrades = "Upgrades";
         public const string Crates = "Crates";
+        public const string Chests = "Chests";
     }
 
     /// <summary>Configs/Game.json — что загружать при старте.</summary>
@@ -274,7 +275,10 @@ namespace ColorsAction.Configs
         OneHanded,
         TwoHanded,
         Shield,
-        Consumable
+        Consumable,
+
+        /// <summary>Ресурс для прокачки оружия (металл, заклёпки, шестерёнки): складывается в стопки, лежит только в сетке.</summary>
+        Resource
     }
 
     /// <summary>В какую руку можно надеть предмет.</summary>
@@ -544,12 +548,21 @@ namespace ColorsAction.Configs
         /// <summary>Лечилка (расходуемый предмет в быстром слоте 1–4): заряды и сила лечения. null — не лечит.</summary>
         public HealConfig Heal { get; set; }
 
+        /// <summary>
+        /// Сколько штук помещается в одну клетку инвентаря. 1 — не складывается. Не задано (0): ресурс — 99, остальное — 1.
+        /// </summary>
+        public int MaxStack { get; set; }
+
         public bool IsWeapon => Kind == ItemKind.OneHanded || Kind == ItemKind.TwoHanded || Kind == ItemKind.Shield;
         public bool IsTwoHanded => Kind == ItemKind.TwoHanded;
         public bool IsRanged => Ranged != null;
+        public bool IsResource => Kind == ItemKind.Resource;
+        public bool IsStackable => MaxStack > 1;
 
         public void OnConfigLoaded()
         {
+            if (MaxStack <= 0)
+                MaxStack = Kind == ItemKind.Resource ? 99 : 1;
             Combo ??= new List<AttackStepConfig>();
             // Окно попадания должно идти вперёд по времени: перепутанные границы меняем местами,
             // иначе удар молча перестаёт наносить урон.
@@ -567,7 +580,7 @@ namespace ColorsAction.Configs
                 Shield ??= new ShieldConfig();
             Shield?.Validate(Id);
             Heal?.Validate(Id);
-            if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Ranged == null && Combo.Count == 0)
+            if (IsWeapon && Kind != ItemKind.Shield && Ranged == null && Combo.Count == 0)
                 throw new InvalidOperationException($"weapon '{Id}' needs at least one combo step");
         }
     }

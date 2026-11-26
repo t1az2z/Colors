@@ -8535,6 +8535,33 @@
       "kind": "CrateStack",
       "cell": "30,0,5",
       "height": 2
+    },
+    {
+      "id": "chest_1",
+      "kind": "Chest",
+      "cell": "12,0,7",
+      "yaw": 315,
+      "height": 2,
+      "item": "metal",
+      "count": 2
+    },
+    {
+      "id": "chest_2",
+      "kind": "Chest",
+      "cell": "13,0,8",
+      "yaw": 290,
+      "height": 2,
+      "item": "rivets",
+      "count": 1
+    },
+    {
+      "id": "chest_3",
+      "kind": "Chest",
+      "cell": "14,0,9",
+      "yaw": 270,
+      "height": 2,
+      "item": "gears",
+      "count": 1
     }
   ],
   "points": [

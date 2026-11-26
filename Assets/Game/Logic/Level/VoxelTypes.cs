@@ -181,7 +181,13 @@ namespace ColorsAction.Level
         /// в сторону <see cref="LevelObject.Yaw"/>), 1 в глубину, <see cref="LevelObject.Height"/> ящиков в высоту.
         /// Закрывает проход, пока не разбита; чем ломается и сколько выдерживает — Configs/Crates.json.
         /// </summary>
-        CrateStack
+        CrateStack,
+
+        /// <summary>
+        /// Сундук в одной клетке: открывается на E / X, из него вылетает ресурс <see cref="LevelObject.Item"/>
+        /// (id из Items.json, kind Resource) в количестве <see cref="LevelObject.Count"/>. Вид — Configs/Chests.json.
+        /// </summary>
+        Chest
     }
 
     /// <summary>Тип цветного барьера (раздел 8 GDD).</summary>
@@ -195,7 +201,7 @@ namespace ColorsAction.Level
 
     /// <summary>
     /// Объект поверх сетки. <see cref="Cell"/> — клетка, в которой объект стоит (над блоком-опорой).
-    /// Значение <see cref="Item"/> зависит от вида: оружие на постаменте, тип врага, id NPC, действие подсказки.
+    /// Значение <see cref="Item"/> зависит от вида: оружие на постаменте, тип врага, id NPC, действие подсказки, ресурс в сундуке.
     /// </summary>
     public sealed class LevelObject
     {
@@ -211,7 +217,12 @@ namespace ColorsAction.Level
 
         public string Item { get; set; }
 
+        /// <summary>Сколько штук <see cref="Item"/> (сундук: количество ресурса).</summary>
+        public int Count { get; set; } = 1;
+
         public bool IsBarrier => Kind == LevelObjectKind.Barrier;
+
+        public bool IsChest => Kind == LevelObjectKind.Chest;
 
         public bool IsDoor => Kind == LevelObjectKind.ShortcutDoor;
 

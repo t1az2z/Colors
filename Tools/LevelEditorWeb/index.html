@@ -150,6 +150,13 @@ let PALETTE = {
 };
 let ITEMS = ['sword', 'shield', 'shotgun'];
 let ITEM_NAMES = { sword: 'Меч', shield: 'Щит', shotgun: 'Дробовик' };
+// Ресурсы для прокачки (Items.json, kind Resource): лежат в сундуках. id → название и цвет.
+let RESOURCE_INFO = { metal: { name: 'Металл', color: 'blue' }, rivets: { name: 'Заклёпки', color: 'lilac' }, gears: { name: 'Шестерёнки', color: 'red' } };
+let RESOURCES = Object.keys(RESOURCE_INFO);
+function resourceName(id) { return RESOURCE_INFO[id]?.name || id || '—'; }
+function resourceHex(id) { return PALETTE[RESOURCE_INFO[id]?.color]?.hex || OBJECT_KINDS.Chest.col; }
+/** Подпись сундука: «Металл ×3». */
+function chestLabel(o) { return o.item ? `${resourceName(o.item)} ×${o.count || 1}` : 'пустой'; }
 // Типы врагов из Enemies.json: id → имя и цвет. Манекен — отдельный тип прототипа.
 let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, dummy: { name: 'Манекен', color: null } };
 let ENEMIES = Object.keys(ENEMY_INFO);
@@ -177,6 +184,7 @@ const OBJECT_KINDS = {
   Hint:           { name: 'Подсказка',      mk: '?', col: '#6b7078' },
   ShortcutDoor:   { name: 'Дверь-срезка',   mk: '⊓', col: '#9a6a3f' },
   CrateStack:     { name: 'Ящики (меч)',    mk: '▦', col: '#2F6BFF' },
+  Chest:          { name: 'Сундук',         mk: '▣', col: '#b8892e' },
 };
 // Стопка ящиков 2×1×N (CrateStackShape в Unity): вторая клетка по повороту — 0° → +X, 270° → +Z.
 const CRATE_DIRS = [[0, '→ +X'], [270, '↑ +Z']];
@@ -369,7 +377,7 @@ function toJSON() {
     objects: L.objects.map(o => clean({
       id: o.id, kind: o.kind, cell: cellStr(o.cell), yaw: o.yaw || undefined, color: o.color,
       barrier: o.kind === 'Barrier' && o.barrier && o.barrier !== 'Wall' ? o.barrier : undefined,
-      height: o.height ?? 2, item: o.item,
+      height: o.height ?? 2, item: o.item, count: o.kind === 'Chest' ? Math.max(1, o.count | 0) : undefined,
     })),
     points: L.points.map(p => clean({
       id: p.id, action: p.action, cell: cellStr(p.cell), requiredItem: p.requiredItem, requiredOpen: p.requiredOpen,
@@ -398,7 +406,7 @@ function fromJSON(d, file) {
   L.objects = (get(d, 'objects') || []).map(o => ({
     id: get(o, 'id'), kind: enumOf(get(o, 'kind'), OBJECT_KINDS, 'PlayerSpawn'), cell: parseCell(get(o, 'cell')),
     yaw: +(get(o, 'yaw') || 0), color: get(o, 'color') || null, barrier: enumOf(get(o, 'barrier'), BARRIERS, 'Wall'),
-    height: get(o, 'height') ?? 2, item: get(o, 'item') || null,
+    height: get(o, 'height') ?? 2, item: get(o, 'item') || null, count: Math.max(1, +(get(o, 'count') || 1) | 0),
   }));
   L.points = (get(d, 'points') || []).map(p => ({
     id: get(p, 'id'), action: enumOf(get(p, 'action'), ACTIONS, 'ShieldSlide'), cell: parseCell(get(p, 'cell')),
@@ -558,7 +566,14 @@ async function loadSiteData() {
   const tryJson = async u => { try { const r = await fetch(u, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch (e) { return null; } };
   const colors = await tryJson('configs/Colors.json');
   if (colors) { const p = {}; for (const [k, v] of Object.entries(colors)) if (k !== 'none') p[k] = v; PALETTE = p; }
-  const items = await tryJson('configs/Items.json'); if (items) { ITEMS = Object.keys(items); for (const [k, v] of Object.entries(items)) if (v && v.name) ITEM_NAMES[k] = v.name; }
+  const items = await tryJson('configs/Items.json');
+  if (items) {
+    ITEMS = Object.keys(items).filter(k => items[k]?.kind !== 'Resource');
+    for (const [k, v] of Object.entries(items)) if (v && v.name) ITEM_NAMES[k] = v.name;
+    const res = {};
+    for (const [k, v] of Object.entries(items)) if (v?.kind === 'Resource') res[k] = { name: v.name || k, color: v.color || null };
+    if (Object.keys(res).length) { RESOURCE_INFO = res; RESOURCES = Object.keys(res); if (!res[st.objResource]) st.objResource = RESOURCES[0]; }
+  }
   const enemies = await tryJson('configs/Enemies.json');
   if (enemies) {
     const info = {};
@@ -586,6 +601,7 @@ const st = {
   blockShape: 'F', blockMode: 'add',
   paintColumn: false,
   objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, crateYaw: 0, crateHeight: 2,
+  objResource: 'metal', chestCount: 1,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
 };
@@ -753,6 +769,10 @@ function objectPanel() {
     desc('Стопка деревянных ящиков 2×1: закрывает проход, разбивается только мечом. Две в высоту не перепрыгнуть. Тап — первая клетка, вторая — по стрелке.'),
     row('Вторая клетка', chips(CRATE_DIRS, st.crateYaw, v => { st.crateYaw = v; renderPanel(); })),
     row('Ящиков в высоту', stepper(st.crateHeight, v => st.crateHeight = v, 1, 3)));
+  if (st.objKind === 'Chest') out.push(
+    desc('Сундук в одной клетке: игрок открывает его (E / X), ресурс вылетает и летит к нему. На значке сундука подписано, что внутри.'),
+    H3('Ресурс'), resourceList(st.objResource, v => { st.objResource = v; renderPanel(); }),
+    row('Количество', stepper(st.chestCount, v => st.chestCount = v, 1, 99)));
   if (o) {
     out.push(H3('Выбран: ' + o.id));
     const edit = fn => { touchMarkup(); fn(); commit(); renderPanel(); };
@@ -761,6 +781,7 @@ function objectPanel() {
       // Дверь стоит строго поперёк прохода: поворот только по 90°, высота по умолчанию — как у стены.
       if (v === 'ShortcutDoor' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
       if (v === 'CrateStack' && o.kind !== v) { o.yaw = crateDir(o.yaw); o.height = st.crateHeight; o.color = null; o.item = null; }
+      if (v === 'Chest' && o.kind !== v) { o.color = null; o.item = st.objResource; o.count = st.chestCount; }
       o.kind = v;
     }))));
     out.push(row('Клетка', h('span', {}, cellStr(o.cell))));
@@ -780,6 +801,8 @@ function objectPanel() {
     }
     const itemList = o.kind === 'WeaponPedestal' ? ITEMS : o.kind === 'Hint' ? HINTS : null;
     if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })));
+    else if (o.kind === 'Chest') out.push(H3('Ресурс в сундуке'), resourceList(o.item, v => edit(() => o.item = v)),
+      row('Количество', stepper(o.count || 1, v => edit(() => o.count = v), 1, 99)));
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack')
       out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
 
@@ -792,8 +815,16 @@ function objectPanel() {
   out.push(H3('Объекты уровня (' + L.objects.length + ')'), h('div', { class: 'list' }, L.objects.map(x =>
     h('button', { class: sel.obj === x.id ? 'on' : '', on: { click: () => { sel.obj = x.id; sel.point = null; focusCell(x.cell); renderPanel(); } } },
       h('span', { class: 'mk', style: `background:${objColor(x)}` }, OBJECT_KINDS[x.kind]?.mk || '?'),
-      x.id + (x.kind === 'EnemySpawn' ? ' · ' + enemyName(x.item) : x.item ? ' · ' + x.item : '')))));
+      x.id + (x.kind === 'EnemySpawn' ? ' · ' + enemyName(x.item) : x.kind === 'Chest' ? ' · ' + chestLabel(x) : x.item ? ' · ' + x.item : '')))));
   return out;
+}
+/** Ресурсы кнопками (цвет и название); неизвестный id из файла тоже показывается, чтобы его не потерять. */
+function resourceList(cur, set) {
+  const ids = [...new Set([...RESOURCES, ...(cur ? [cur] : [])])];
+  return h('div', { class: 'list' }, ids.map(id =>
+    h('button', { class: cur === id ? 'on' : '', on: { click: () => set(id) } },
+      h('span', { class: 'mk', style: `background:${resourceHex(id)}` }, OBJECT_KINDS.Chest.mk),
+      resourceName(id) + ' (' + id + ')' + (RESOURCE_INFO[id] ? '' : ' — нет в Items.json'))));
 }
 function enemyHex(id) { const c = ENEMY_INFO[id]?.color; return PALETTE[c]?.hex || OBJECT_KINDS.EnemySpawn.col; }
 function enemyName(id) { return ENEMY_INFO[id]?.name || id || '?'; }
@@ -1118,6 +1149,7 @@ function buildMarkers() {
   for (const o of L.objects) {
     if (o.kind === 'ShortcutDoor') { addDoorMesh(o); continue; }
     if (o.kind === 'CrateStack') { addCrateMesh(o); continue; }
+    if (o.kind === 'Chest') { addChestMesh(o); continue; }
     if (o.kind !== 'Barrier') continue;
     const hgt = Math.max(1, o.height ?? 2);
     const col = new THREE.Color(PALETTE[o.color]?.hex || '#999');
@@ -1150,6 +1182,25 @@ function addDoorMesh(o) {
   // Меши переносим в мировые координаты: очистка markerGroup ожидает у детей geometry/material.
   g.updateMatrixWorld(true);
   for (const m of [slab, bar]) { m.applyMatrix4(g.matrixWorld); m.visible = g.visible; }
+}
+// Сундук: корпус, крышка и полоса цвета ресурса (как в игре, Chest.cs).
+function addChestMesh(o) {
+  const fi = floorIndexOf(o.cell[1]);
+  const faded = fi > activeFloor;
+  const g = new THREE.Group();
+  const mat = c => new THREE.MeshLambertMaterial({ color: c, transparent: faded, opacity: faded ? 0.2 : 1, depthWrite: !faded });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.42, 0.62), mat('#9a9da6')); body.position.y = 0.21;
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.2, 0.64), mat('#b4b7bf')); lid.position.y = 0.52;
+  const band = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.66), mat(o.item ? resourceHex(o.item) : '#55575c')); band.position.y = 0.52;
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.05), mat('#55575c')); lock.position.set(0, 0.42, 0.33);
+  const parts = [body, lid, band, lock];
+  g.add(...parts);
+  g.position.set(o.cell[0] + .5, surfaceOf(o.cell), o.cell[2] + .5);
+  g.rotation.y = (o.yaw || 0) * Math.PI / 180;
+  g.visible = !(faded && st.upper === 'hide');
+  g.updateMatrixWorld(true);
+  // Как у двери: меши переносятся в мировые координаты прямо в markerGroup.
+  for (const m of parts) { m.renderOrder = 3; m.applyMatrix4(g.matrixWorld); m.visible = g.visible; g.remove(m); markerGroup.add(m); }
 }
 // Стопка ящиков: ящики 2×1×1 один на другом (верхние чуть повёрнуты, как в игре), тянутся от клетки по стрелке.
 function addCrateMesh(o) {
@@ -1253,6 +1304,7 @@ function pxPerUnit() { return glCanvas.clientHeight / (2 * cam.zoom); }
 function objColor(o) {
   if (o.kind === 'Barrier' && PALETTE[o.color]) return PALETTE[o.color].hex;
   if (o.kind === 'EnemySpawn') return enemyHex(o.item);
+  if (o.kind === 'Chest') return o.item ? resourceHex(o.item) : OBJECT_KINDS.Chest.col;
   return OBJECT_KINDS[o.kind]?.col || '#555';
 }
 function fmtH(v) { const r = Math.round(v * 100) / 100; return Number.isInteger(r) ? String(r) : String(r).replace(/^0\./, '.'); }
@@ -1298,7 +1350,7 @@ function drawOverlay() {
   // объекты и точки
   const r = Math.max(9, Math.min(17, ppu * 0.36));
   const markers = [];
-  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' ? '' : o.kind === 'EnemySpawn' ? enemyName(o.item) : o.item, kind: 'obj' });
+  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' ? '' : o.kind === 'EnemySpawn' ? enemyName(o.item) : o.kind === 'Chest' ? chestLabel(o) : o.item, badge: o.kind === 'Chest', kind: 'obj' });
   for (const p of L.points) markers.push({ id: p.id, cell: p.cell, col: '#8a5cf0', mk: '◆', sel: sel.point === p.id, diamond: true, label: ACTIONS[p.action]?.name, kind: 'pt' });
   for (const m of markers) {
     const fi = floorIndexOf(m.cell[1]);
@@ -1321,7 +1373,14 @@ function drawOverlay() {
       octx.fillStyle = '#fff'; octx.font = `700 ${Math.round(r * 1.05)}px system-ui, sans-serif`; octx.textAlign = 'center'; octx.textBaseline = 'middle';
       octx.fillText(m.mk, sx, sy + 1);
     }
-    if (m.label && ppu >= 26) {
+    if (m.badge && m.label) {
+      // Сундук: что внутри — всегда видно, плашкой под значком.
+      octx.font = '700 11px system-ui, sans-serif';
+      const w = octx.measureText(m.label).width + 10, by = sy + r + 9;
+      octx.fillStyle = 'rgba(255,255,255,.92)'; octx.strokeStyle = m.col; octx.lineWidth = 2;
+      octx.beginPath(); octx.roundRect ? octx.roundRect(sx - w / 2, by - 8, w, 16, 8) : octx.rect(sx - w / 2, by - 8, w, 16); octx.fill(); octx.stroke();
+      octx.fillStyle = '#23262b'; octx.fillText(m.label, sx, by + 1);
+    } else if (m.label && ppu >= 26) {
       octx.font = '600 11px system-ui, sans-serif'; octx.fillStyle = 'rgba(35,38,43,.85)'; octx.fillText(m.label, sx, sy + r + 9);
     }
     m.sx = sx; m.sy = sy;
@@ -1506,7 +1565,8 @@ function objectTap(px, py) {
     id: kind === 'PlayerSpawn' && !L.objects.some(o => o.id === 'spawn') ? 'spawn' : newId(kind.toLowerCase() + '_', L.objects),
     kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : kind === 'CrateStack' ? st.crateYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
     height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : 2,
-    item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : null,
+    item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : kind === 'Chest' ? st.objResource : null,
+    count: kind === 'Chest' ? st.chestCount : 1,
   };
   if (kind === 'PlayerSpawn') { L.objects = L.objects.filter(x => x.kind !== 'PlayerSpawn'); o.id = 'spawn'; }
   L.objects.push(o); commit();

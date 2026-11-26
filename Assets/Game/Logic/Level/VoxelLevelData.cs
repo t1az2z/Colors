@@ -53,6 +53,9 @@ namespace ColorsAction.Level
             public BarrierKind Barrier { get; set; }
             public int Height { get; set; } = 2;
             public string Item { get; set; }
+
+            /// <summary>Количество (сундук: сколько ресурса). Не задано — 1.</summary>
+            public int Count { get; set; } = 1;
         }
 
         [Preserve]
@@ -114,7 +117,7 @@ namespace ColorsAction.Level
                 Objects.Select(o => new LevelObject
                 {
                     Id = o.Id, Kind = o.Kind, Cell = Int3.Parse(o.Cell), Yaw = o.Yaw, Color = o.Color,
-                    Barrier = o.Barrier, Height = o.Height, Item = o.Item
+                    Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = Math.Max(1, o.Count)
                 }),
                 Points.Select(p => new InteractionPoint
                 {
@@ -137,7 +140,7 @@ namespace ColorsAction.Level
                 Objects = level.Objects.Select(o => new ObjectData
                 {
                     Id = o.Id, Kind = o.Kind, Cell = o.Cell.ToString(), Yaw = o.Yaw, Color = o.Color,
-                    Barrier = o.Barrier, Height = o.Height, Item = o.Item
+                    Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = o.Count
                 }).ToList(),
                 Points = level.Points.Select(p => new PointData
                 {
@@ -251,6 +254,15 @@ namespace ColorsAction.Level
                 {
                     Id = string.IsNullOrEmpty(c.Id) ? level.NewObjectId(LevelObjectKind.CrateStack) : c.Id,
                     Kind = LevelObjectKind.CrateStack, Cell = StandCell(c.X, c.Z), Yaw = c.Yaw, Height = Math.Max(1, c.Height)
+                });
+            }
+
+            foreach (var c in config.Chests)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = string.IsNullOrEmpty(c.Id) ? level.NewObjectId(LevelObjectKind.Chest) : c.Id,
+                    Kind = LevelObjectKind.Chest, Cell = StandCell(c.X, c.Z), Yaw = c.Yaw, Item = c.Item, Count = Math.Max(1, c.Count)
                 });
             }
 

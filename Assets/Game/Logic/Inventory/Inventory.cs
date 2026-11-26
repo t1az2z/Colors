@@ -17,6 +17,12 @@ namespace ColorsAction.Inventory
         /// <summary>Сколько зарядов у полного предмета.</summary>
         public int MaxCharges => Config.Heal?.Charges ?? 0;
 
+        /// <summary>Сколько штук в стопке (ресурсы); у нескладываемых предметов всегда 1.</summary>
+        public int Count { get; set; } = 1;
+
+        /// <summary>Сколько ещё поместится в эту стопку.</summary>
+        public int Room => Math.Max(0, Config.MaxStack - Count);
+
         public Item(int uid, ItemConfig config)
         {
             Uid = uid;
@@ -24,7 +30,7 @@ namespace ColorsAction.Inventory
             Charges = MaxCharges;
         }
 
-        public override string ToString() => $"{Id}#{Uid}";
+        public override string ToString() => Count > 1 ? $"{Id}#{Uid}x{Count}" : $"{Id}#{Uid}";
     }
 
     public enum Hand
@@ -169,17 +175,111 @@ namespace ColorsAction.Inventory
             return -1;
         }
 
-        /// <summary>Кладёт предмет в первую свободную клетку сетки.</summary>
+        /// <summary>
+        /// Кладёт предмет в первую свободную клетку сетки. Складываемый (ресурс) сначала досыпается в стопки того же
+        /// предмета, остаток (не больше одной стопки) ложится в свободную клетку этим же экземпляром.
+        /// </summary>
         public bool TryAdd(Item item)
         {
             if (item == null)
                 throw new ArgumentNullException(nameof(item));
             if (Contains(item))
                 return false;
+            if (item.Config.IsStackable)
+                return TryAddStackable(item);
             var free = FreeGridSlot();
             if (free < 0)
                 return false;
             grid[free] = item;
+            Changed?.Invoke();
+            return true;
+        }
+
+        /// <summary>Сколько всего штук предмета с этим id (сумма стопок).</summary>
+        public int CountOf(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId))
+                return 0;
+            var total = 0;
+            foreach (var item in Unique())
+                if (item.Id == itemId)
+                    total += item.Count;
+            return total;
+        }
+
+        /// <summary>Сколько штук предмета ещё поместится: досыпать в стопки + свободные клетки.</summary>
+        public int Capacity(ItemConfig config)
+        {
+            if (config == null)
+                return 0;
+            var room = 0;
+            for (int i = 0; i < grid.Length; i++)
+            {
+                if (grid[i] == null)
+                    room += config.MaxStack;
+                else if (grid[i].Id == config.Id && config.IsStackable)
+                    room += grid[i].Room;
+            }
+
+            return room;
+        }
+
+        /// <summary>
+        /// Добавить <paramref name="count"/> штук складываемого предмета: досыпать в стопки, затем новыми стопками из
+        /// <paramref name="create"/>. Не помещается целиком — false, инвентарь не меняется.
+        /// </summary>
+        public bool TryAddCount(ItemConfig config, int count, Func<Item> create)
+        {
+            if (config == null)
+                throw new ArgumentNullException(nameof(config));
+            if (create == null)
+                throw new ArgumentNullException(nameof(create));
+            if (count <= 0)
+                return true;
+            if (Capacity(config) < count)
+                return false;
+
+            var left = Fill(config.Id, count);
+            while (left > 0)
+            {
+                var free = FreeGridSlot();
+                var stack = create();
+                stack.Count = Math.Min(left, Math.Max(1, config.MaxStack));
+                left -= stack.Count;
+                grid[free] = stack;
+            }
+
+            Changed?.Invoke();
+            return true;
+        }
+
+        /// <summary>
+        /// Потратить <paramref name="count"/> штук предмета (оплата прокачки). Не хватает — false, ничего не тратится.
+        /// Пустые стопки убираются, тратится с последних клеток.
+        /// </summary>
+        public bool TryConsume(string itemId, int count)
+        {
+            if (count <= 0)
+                return true;
+            if (CountOf(itemId) < count)
+                return false;
+            var left = count;
+            for (int i = grid.Length - 1; i >= 0 && left > 0; i--)
+                left = Take(ref grid[i], itemId, left);
+            for (int i = quick.Length - 1; i >= 0 && left > 0; i--)
+                left = Take(ref quick[i], itemId, left);
+            for (int i = hands.Length - 1; i >= 0 && left > 0; i--)
+            {
+                var item = hands[i];
+                if (item == null || item.Id != itemId)
+                    continue;
+                var taken = Math.Min(left, item.Count);
+                item.Count -= taken;
+                left -= taken;
+                if (item.Count <= 0)
+                    ClearFromHands(item);
+            }
+
             Changed?.Invoke();
             return true;
         }
@@ -409,6 +509,17 @@ namespace ColorsAction.Inventory
                 return true;
             }
 
+            // Стопка на стопку того же ресурса: досыпать, остаток остаётся на месте.
+            if (item.Config.IsStackable && target.Id == item.Id && target.Room > 0)
+            {
+                var moved = Math.Min(item.Count, target.Room);
+                target.Count += moved;
+                item.Count -= moved;
+                if (item.Count <= 0)
+                    RemoveEverywhere(item);
+                return true;
+            }
+
             // Из руки на занятую клетку: если там оружие, надеваем его в эту руку (обмен).
             if (from.Kind == SlotKind.Hand)
             {
@@ -484,6 +595,66 @@ namespace ColorsAction.Inventory
         {
             if (item != null && !list.Contains(item))
                 list.Add(item);
+        }
+
+        private bool TryAddStackable(Item item)
+        {
+            var config = item.Config;
+            var existing = 0;
+            for (int i = 0; i < grid.Length; i++)
+                if (grid[i] != null && grid[i].Id == config.Id)
+                    existing += grid[i].Room;
+            var rest = Math.Max(0, item.Count - existing);
+            if (rest > config.MaxStack || (rest > 0 && FreeGridSlot() < 0))
+                return false;
+            var left = Fill(config.Id, item.Count);
+            if (left > 0)
+            {
+                item.Count = left;
+                grid[FreeGridSlot()] = item;
+            }
+
+            Changed?.Invoke();
+            return true;
+        }
+
+        /// <summary>Досыпать в стопки сетки; возвращает, сколько не поместилось.</summary>
+        private int Fill(string itemId, int count)
+        {
+            for (int i = 0; i < grid.Length && count > 0; i++)
+            {
+                var stack = grid[i];
+                if (stack == null || stack.Id != itemId || !stack.Config.IsStackable)
+                    continue;
+                var add = Math.Min(count, stack.Room);
+                stack.Count += add;
+                count -= add;
+            }
+
+            return count;
+        }
+
+        private static int Take(ref Item slot, string itemId, int count)
+        {
+            if (slot == null || slot.Id != itemId)
+                return count;
+            var taken = Math.Min(count, slot.Count);
+            slot.Count -= taken;
+            if (slot.Count <= 0)
+                slot = null;
+            return count - taken;
+        }
+
+        /// <summary>Каждый предмет один раз (двуручное в обеих руках — одна ссылка).</summary>
+        private IEnumerable<Item> Unique()
+        {
+            var seen = new HashSet<Item>();
+            foreach (var slot in AllSlots())
+            {
+                var item = Get(slot);
+                if (item != null && seen.Add(item))
+                    yield return item;
+            }
         }
 
         private Item[][] Snapshot() => new[] { (Item[])grid.Clone(), (Item[])hands.Clone(), (Item[])quick.Clone() };

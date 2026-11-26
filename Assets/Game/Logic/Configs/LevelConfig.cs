@@ -39,6 +39,7 @@ namespace ColorsAction.Configs
         public List<LevelDoor> Doors { get; set; } = new List<LevelDoor>();
         public List<LevelBonfire> Bonfires { get; set; } = new List<LevelBonfire>();
         public List<LevelCrate> Crates { get; set; } = new List<LevelCrate>();
+        public List<LevelChest> Chests { get; set; } = new List<LevelChest>();
 
         public int Width { get; private set; }
         public int Length { get; private set; }
@@ -75,6 +76,14 @@ namespace ColorsAction.Configs
             {
                 if (string.IsNullOrEmpty(c.Id))
                     c.Id = $"crates_{c.X}_{c.Z}";
+            }
+
+            Chests ??= new List<LevelChest>();
+            foreach (var c in Chests)
+            {
+                if (string.IsNullOrEmpty(c.Id))
+                    c.Id = $"chest_{c.X}_{c.Z}";
+                c.Count = Math.Max(1, c.Count);
             }
 
             foreach (var b in Bonfires)
@@ -245,6 +254,23 @@ namespace ColorsAction.Configs
 
         /// <summary>Сколько ящиков в высоту.</summary>
         public int Height { get; set; } = 2;
+    }
+
+    /// <summary>
+    /// Сундук в клетке: на E / X открывается, ресурс <see cref="Item"/> (id из Items.json) в количестве
+    /// <see cref="Count"/> вылетает и летит к игроку. Открытый сундук остаётся открытым (<see cref="GameSession.OpenedChests"/>).
+    /// <see cref="LevelPoint.Yaw"/> — куда смотрит лицевая сторона (0 — +Z).
+    /// </summary>
+    [Preserve]
+    public sealed class LevelChest : LevelPoint
+    {
+        /// <summary>Id сундука (для запоминания открытых). Пусто — "chest_x_z".</summary>
+        public string Id { get; set; }
+
+        /// <summary>Ресурс внутри (id из Items.json). Пусто — сундук пустой.</summary>
+        public string Item { get; set; }
+
+        public int Count { get; set; } = 1;
     }
 
     /// <summary>

@@ -55,6 +55,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         [SerializeField] private int doorYaw;
         [SerializeField] private int crateYaw;
         [SerializeField] private int crateHeight = CrateStackShape.DefaultHeight;
+        [SerializeField] private int chestCount = 1;
         [SerializeField] private string objectItem = "";
         [SerializeField] private InteractionAction pointAction = InteractionAction.ShieldSlide;
 
@@ -395,6 +396,13 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                                                 "Две и больше в высоту не перепрыгнуть.", MessageType.None);
                     }
 
+                    if (objectKind == LevelObjectKind.Chest)
+                    {
+                        chestCount = Mathf.Max(1, EditorGUILayout.IntField("Количество", chestCount));
+                        EditorGUILayout.HelpBox("Сундук: E / X открывает, ресурс (id из Items.json: metal, rivets, gears) " +
+                                                "летит к игроку. Удобнее ставить в веб-редакторе уровней.", MessageType.None);
+                    }
+
                     if (objectKind == LevelObjectKind.Bonfire)
                         EditorGUILayout.HelpBox("Костёр: отдых (F / X) лечит, возрождает всех врагов уровня, становится точкой " +
                                                 "возрождения; у костра — меню апгрейдов оружия. Поворот — где встаёт игрок.", MessageType.None);
@@ -468,6 +476,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 case LevelObjectKind.EnemySpawn: return "Враг (тип)";
                 case LevelObjectKind.Npc: return "NPC (id)";
                 case LevelObjectKind.Hint: return "Подсказка (действие)";
+                case LevelObjectKind.Chest: return "Ресурс (id)";
                 default: return "Метка";
             }
         }
@@ -555,6 +564,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 after.Color = c;
                 var item = EditorGUILayout.DelayedTextField(ItemLabel(after.Kind), obj.Item ?? "");
                 after.Item = string.IsNullOrEmpty(item) ? null : item;
+                if (after.Kind == LevelObjectKind.Chest)
+                    after.Count = Mathf.Max(1, EditorGUILayout.DelayedIntField("Количество", obj.Count));
             }
             if (EditorGUI.EndChangeCheck())
                 session.Execute(MarkupCommand.PutObject(obj, after));

@@ -383,6 +383,16 @@ namespace ColorsAction.Unity
                 bootstrap.Inject(go);
             }
 
+            // Сундуки с ресурсами: открываются на E / X, ресурс летит к игроку. Открытые стоят открытыми.
+            foreach (var c in config.Chests)
+            {
+                var go = new GameObject($"Chest_{c.Id}");
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(PointPosition(c), Quaternion.Euler(0, c.Yaw, 0));
+                go.AddComponent<Chest>().Init(c.Id, c.Item, c.Count, worldMaterial);
+                bootstrap.Inject(go);
+            }
+
             // Костры: отдых, возрождение врагов, точка возрождения, апгрейды оружия.
             foreach (var b in config.Bonfires)
             {

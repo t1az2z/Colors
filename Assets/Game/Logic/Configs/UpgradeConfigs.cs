@@ -8,13 +8,16 @@ namespace ColorsAction.Configs
 {
     /// <summary>
     /// Configs/Upgrades.json — апгрейды оружия у костра: id предмета из Items.json → ровно
-    /// <see cref="WeaponUpgrades.MaxTier"/> последовательных ступеней (название, описание, цена в опыте).
+    /// <see cref="WeaponUpgrades.MaxTier"/> последовательных ступеней (название, описание, цена: опыт + ресурс оружия).
     /// Сами способности включает оружие по <see cref="WeaponUpgrades.Has"/>.
     /// </summary>
     [Preserve]
     public sealed class WeaponUpgradeConfig : IIdentified, IConfigPostLoad
     {
         public string Id { get; set; }
+
+        /// <summary>Ресурс оружия (id из Items.json, kind Resource): меч — металл, щит — заклёпки. Пусто — только опыт.</summary>
+        public string Resource { get; set; }
 
         public List<UpgradeTierConfig> Tiers { get; set; } = new List<UpgradeTierConfig>();
 
@@ -30,7 +33,7 @@ namespace ColorsAction.Configs
             {
                 if (Tiers[i] == null)
                     throw new InvalidOperationException($"upgrades of '{Id}': tier {i + 1} is empty");
-                if (Tiers[i].Cost < 0)
+                if (Tiers[i].Cost < 0 || Tiers[i].Resources < 0)
                     throw new InvalidOperationException($"upgrades of '{Id}': tier {i + 1} cost is negative");
                 Tiers[i].Name ??= string.Empty;
                 Tiers[i].Description ??= string.Empty;
@@ -45,7 +48,10 @@ namespace ColorsAction.Configs
         public string Name { get; set; }
         public string Description { get; set; }
 
-        /// <summary>Цена в опыте (<see cref="GameSession.Experience"/>).</summary>
+        /// <summary>Цена в опыте (<see cref="GameSession.Experience"/>) — «деньги» прокачки.</summary>
         public int Cost { get; set; }
+
+        /// <summary>Сколько штук ресурса оружия (<see cref="WeaponUpgradeConfig.Resource"/>) нужно на эту ступень.</summary>
+        public int Resources { get; set; }
     }
 }

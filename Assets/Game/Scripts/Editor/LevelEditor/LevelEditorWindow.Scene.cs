@@ -240,7 +240,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     : objectKind == LevelObjectKind.CrateStack ? crateHeight : barrierHeight,
                 Yaw = objectKind == LevelObjectKind.ShortcutDoor ? doorYaw : objectKind == LevelObjectKind.CrateStack ? crateYaw : 0f,
                 Color = HasColor(objectKind) ? objectColor : null,
-                Item = string.IsNullOrEmpty(objectItem) ? null : objectItem
+                Item = string.IsNullOrEmpty(objectItem) ? null : objectItem,
+                Count = objectKind == LevelObjectKind.Chest ? chestCount : 1
             };
             session.Execute(MarkupCommand.PutObject(null, obj));
             selectedObject = obj.Id;
@@ -378,6 +379,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 case LevelObjectKind.Hint: return Color.white;
                 case LevelObjectKind.ShortcutDoor: return new Color(0.6f, 0.4f, 0.25f);
                 case LevelObjectKind.CrateStack: return new Color(0.18f, 0.42f, 1f);
+                case LevelObjectKind.Chest: return new Color(0.85f, 0.7f, 0.25f);
                 default: return Color.gray;
             }
         }
@@ -485,6 +487,10 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                         break;
                     case LevelObjectKind.WeaponPedestal:
                         DrawSolidBox(pos + Vector3.up * 0.25f, new Vector3(0.6f, 0.5f, 0.6f));
+                        break;
+                    case LevelObjectKind.Chest:
+                        DrawSolidBox(pos + Vector3.up * 0.3f, new Vector3(0.86f, 0.6f, 0.62f));
+                        Handles.Label(pos + Vector3.up * 0.8f, $"{o.Item} ×{o.Count}");
                         break;
                     case LevelObjectKind.Bonfire:
                         Handles.ConeHandleCap(0, pos + Vector3.up * 0.3f, Quaternion.LookRotation(Vector3.up), 0.5f, EventType.Repaint);

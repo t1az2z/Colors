@@ -36,6 +36,7 @@ namespace ColorsAction.States
             configs.LoadTable<ItemConfig>(ConfigKeys.Items);
             configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies);
             configs.LoadTable<WeaponUpgradeConfig>(ConfigKeys.Upgrades);
+            configs.Load<ChestConfig>(ConfigKeys.Chests);
             var level = launch.LevelKey(game);
             if (LevelKeys.IsVoxel(level))
                 configs.Load<Level.VoxelLevelData>(level);

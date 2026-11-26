@@ -151,7 +151,7 @@
    Описания параметров — в SCHEMA ниже. Неописанные ключи показываются как есть.
    ===================================================================== */
 
-const FILE_ORDER = ['Player', 'Camera', 'Items', 'Enemies', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Movement', 'Game'];
+const FILE_ORDER = ['Player', 'Camera', 'Items', 'Upgrades', 'Enemies', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Movement', 'Game'];
 const S = { dir: null, files: {}, current: null, levels: [], mode: 'none' };
 
 /* ---------- утилиты ---------- */
@@ -169,6 +169,7 @@ function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.c
 function colorHex(id) { const c = S.files.Colors?.data?.[id]; return c?.hex || '#9EA0A6'; }
 function colorName(id) { const c = S.files.Colors?.data?.[id]; return c?.name || id; }
 function itemsData() { return S.files.Items?.data || {}; }
+function resourceIds() { return Object.entries(itemsData()).filter(([, it]) => it?.kind === 'Resource').map(([id]) => id); }
 
 /* ---------- форматирование JSON (как в исходных файлах: короткие объекты в одну строку) ---------- */
 function oneLine(v) {
@@ -393,6 +394,36 @@ const SCHEMA = {
     },
   },
 
+  Chests: {
+    title: 'Сундуки', desc: 'Сундук с ресурсом (1 клетка): открывается на E / X, ресурс вылетает кусочками и летит к игроку. Что лежит внутри и сколько — задаётся в редакторе уровней.',
+    sections: [
+      { title: 'Вид', fields: [
+        { k: 'width', l: 'Ширина', u: U.bl, min: 0.2, max: 1, step: 0.01, d: '' },
+        { k: 'depth', l: 'Глубина', u: U.bl, min: 0.2, max: 1, step: 0.01, d: '' },
+        { k: 'bodyHeight', l: 'Высота корпуса', u: U.bl, min: 0.1, max: 1, step: 0.01, d: 'Без крышки.' },
+        { k: 'lidHeight', l: 'Высота крышки', u: U.bl, min: 0, max: 0.6, step: 0.01, d: '' },
+        { k: 'tint', l: 'Цвет корпуса (hex)', t: 'color', d: '' },
+        { k: 'trimShade', l: 'Яркость окантовки', u: U.x, min: 0, max: 1, step: 0.05, d: 'Окантовка и замок темнее корпуса.' },
+        { k: 'showResourceColor', l: 'Полоса цвета ресурса', t: 'bool', d: 'Полоса на крышке в цвете ресурса: видно, что внутри.' },
+        { k: 'prompt', l: 'Подсказка', t: 'text', d: 'Текст рядом с кнопкой взаимодействия.' },
+      ] },
+      { title: 'Открытие', fields: [
+        { k: 'squashTime', l: 'Сжатие перед открытием', u: U.s, min: 0, max: 0.5, step: 0.01, d: 'Как куб перед прыжком.' },
+        { k: 'openTime', l: 'Открытие крышки', u: U.s, min: 0.05, max: 2, step: 0.01, d: '' },
+        { k: 'lidAngle', l: 'Угол крышки', u: U.deg, min: 30, max: 180, step: 1, d: '' },
+      ] },
+      { title: 'Ресурс летит к игроку', fields: [
+        { k: 'piecesPerResource', l: 'Кусочков на штуку', t: 'int', u: 'шт.', min: 1, max: 10, step: 1, d: '' },
+        { k: 'maxPieces', l: 'Максимум кусочков', t: 'int', u: 'шт.', min: 1, max: 60, step: 1, d: '' },
+        { k: 'pieceSize', l: 'Размер кусочка', u: U.bl, min: 0.03, max: 0.4, step: 0.01, d: '' },
+        { k: 'burstForce', l: 'Сила вылета', u: U.bls, min: 0, max: 10, step: 0.1, d: '' },
+        { k: 'flyDelay', l: 'Задержка полёта', u: U.s, min: 0, max: 3, step: 0.05, d: 'Через сколько после вылета кусочки летят к игроку.' },
+        { k: 'flyStagger', l: 'Шаг между кусочками', u: U.s, min: 0, max: 0.5, step: 0.01, d: '' },
+        { k: 'grantTimeout', l: 'Засчитать не позже', u: U.s, min: 0.5, max: 10, step: 0.1, d: 'Ресурс засчитывается, когда долетел последний кусочек; если что-то помешало — не позже этого времени.' },
+      ] },
+    ],
+  },
+
   Inventory: {
     title: 'Инвентарь', desc: 'Размер сетки инвентаря и число быстрых слотов предметов (клавиши 1–4).',
     sections: [
@@ -423,9 +454,10 @@ const SCHEMA = {
 const ITEM_FIELDS = [
   { k: 'name', l: 'Название', t: 'text', d: 'Как предмет называется в игре.' },
   { k: 'color', l: 'Цвет', t: 'colorRef', d: 'Даёт бонус урона по врагам того же цвета и открывает проходы этого цвета.' },
-  { k: 'kind', l: 'Тип', t: 'enum', opts: [['OneHanded', 'Одноручное'], ['TwoHanded', 'Двуручное (занимает обе руки)'], ['Shield', 'Щит (блок на ПКМ/LT)'], ['Consumable', 'Расходник']], d: '' },
-  { k: 'hand', l: 'Рука', t: 'enum', def: 'Any', opts: [['Any', 'Любая'], ['Right', 'Только правая (ЛКМ/RT)'], ['Left', 'Только левая (ПКМ/LT)']], d: 'В какой слот руки можно надеть.' },
-  { k: 'damage', l: 'Базовый урон', d: 'Урон удара = базовый урон × множитель удара серии.', u: U.pts, min: 0, max: 200, step: 0.5 },
+  { k: 'kind', l: 'Тип', t: 'enum', opts: [['OneHanded', 'Одноручное'], ['TwoHanded', 'Двуручное (занимает обе руки)'], ['Shield', 'Щит (блок на ПКМ/LT)'], ['Consumable', 'Расходник'], ['Resource', 'Ресурс (прокачка оружия, в сундуках)']], d: '' },
+  { k: 'maxStack', l: 'Стопка', t: 'int', u: 'шт.', min: 1, max: 999, step: 1, def: 99, d: 'Сколько штук помещается в одну клетку инвентаря.', onlyResource: true },
+  { k: 'hand', l: 'Рука', t: 'enum', def: 'Any', opts: [['Any', 'Любая'], ['Right', 'Только правая (ЛКМ/RT)'], ['Left', 'Только левая (ПКМ/LT)']], d: 'В какой слот руки можно надеть.', noResource: true },
+  { k: 'damage', l: 'Базовый урон', d: 'Урон удара = базовый урон × множитель удара серии.', u: U.pts, min: 0, max: 200, step: 0.5, noResource: true },
   { k: 'prefab', l: 'Префаб', t: 'text', d: 'Путь в Resources, например Items/Sword. Пусто — без модели.' },
   { k: 'comboWindow', l: 'Доп. окно комбо', d: 'Дополнительное время после возврата в стойку, когда нажатие ещё продолжает серию. 0 — серию продолжает только нажатие во время фиксации финальной позы.', u: U.s, min: 0, max: 1.5, step: 0.01, def: 0, onlyWeapon: true },
   { k: 'trailRange', l: 'Дальность эффекта', d: 'Как далеко от центра куба тянется след клинка. 0 — как дальность поражения удара, чтобы эффект не был длиннее зоны урона.', u: U.bl, min: 0, max: 4, step: 0.05, def: 0, onlyWeapon: true },
@@ -662,7 +694,7 @@ async function saveAll() {
 
 const isDirty = n => S.files[n] && fmt(S.files[n].data) !== S.files[n].saved;
 function firstFile() { return FILE_ORDER.find(n => S.files[n]) || Object.keys(S.files)[0]; }
-function warningsFor(n) { const f = S.files[n]; const sc = SCHEMA[n]; return f && sc?.validate ? sc.validate(f.data) : (n === 'Items' ? validateItems(f.data) : n === 'Enemies' ? validateEnemies(f.data) : []); }
+function warningsFor(n) { const f = S.files[n]; const sc = SCHEMA[n]; return f && sc?.validate ? sc.validate(f.data) : (n === 'Items' ? validateItems(f.data) : n === 'Enemies' ? validateEnemies(f.data) : n === 'Upgrades' ? validateUpgrades(f.data) : []); }
 
 /* =====================================================================
    Рендер: навигация и страница
@@ -715,6 +747,7 @@ function renderPage() {
   $('#btnRevert').onclick = () => { f.data = clone(f.orig); renderPage(); refresh(); };
 
   if (n === 'Items') renderItems(main, f);
+  else if (n === 'Upgrades') renderUpgrades(main, f);
   else if (n === 'Colors') renderColors(main, f);
   else if (n === 'Movement') renderMovement(main, f);
   else if (n === 'Enemies') renderEnemies(main, f);
@@ -742,6 +775,7 @@ function renderPage() {
 }
 
 const PAGE_DESC = {
+  Upgrades: 'Апгрейды оружия у костра: по 3 ступени на оружие. Цена ступени — опыт (деньги прокачки) и ресурс оружия из инвентаря (металл, заклёпки, шестерёнки).',
   Items: 'Оружие и предметы. Ключ (id) используется в коде, инвентаре и Combat.unarmedItem. У оружия — серия ударов (комбо): каждое нажатие атаки в окне комбо запускает следующий удар.',
   Colors: 'Палитра: id цвета → название и HEX. Цвета оружия, врагов и стен ссылаются на эти id.',
   Enemies: 'Типы врагов: внешний вид, поведение (агро, погоня, очередь атак) и одиночные атаки с долгим читаемым замахом. Id типа используется в уровнях при расстановке врагов.',
@@ -945,7 +979,9 @@ function renderItems(main, f) {
     const isShield = it.kind === 'Shield';
     for (const fd of ITEM_FIELDS) {
       if (fd.onlyShield && !isShield) continue;
-      if (fd.onlyWeapon && (isShield || it.kind === 'Consumable')) continue;
+      if (fd.onlyWeapon && (isShield || it.kind === 'Consumable' || it.kind === 'Resource')) continue;
+      if (fd.onlyResource && it.kind !== 'Resource') continue;
+      if (fd.noResource && it.kind === 'Resource') continue;
       if (fd.onlyWeapon && it.ranged) continue; // окно комбо, след и поворот клинка стрелковому не нужны
       card.fields.append(fieldRow(f, [id, fd.k], fd, () => { if (fd.k === 'kind' || fd.k === 'color' || fd.k === 'name') renderPage(); }));
     }
@@ -967,7 +1003,11 @@ function renderItems(main, f) {
       for (const p of collectUnknown(it.shield, SHIELD_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'shield', ...p]));
     }
 
-    const weapon = !isShield && it.kind !== 'Consumable';
+    const weapon = !isShield && it.kind !== 'Consumable' && it.kind !== 'Resource';
+    if (it.kind === 'Resource') {
+      const users = Object.entries(S.files.Upgrades?.data || {}).filter(([, u]) => u?.resource === id).map(([w]) => itemsData()[w]?.name || w);
+      card.fields.append(el(`<div class="desc" style="margin:6px 0">Ресурс складывается стопками в инвентарь, лежит в сундуках (тип и количество задаются в редакторе уровней). Иконка — Assets/Game/Art/UI/Icons. ${users.length ? 'Нужен для прокачки: ' + esc(users.join(', ')) + '.' : 'Пока ни одно оружие его не требует (Upgrades.json).'}</div>`));
+    }
     if (it.ranged) {
       const sh = el(`<div class="subhead">Стрельба <button class="small danger">убрать</button></div>`);
       card.fields.append(sh);
@@ -1072,6 +1112,40 @@ function renderColors(main, f) {
   }
   addViz(card.viz, vizColors, () => ({ d: f.data }));
   main.append(card.root);
+}
+
+/* ---------- Upgrades ---------- */
+function validateUpgrades(d) {
+  const w = [];
+  for (const [id, u] of Object.entries(d || {})) {
+    if (S.files.Items && !itemsData()[id]) w.push(`${id}: оружия нет в Items.json.`);
+    if (u.resource && S.files.Items && itemsData()[u.resource]?.kind !== 'Resource') w.push(`${id}: «${u.resource}» — не ресурс в Items.json.`);
+    if ((u.tiers || []).length !== 3) w.push(`${id}: нужно ровно 3 ступени, сейчас ${(u.tiers || []).length}.`);
+    (u.tiers || []).forEach((t, i) => { if (num(t.cost) < 0 || num(t.resources) < 0) w.push(`${id}: ступень ${i + 1} — цена не может быть отрицательной.`); });
+  }
+  return w;
+}
+const TIER_FIELDS = [
+  { k: 'name', l: 'Название', t: 'text', d: '' },
+  { k: 'description', l: 'Описание', t: 'text', d: '' },
+  { k: 'cost', l: 'Опыт', t: 'int', u: U.pts, min: 0, max: 1000, step: 5, def: 0, d: 'Деньги прокачки: опыт, который копится с осколков врагов.' },
+  { k: 'resources', l: 'Ресурс', t: 'int', u: 'шт.', min: 0, max: 20, step: 1, def: 1, d: 'Сколько штук ресурса оружия нужно на эту ступень.' },
+];
+function renderUpgrades(main, f) {
+  for (const id of Object.keys(f.data)) {
+    const u = f.data[id];
+    const it = itemsData()[id];
+    const card = sectionCard('', '', false);
+    $('h3', card.root).innerHTML = `<span class="swatch" style="width:16px;height:16px;background:${esc(colorHex(it?.color))}"></span>${esc(it?.name || id)} <span class="tag">${esc(id)}</span>`;
+    makeCollapsible(card.root, 'Upgrades:' + id);
+    const opts = [['', '— без ресурса —'], ...resourceIds().map(r => [r, `${itemsData()[r]?.name || r} (${r})`])];
+    card.fields.append(fieldRow(f, [id, 'resource'], { l: 'Ресурс оружия', t: 'enum', opts, d: 'Ресурс из Items.json (тип «Ресурс»), который тратится на каждую ступень.' }));
+    (u.tiers || []).forEach((t, i) => {
+      card.fields.append(el(`<div class="subhead">Ступень ${i + 1}</div>`));
+      for (const fd of TIER_FIELDS) card.fields.append(fieldRow(f, [id, 'tiers', String(i), fd.k], fd));
+    });
+    main.append(card.root);
+  }
 }
 
 /* ---------- Movement ---------- */
