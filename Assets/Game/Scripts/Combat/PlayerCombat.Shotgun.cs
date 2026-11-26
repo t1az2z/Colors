@@ -231,7 +231,7 @@ namespace ColorsAction.Unity
             recoilElapsed = 0f;
             recoilDone = 0f;
             var power = charged ? 1.6f : 1f;
-            ParryFlash.Spawn(muzzle, 0.3f * power);
+            ParticleFx.Flash(muzzle, 0.3f * power);
             controller.Deformer.Impulse(-0.9f * power, new Vector2(0f, -2.2f * power));
             if (impulse != null && combatConfig.HitShake > 0f)
                 impulse.GenerateImpulseWithVelocity((-flat + Vector3.down * 0.3f) * (combatConfig.HitShake * 1.2f * power));

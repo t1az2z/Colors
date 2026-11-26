@@ -44,6 +44,7 @@ namespace ColorsAction.Unity.Editor
             Save(BuildSwordTrail(soft, solid, cube), "SwordTrail");
             Save(BuildChargeFlash(soft, solid, cube), "ChargeFlash");
             Save(BuildGroundSlam(soft, ringMat, solid, cube), "GroundSlam");
+            Save(BuildHitFlash(soft, solid, cube), "HitFlash");
             AssetDatabase.SaveAssets();
             Debug.Log("ColorsAction: FX prefabs built in " + FxPrefabs);
         }
@@ -124,6 +125,61 @@ namespace ColorsAction.Unity.Editor
             main.startRotationX = main.startRotationY = main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
             Burst(sparks, 10);
             Shape(sparks, ParticleSystemShapeType.Sphere, 0.1f);
+            Drag(sparks, 3f);
+            SizeOverLifetime(sparks, Curve(1f, 0f));
+            MeshRender(sparks, cube);
+            return go;
+        }
+
+        // ------------------------------------------------------------------ вспышка попадания
+
+        /// <summary>
+        /// Тёплая белая вспышка-звезда (парирование, удар по цепи, дуло дробовика, лечение): ядро, короткие лучи, искры.
+        /// Цвет задан в префабе (в игре не перекрашивается — tint белый). Время реальное — видна и во время фриз-кадров.
+        /// </summary>
+        private static GameObject BuildHitFlash(Material soft, Material solid, Mesh cube)
+        {
+            var warm = new Color(1f, 0.8f, 0.38f, 1f);
+            var go = new GameObject("HitFlash");
+            var core = go.AddComponent<ParticleSystem>();
+            Setup(core, soft, loop: false, unscaled: true, maxParticles: 4);
+            var main = core.main;
+            main.startLifetime = 0.2f;
+            main.startSize = 1.1f;
+            main.startSpeed = 0f;
+            main.startColor = warm;
+            Burst(core, 1);
+            SizeOverLifetime(core, new AnimationCurve(new Keyframe(0f, 0.5f), new Keyframe(0.15f, 1f), new Keyframe(1f, 0.1f)));
+            ColorOverLifetime(core, Fade(1f, 1f, 0f));
+
+            var rays = Child(go, "Rays");
+            Setup(rays, soft, loop: false, unscaled: true, maxParticles: 16);
+            main = rays.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.14f, 0.22f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.18f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(4f, 8f);
+            main.startColor = warm;
+            Burst(rays, 8);
+            Shape(rays, ParticleSystemShapeType.Sphere, 0.05f);
+            Drag(rays, 8f);
+            ColorOverLifetime(rays, Fade(1f, 0.9f, 0f));
+            var r = rays.GetComponent<ParticleSystemRenderer>();
+            r.renderMode = ParticleSystemRenderMode.Stretch;
+            r.velocityScale = 0.06f;
+            r.lengthScale = 2f;
+
+            var sparks = Child(go, "Sparks");
+            Setup(sparks, solid, loop: false, unscaled: true, maxParticles: 16);
+            main = sparks.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.2f, 0.4f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.04f, 0.08f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(1.5f, 3.5f);
+            main.startColor = warm;
+            main.gravityModifier = 0.8f;
+            main.startRotation3D = true;
+            main.startRotationX = main.startRotationY = main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            Burst(sparks, 6);
+            Shape(sparks, ParticleSystemShapeType.Sphere, 0.08f);
             Drag(sparks, 3f);
             SizeOverLifetime(sparks, Curve(1f, 0f));
             MeshRender(sparks, cube);

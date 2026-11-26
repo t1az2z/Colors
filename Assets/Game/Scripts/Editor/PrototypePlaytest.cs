@@ -583,7 +583,7 @@ namespace ColorsAction.Unity.Editor
                             // Вспышка — в момент столкновения: враг ещё доводит удар до середины (ParryContactTime).
                             for (int w = 0; w < 20 && !flashSeen; w++)
                             {
-                                flashSeen = Object.FindAnyObjectByType<ParryFlash>() != null;
+                                flashSeen = ParticleFx.AnyPlaying(ParticleFx.HitFlash);
                                 if (!flashSeen)
                                     yield return 1;
                             }

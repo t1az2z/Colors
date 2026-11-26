@@ -62,7 +62,7 @@ namespace ColorsAction.Unity
                 // Лечение: куб вытягивается вверх и пружинит, вспышка у центра.
                 controller.Deformer.SetSquash(0.2f, 2.5f);
                 controller.Deformer.Impulse(0.6f);
-                ParryFlash.Spawn(transform.position + Vector3.up * (config.ColliderHeight * 0.5f), 0.4f);
+                ParticleFx.Flash(transform.position + Vector3.up * (config.ColliderHeight * 0.5f), 0.4f);
                 return;
             }
         }

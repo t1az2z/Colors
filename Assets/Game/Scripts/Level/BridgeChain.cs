@@ -188,7 +188,7 @@ namespace ColorsAction.Unity
             var config = owner.Config;
             var push = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
             Debris.Burst(HitPoint, owner.ChainColor, 10, 0.05f, 4f, 0.9f);
-            ParryFlash.Spawn(HitPoint, 0.35f);
+            ParticleFx.Flash(HitPoint, 0.35f);
             foreach (var l in links)
             {
                 var link = l.Transform;

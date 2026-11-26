@@ -376,7 +376,7 @@ namespace ColorsAction.Unity
             deformer.Impulse(-1f, new Vector2(0f, -3.5f));
             flash = 0.08f;
             var tip = WeaponTip();
-            ParryFlash.Spawn(tip, 0.9f);
+            ParticleFx.Flash(tip, 0.9f);
             var callback = parryContact;
             parryContact = null;
             callback?.Invoke(tip);

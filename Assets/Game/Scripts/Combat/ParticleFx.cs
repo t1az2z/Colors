@@ -13,6 +13,8 @@ namespace ColorsAction.Unity
         public const string ChargeFlash = "ChargeFlash";
         public const string GroundSlam = "GroundSlam";
         public const string SwordTrail = "SwordTrail";
+        /// <summary>Тёплая белая вспышка: парирование, удар по цепи, дуло дробовика, лечение. Цвет — из префаба.</summary>
+        public const string HitFlash = "HitFlash";
 
         private static readonly Dictionary<string, ComponentPool<ParticleFx>> pools = new Dictionary<string, ComponentPool<ParticleFx>>();
         private static readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
@@ -43,6 +45,20 @@ namespace ColorsAction.Unity
             fx.Tint(tint);
             fx.systems[0].Play(true);
             return fx;
+        }
+
+        /// <summary>Вспышка <see cref="HitFlash"/> размера <paramref name="size"/> (как у прежней ParryFlash).</summary>
+        public static ParticleFx Flash(Vector3 position, float size = 1f) => Play(HitFlash, position, Color.white, size);
+
+        /// <summary>Играет ли сейчас хоть один эффект с этим именем (для автопрогонов).</summary>
+        public static bool AnyPlaying(string name)
+        {
+            if (!pools.TryGetValue(name, out var pool))
+                return false;
+            foreach (Transform child in pool.Root)
+                if (child.gameObject.activeSelf)
+                    return true;
+            return false;
         }
 
         /// <summary>Создать экземпляр префаба (без пула): для постоянных эффектов вроде следа меча.</summary>
