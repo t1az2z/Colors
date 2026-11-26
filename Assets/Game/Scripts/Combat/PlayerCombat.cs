@@ -157,7 +157,7 @@ namespace ColorsAction.Unity
             var item = session.Inventory.InHand(hand);
             if (item != null)
                 return item.Config;
-            // Кулаки — не оружие по умолчанию: без предмета рука не атакует (UnarmedItem пустой).
+            // Без предмета рука не атакует (UnarmedItem пустой; кулаков в Items.json нет).
             return string.IsNullOrEmpty(combatConfig.UnarmedItem) || !items.Exists(combatConfig.UnarmedItem)
                 ? null
                 : items.Get(combatConfig.UnarmedItem);
@@ -182,7 +182,7 @@ namespace ColorsAction.Unity
                     continue;
                 }
 
-                // Пустая рука ничего не держит: удар "кулаком" идёт самим кубом, без отдельной модели.
+                // Пустая рука ничего не держит и без UnarmedItem не бьёт; если он задан, удар идёт самим кубом, без модели.
                 hand.Visual = item != null ? SpawnItem(item.Config, hand.Socket) : null;
                 hand.Trail = null;
                 if (hand.Visual != null && !item.Config.IsRanged &&

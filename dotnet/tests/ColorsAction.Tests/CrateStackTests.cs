@@ -63,7 +63,7 @@ namespace ColorsAction.Tests
         public void Breakable_EmptyList_AcceptsAnyWeapon()
         {
             var state = new BreakableState(5f, new string[0]);
-            Assert.That(state.Accepts("fists"), Is.True);
+            Assert.That(state.Accepts("shotgun"), Is.True);
             Assert.That(new BreakableState(5f, null, broken: true).Broken, Is.True);
         }
 

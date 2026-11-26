@@ -48,6 +48,27 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void Launch_SkipsUnknownItems_AndStartsUnarmedByDefault()
+        {
+            var options = new LaunchOptions
+            {
+                Enabled = true,
+                Weapons = new List<StartWeapon> { new StartWeapon { Item = "fists", Upgrade = 2 } }
+            };
+            using var host = CreateHost(options);
+            host.Start<BootState>();
+
+            var session = host.Container.Resolve<GameSession>();
+            Assert.That(session.Inventory.Right, Is.Null, "кулаков нет в Items.json — руки пустые");
+            Assert.That(session.Inventory.Left, Is.Null);
+            Assert.That(session.Upgrades.Level("fists"), Is.EqualTo(0));
+
+            var configs = new ConfigService(new FileConfigSource(TestPaths.ConfigsRoot()), new NewtonsoftConfigSerializer());
+            Assert.That(configs.LoadTable<ItemConfig>(ConfigKeys.Items).ContainsKey("fists"), Is.False);
+            Assert.That(configs.Load<CombatConfig>(ConfigKeys.Combat).UnarmedItem, Is.Empty);
+        }
+
+        [Test]
         public void Disabled_KeepsDefaults()
         {
             var game = new GameConfig { Level = "Levels/Test" };

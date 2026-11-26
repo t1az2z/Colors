@@ -127,7 +127,7 @@ namespace ColorsAction.Unity.Editor
             {
                 var config = pair.Value;
                 if (string.IsNullOrEmpty(config.Prefab))
-                    continue; // кулаки и прочее без модели в инвентаре не бывает
+                    continue; // предметы без модели иконку не получают
                 var color = colors.TryGet(config.Color ?? "", out var c) ? Palette.Parse(c.Hex) : Color.gray;
                 var path = $"{IconsFolder}/{FileName(pair.Key)}.png";
                 if (overwrite || !File.Exists(path))
