@@ -88,17 +88,11 @@ namespace ColorsAction.Configs
         // Взаимодействие
         public float InteractRadius { get; set; } = 1.4f;
 
-        // Здоровье и урон
-        public float MaxHealth { get; set; } = 100f;
-
-        /// <summary>Неуязвимость после получения урона, секунды (игрок мигает).</summary>
-        public float HitInvulnerability { get; set; } = 2f;
+        /// <summary>Здоровье: максимум, прирост за уровень, неуязвимость и мигание после урона.</summary>
+        public PlayerHealthConfig Health { get; set; } = new PlayerHealthConfig();
 
         /// <summary>Отбрасывание игрока при получении урона, метры.</summary>
         public float HitKnockback { get; set; } = 0.8f;
-
-        /// <summary>Частота мигания во время неуязвимости, раз в секунду.</summary>
-        public float BlinkRate { get; set; } = 12f;
 
         /// <summary>После смерти: через сколько секунд игрок появляется снова на точке старта.</summary>
         public float RespawnDelay { get; set; } = 2.5f;
@@ -113,12 +107,57 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException("stepHeight must be less than colliderHeight");
             Deformation ??= new DeformationConfig();
             Stamina ??= new StaminaConfig();
+            Health ??= new PlayerHealthConfig();
+            Health.Validate();
             Dodge ??= new DodgeConfig();
             Dodge.Validate();
         }
 
         /// <summary>Начальная скорость прыжка для высоты JumpHeight: v = sqrt(2gh).</summary>
         public float JumpVelocity => (float)Math.Sqrt(2.0 * Gravity * JumpHeight);
+    }
+
+    /// <summary>Здоровье игрока (Player.json → health).</summary>
+    [Preserve]
+    public sealed class PlayerHealthConfig
+    {
+        /// <summary>Максимум здоровья на старте (до прокачки).</summary>
+        public float Max { get; set; } = 100f;
+
+        /// <summary>Прирост максимума за каждый уровень, вложенный в здоровье при прокачке.</summary>
+        public float MaxPerLevel { get; set; } = 10f;
+
+        /// <summary>Неуязвимость после получения урона, секунды (игрок мигает).</summary>
+        public float HitInvulnerability { get; set; } = 2f;
+
+        /// <summary>Частота мигания во время неуязвимости, раз в секунду.</summary>
+        public float BlinkRate { get; set; } = 12f;
+
+        /// <summary>Сила мигания: доля каждого периода, когда куб скрыт (0 — не мигает, 1 — невидим всё время).</summary>
+        public float BlinkStrength { get; set; } = 0.45f;
+
+        /// <summary>Максимум здоровья после <paramref name="levels"/> уровней прокачки здоровья.</summary>
+        public float MaxAt(int levels) => Max + MaxPerLevel * Math.Max(0, levels);
+
+        /// <summary>Скрыт ли куб в момент <paramref name="time"/> (секунды) во время неуязвимости.</summary>
+        public bool BlinkHidden(float time)
+        {
+            if (BlinkRate <= 0f || BlinkStrength <= 0f)
+                return false;
+            var phase = time * BlinkRate;
+            phase -= (float)Math.Floor(phase);
+            return phase >= 1f - BlinkStrength;
+        }
+
+        public void Validate()
+        {
+            if (Max <= 0f)
+                throw new InvalidOperationException("health.max must be positive");
+            if (MaxPerLevel < 0f || HitInvulnerability < 0f || BlinkRate < 0f)
+                throw new InvalidOperationException("health.maxPerLevel, hitInvulnerability and blinkRate must not be negative");
+            if (BlinkStrength < 0f || BlinkStrength > 1f)
+                throw new InvalidOperationException("health.blinkStrength must be within 0..1");
+        }
     }
 
     /// <summary>Выносливость: тратится сразу, восстанавливается медленно.</summary>

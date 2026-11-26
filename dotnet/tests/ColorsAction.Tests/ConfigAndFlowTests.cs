@@ -58,6 +58,25 @@ namespace ColorsAction.Tests
                 Assert.That(step.InvulnerableTo, Is.GreaterThan(step.InvulnerableFrom));
             // 0.25 — шагом, 0.5 — уже нет.
             Assert.That(player.StepHeight, Is.GreaterThan(0.25f).And.LessThan(0.5f));
+            // Здоровье: блок health в Player.json.
+            Assert.That(player.Health.Max, Is.GreaterThan(0f));
+            Assert.That(player.Health.MaxPerLevel, Is.GreaterThanOrEqualTo(0f));
+            Assert.That(player.Health.HitInvulnerability, Is.GreaterThan(0f));
+            Assert.That(player.Health.BlinkStrength, Is.InRange(0f, 1f));
+        }
+
+        [Test]
+        public void PlayerHealth_MaxGrowsPerLevel_AndBlinkHidesShareOfPeriod()
+        {
+            var health = new PlayerHealthConfig { Max = 100, MaxPerLevel = 15, BlinkRate = 10, BlinkStrength = 0.4f };
+            Assert.That(health.MaxAt(0), Is.EqualTo(100f));
+            Assert.That(health.MaxAt(3), Is.EqualTo(145f));
+            Assert.That(health.MaxAt(-2), Is.EqualTo(100f));
+            // Период 0.1 с: первые 60% виден, последние 40% скрыт.
+            Assert.That(health.BlinkHidden(0.02f), Is.False);
+            Assert.That(health.BlinkHidden(0.08f), Is.True);
+            health.BlinkStrength = 0f;
+            Assert.That(health.BlinkHidden(0.08f), Is.False);
         }
 
         [Test]

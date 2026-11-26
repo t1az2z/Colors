@@ -165,7 +165,7 @@ namespace ColorsAction.Unity
 
             // Мигание во время неуязвимости после урона.
             var invulnerable = session.Vitals.Invulnerable && !Dead;
-            var visible = !invulnerable || Mathf.Repeat(Time.time * config.BlinkRate, 1f) < 0.55f;
+            var visible = !invulnerable || !config.Health.BlinkHidden(Time.time);
             SetVisible(visible);
         }
 

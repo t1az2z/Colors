@@ -221,6 +221,13 @@ const SCHEMA = {
         { k: 'dodge.comboWindow', l: 'Окно комбо', d: 'Сколько секунд после приземления нажатие отскока запускает следующий шаг серии. Позже — серия начинается с первого шага.', u: U.s, min: 0, max: 1.5, step: 0.01, def: 0.35 },
         { k: 'dodge.inputBuffer', l: 'Буфер нажатия', d: 'Сколько секунд помнится нажатие, сделанное чуть раньше, чем отскок стал возможен (в конце шага, во время удара, в воздухе).', u: U.s, min: 0, max: 0.5, step: 0.01, def: 0.18 },
       ] },
+      { title: 'Здоровье', sub: 'прирост за уровень заработает вместе с прокачкой', viz: vizHealth, fields: [
+        { k: 'health.max', l: 'Максимум здоровья', d: 'Здоровье на старте, до прокачки.', u: U.pts, min: 1, max: 1000, step: 1, def: 100 },
+        { k: 'health.maxPerLevel', l: 'Прирост за уровень', d: 'На сколько растёт максимум за каждый уровень, вложенный в здоровье при прокачке.', u: U.pts, min: 0, max: 200, step: 1, def: 10 },
+        { k: 'health.hitInvulnerability', l: 'Неуязвимость после урона', d: 'Сколько секунд после попадания игрок не получает урон и мигает.', u: U.s, min: 0, max: 5, step: 0.05, def: 2 },
+        { k: 'health.blinkRate', l: 'Частота мигания', d: 'Сколько раз в секунду куб пропадает во время неуязвимости. 0 — не мигает.', u: 'раз/с', min: 0, max: 30, step: 0.5, def: 12 },
+        { k: 'health.blinkStrength', l: 'Сила мигания', d: 'Доля каждого мигания, когда куб скрыт: 0 — не мигает, 1 — невидим всю неуязвимость.', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.45 },
+      ] },
       { title: 'Выносливость', viz: vizStamina, fields: [
         { k: 'stamina.max', l: 'Запас', d: 'Полная шкала выносливости.', u: U.pts, min: 10, max: 300, step: 1 },
         { k: 'stamina.regenPerSecond', l: 'Восстановление', d: 'Сколько единиц восстанавливается в секунду.', u: 'ед./с', min: 1, max: 200, step: 1 },
@@ -1443,6 +1450,22 @@ function vizDodge({ d }) {
       ...steps.map((st, i) => [`Шаг ${i + 1}`, `${r2(num(st.distance, 1.6))} бл за ${r2(num(st.duration, 0.28))} с${st.flip ? ', перекат' : ''}`])]);
 }
 
+function vizHealth({ d }) {
+  const h = d.health || {};
+  const max = Math.max(1, num(h.max, 100)), per = Math.max(0, num(h.maxPerLevel, 10));
+  const inv = Math.max(0, num(h.hitInvulnerability, 2)), rate = Math.max(0, num(h.blinkRate, 12)), str = Math.min(1, Math.max(0, num(h.blinkStrength, 0.45)));
+  const pts = []; for (let l = 0; l <= 20; l++) pts.push([l, max + per * l]);
+  // Полоса неуязвимости: серые отрезки — куб скрыт.
+  const W = 560, L = 10, bw = W - 20, T0 = Math.max(inv, 0.5);
+  let g = `<rect x="${L}" y="14" width="${inv / T0 * bw}" height="20" rx="4" fill="#eef0f3" stroke="${C.grid2}"/>`;
+  if (rate > 0 && str > 0) for (let t = 0; t < inv; t += 1 / rate) { const a = t + (1 - str) / rate, b = Math.min(inv, t + 1 / rate); if (a < b) g += `<rect x="${L + a / T0 * bw}" y="16" width="${Math.max(0.5, (b - a) / T0 * bw)}" height="16" fill="${C.grid2}"/>`; }
+  g += T(L, 10, `неуязвимость ${r2(inv)} с, серое — куб скрыт`, { size: 10 });
+  const blinks = rate > 0 && str > 0 ? Math.ceil(inv * rate) : 0;
+  return `<h4>Максимум здоровья по уровням прокачки</h4>` + chart(560, 160, [{ pts, c: C.red, name: 'максимум' }], { xl: 'уровней в здоровье', x0: 0, x1: 20, y0: 0, y1: max + per * 20 })
+    + `<h4>Мигание после урона</h4>` + svgWrap(W, 44, g)
+    + facts([['Максимум на старте', `${r2(max, 0)} ед.`], ['На 10 уровне', `${r2(max + per * 10, 0)} ед.`], ['Миганий за неуязвимость', String(blinks)], ['Скрыт за мигание', `${rate > 0 ? r2(str / rate, 3) : 0} с`]]);
+}
+
 function vizStamina({ d, f }) {
   const s = d.stamina || {};
   const max = Math.max(1, num(s.max, 100)), regen = Math.max(0.01, num(s.regenPerSecond, 22)), delay = num(s.regenDelay, 0.9);
@@ -1749,7 +1772,7 @@ function vizEnemy({ e }) {
   const avgCycle = attacks.reduce((x, a) => x + (ph(a).reduce((p, q) => p + q, 0) + cd) * Math.max(0, num(a.weight, 1)), 0) / wsum;
   const pWalk = num(S.files.Player?.data?.walkSpeed, 0), speed = num(e.moveSpeed, 4.5);
   const toFirst = num(e.alertDuration, 2) + Math.max(0, aggro - maxR) / Math.max(0.01, speed);
-  const pHp = num(S.files.Player?.data?.maxHealth, 0);
+  const pHp = num(S.files.Player?.data?.health?.max, 0);
   return `<div style="display:flex;gap:10px;flex-wrap:wrap"><div><h4>Зоны сверху (масштаб по радиусу потери)</h4>${svgWrap(W, H, z)}</div><div><h4>Атаки сверху, цифры — номер атаки</h4>${svgWrap(W2, H2, g)}</div></div>`
     + `<h4>Атаки по времени</h4>${svgWrap(TW, tlH, tl)}<div class="legend">${legendItem(C.yellow, 'замах (реакция игрока)')}${legendItem(C.red, 'удар (урон)')}${legendItem(C.orange, 'фиксация')}${legendItem(C.grid2, 'возврат')}${legendItem(C.lilac, 'окно парирования', `border:2px solid ${C.lilac};height:6px`)}${legendItem(C.grid2, 'пауза между атаками', `border:1px dashed ${C.grid2};height:6px`)}</div>`
     + facts([

@@ -111,7 +111,7 @@ namespace ColorsAction
             Inventory = new PlayerInventory(inventoryConfig);
             var player = configs.Load<PlayerConfig>(ConfigKeys.Player);
             Stamina = new Stamina(player.Stamina);
-            Vitals = new PlayerVitals(player.MaxHealth, player.HitInvulnerability);
+            Vitals = new PlayerVitals(player.Health.Max, player.Health.HitInvulnerability);
             ControlScheme = new ReactiveProperty<CameraScheme>(configs.Load<CameraConfig>(ConfigKeys.Camera).Scheme);
             foreach (var pair in configs.Load<GameConfig>(ConfigKeys.Game).DebugWeaponUpgrades)
                 Upgrades.Set(pair.Key, pair.Value);

@@ -50,6 +50,13 @@
     "jumpCost": 0
   },
   "interactRadius": 1.4,
+  "health": {
+    "max": 100,
+    "maxPerLevel": 10,
+    "hitInvulnerability": 2,
+    "blinkRate": 12,
+    "blinkStrength": 0.45
+  },
   "deformation": {
     "stiffness": 270,
     "damping": 9,
