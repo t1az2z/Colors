@@ -132,6 +132,7 @@ namespace ColorsAction.Unity
             dodge?.Reset();
             yaw = facingYaw;
             horizontalVelocity = Vector3.zero;
+            leaping = false;
             if (body != null)
                 body.rotation = Quaternion.Euler(0, yaw, 0);
         }
@@ -225,7 +226,16 @@ namespace ColorsAction.Unity
             var accel = move.sqrMagnitude > 0.01f ? config.Acceleration : config.Deceleration;
             if (!motor.Grounded)
                 accel *= config.AirControl;
-            horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, accel * dt);
+            if (leaping)
+            {
+                // Приземлились (или так и не оторвались от земли) — полёт закончен.
+                leapTime += dt;
+                if (motor.Grounded && leapTime > 0.1f)
+                    leaping = false;
+            }
+
+            if (!leaping)
+                horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, target, accel * dt);
 
             // Фиксация на цели: всегда лицом к цели, движение — стрейфом.
             // Иначе схема FixedAngles: взгляд и атака — по правому стику/мыши, независимо от движения.
@@ -371,15 +381,27 @@ namespace ColorsAction.Unity
 
         public bool InJumpWindup => windupTimer >= 0f;
 
-        /// <summary>Подскок удара (например, отскок добивающего): вертикальная скорость на высоту <paramref name="height"/>.</summary>
-        public void Hop(float height)
+        /// <summary>
+        /// Прыжок удара (отскок добивающего): подскок на <paramref name="height"/> и полёт на <paramref name="distance"/>
+        /// по горизонтали. Скорость полёта держится до приземления — попадания, фриз-кадры и ввод её не гасят.
+        /// </summary>
+        public void Leap(float height, Vector3 distance)
         {
-            if (height > 0f && motor != null)
-                motor.VerticalVelocity = Mathf.Sqrt(2f * config.Gravity * height);
+            if (height <= 0f || motor == null)
+                return;
+            var g = config.Gravity;
+            var up = Mathf.Sqrt(2f * height / g);
+            var down = Mathf.Sqrt(2f * height / (g * Mathf.Max(0.01f, config.FallGravityMultiplier)));
+            distance.y = 0f;
+            motor.VerticalVelocity = Mathf.Sqrt(2f * g * height);
+            horizontalVelocity = distance / (up + down);
+            leaping = true;
+            leapTime = 0f;
         }
 
-        /// <summary>Погасить горизонтальную скорость (удар в прыжке прерывает полёт).</summary>
-        public void StopHorizontal() => horizontalVelocity = Vector3.zero;
+        // Полёт прыжка удара: горизонтальная скорость не меняется до приземления.
+        private bool leaping;
+        private float leapTime;
 
         private void ApplyGravity(float dt)
         {
@@ -389,19 +411,14 @@ namespace ColorsAction.Unity
                 return;
             }
 
-            // Удар в прыжке ведёт вертикаль сам: зависание, затем быстрое падение.
-            if (combat != null && combat.VerticalOverride is float forced)
-            {
-                motor.VerticalVelocity = forced;
-                return;
-            }
-
             var g = config.Gravity * (motor.VerticalVelocity < 0f ? config.FallGravityMultiplier : 1f);
             motor.VerticalVelocity = Mathf.Max(motor.VerticalVelocity - g * dt, -config.MaxFallSpeed);
         }
 
         private void OnLanded()
         {
+            if (leaping && leapTime > 0f)
+                leaping = false;
             if (rolling)
                 return;
             var d = config.Deformation;
@@ -435,6 +452,7 @@ namespace ColorsAction.Unity
             rollDirection = Quaternion.Euler(0, yaw, 0) * rollLocal;
             dodgeStep = config.Dodge.Steps[dodge.Begin()];
             rolling = true;
+            leaping = false;
             rollHalvesLanded = 0;
             rollPivot.localRotation = Quaternion.identity;
             combat?.CancelAttack();

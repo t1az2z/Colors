@@ -411,9 +411,12 @@ const RANGED_FIELDS = [
   { g: 'Апгрейд 3: заряженный выстрел', k: 'charge.upgrade', l: 'Нужен апгрейд', t: 'int', u: '', min: 0, max: 3, step: 1, def: 3, d: 'Заряд удержанием кнопки открывается этим апгрейдом (0 — всегда). С зарядом выстрел уходит при отпускании; короткое нажатие — обычный выстрел.' },
   { k: 'charge.time', l: 'Время заряда', u: U.s, min: 0, max: 2, step: 0.01, def: 0.45, d: 'Сколько держать кнопку до полного заряда (вспышка, дробовик светится).' },
   { k: 'charge.maxHold', l: 'Держать заряд', u: U.s, min: 0, max: 3, step: 0.05, def: 0.8, d: 'Сколько полный заряд можно держать; потом выстрел уходит сам.' },
+  { k: 'charge.perfectWindow', l: 'Окно вспышки', u: U.s, min: 0, max: 1, step: 0.01, def: 0.12, d: 'Отпустил в столько секунд после пика заряда (вспышка) — полный урон заряда.' },
+  { k: 'charge.falloff', l: 'Спад после вспышки', u: U.s, min: 0, max: 2, step: 0.01, def: 0.25, d: 'За столько секунд после окна вспышки урон спадает до множителя передержки.' },
   { k: 'charge.staminaCost', l: 'Выносливость за заряд', u: U.pts, min: 0, max: 100, step: 1, def: 15, d: 'Списывается в момент полного заряда, сверх цены выстрела. Не хватило — обычный выстрел.' },
-  { k: 'charge.damageMultiplier', l: 'Урон заряда', u: U.x, min: 0, max: 5, step: 0.1, def: 1.8, d: 'Множитель урона каждой пули.' },
-  { k: 'charge.knockbackMultiplier', l: 'Отбрасывание заряда', u: U.x, min: 0, max: 5, step: 0.1, def: 1.8, d: '' },
+  { k: 'charge.damageMultiplier', l: 'Урон во вспышку', u: U.x, min: 0, max: 5, step: 0.1, def: 1.8, d: 'Множитель урона каждой пули, если отпустить во вспышку.' },
+  { k: 'charge.heldMultiplier', l: 'Урон при передержке', u: U.x, min: 0, max: 5, step: 0.05, def: 1.3, d: 'Множитель урона, если держать заряд дольше окна и спада.' },
+  { k: 'charge.knockbackMultiplier', l: 'Отбрасывание во вспышку', u: U.x, min: 0, max: 5, step: 0.1, def: 1.8, d: 'При передержке спадает вместе с уроном.' },
   { k: 'charge.flash', l: 'Вспышка заряда', u: U.x, min: 0, max: 3, step: 0.1, def: 1, d: 'Сила вспышки и свечения при заряде (0 — без).' },
   { k: 'chargedShot.pellets', l: 'Пуль в заряженном', t: 'int', u: U.pts, min: 1, max: 40, step: 1, def: 12, d: '' },
   { k: 'chargedShot.spreadMultiplier', l: 'Шире веер', u: U.x, min: 0.5, max: 3, step: 0.05, def: 1.15, d: '1.15 — на 15% шире.' },
@@ -456,7 +459,72 @@ const STEP_FIELDS = [
   { k: 'hold', l: 'Фиксация позы', u: U.s, min: 0, max: 0.8, step: 0.01, def: 0.22, d: 'Акцент на финальной позе удара. Это и окно комбо: нажатие в это время сразу запускает следующий удар.' },
   { k: 'rollLockFrom', l: 'Перекат запрещён с', u: U.s, min: 0, max: 2, step: 0.01, def: 0, d: 'Начало окна, в котором перекат во время этого удара запрещён, секунды от начала удара. На таймлайне — тёмная полоса под ударом.' },
   { k: 'rollLockTo', l: 'Перекат запрещён до', u: U.s, min: -1, max: 2, step: 0.01, def: -1, d: 'Конец окна запрета переката, секунды от начала удара. −1 — до конца удара (замах, удар, фиксация и возврат).' },
+  { k: 'chargeable', l: 'Заряжается', t: 'bool', def: false, d: 'Удержание кнопки атаки держит удар на конце замаха и копит заряд (параметры — в разделе «Заряд ударов» оружия).' },
+  { k: 'upgrade', l: 'Нужен апгрейд', t: 'int', u: '', min: 0, max: 3, step: 1, def: 0, d: 'Удар доступен только с этим апгрейдом оружия (0 — всегда). Закрытые удары серия пропускает.' },
+  { k: 'hop', l: 'Подскок', u: U.bl, min: 0, max: 2, step: 0.05, def: 0, d: 'Прыжок в начале удара, блоки высоты. Выпад тогда отдаётся полётом: куб пролетает его по дуге, попадания инерцию не гасят. С отрицательным выпадом — отскок назад.' },
+  { k: 'fxFrom', l: 'След клинка с', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: 'Начало окна следа клинка, доля всего удара. −1 — автоматически.' },
+  { k: 'fxTo', l: 'След клинка до', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: 'Конец окна следа клинка, доля всего удара. −1 — автоматически.' },
 ];
+const CHARGE_FIELDS = [
+  { k: 'upgrade', l: 'Нужен апгрейд', t: 'int', u: '', min: 0, max: 3, step: 1, def: 0, d: 'Заряд открывается этим апгрейдом оружия (0 — всегда).' },
+  { k: 'time', l: 'Время заряда', u: U.s, min: 0, max: 2, step: 0.01, def: 0.4, d: 'Сколько держать кнопку после замаха до пика заряда (вспышка).' },
+  { k: 'perfectWindow', l: 'Окно вспышки', u: U.s, min: 0, max: 1, step: 0.01, def: 0.12, d: 'Отпустил в столько секунд после пика — полный урон заряда.' },
+  { k: 'falloff', l: 'Спад после вспышки', u: U.s, min: 0, max: 2, step: 0.01, def: 0.25, d: 'За столько секунд после окна вспышки урон спадает до множителя передержки.' },
+  { k: 'maxHold', l: 'Держать заряд', u: U.s, min: 0, max: 3, step: 0.05, def: 0.5, d: 'Сколько после пика можно держать; потом удар срывается сам.' },
+  { k: 'damageMultiplier', l: 'Урон во вспышку', u: U.x, min: 0, max: 5, step: 0.05, def: 2, d: 'Множитель урона, если отпустить во вспышку (поверх множителя удара).' },
+  { k: 'heldMultiplier', l: 'Урон при передержке', u: U.x, min: 0, max: 5, step: 0.05, def: 1.3, d: 'Множитель урона, если держать дольше окна и спада.' },
+  { k: 'knockbackMultiplier', l: 'Отбрасывание во вспышку', u: U.x, min: 0, max: 5, step: 0.1, def: 1.5, d: 'При передержке спадает вместе с уроном.' },
+  { k: 'staminaCost', l: 'Выносливость за заряд', u: U.pts, min: 0, max: 100, step: 1, def: 10, d: 'Списывается на пике заряда. Не хватило — обычный удар.' },
+  { k: 'flash', l: 'Вспышка', u: U.x, min: 0, max: 3, step: 0.1, def: 1, d: 'Сила вспышки и свечения (0 — без).' },
+];
+const FINISHER_FIELDS = [
+  { k: 'upgrade', l: 'Нужен апгрейд', t: 'int', u: '', min: 0, max: 3, step: 1, def: 0, d: '0 — всегда.' },
+  { k: 'minHits', l: 'Ударов серии перед паузой', t: 'int', u: U.pts, min: 1, max: 6, step: 1, def: 2, d: '' },
+  { k: 'delayMin', l: 'Окно: с', u: U.s, min: 0, max: 2, step: 0.01, def: 0.05, d: 'Пауза после конца фиксации позы последнего удара, раньше которой нажатие продолжит серию.' },
+  { k: 'delayMax', l: 'Окно: до', u: U.s, min: 0, max: 2, step: 0.01, def: 0.6, d: 'Нажатие в окне «с»–«до» запускает добивающий; позже — серия начнётся заново.' },
+];
+const PLUNGE_FIELDS = [
+  { k: 'upgrade', l: 'Нужен апгрейд', t: 'int', u: '', min: 0, max: 3, step: 1, def: 0, d: '0 — всегда.' },
+  { k: 'minHeight', l: 'Мин. высота', u: U.bl, min: 0, max: 3, step: 0.05, def: 0.35, d: 'Ниже над землёй — обычный удар.' },
+  { k: 'hang', l: 'Замах в воздухе', u: U.s, min: 0, max: 0.6, step: 0.01, def: 0.1, d: 'Меч поднимается над головой. Прыжок не прерывается: куб долетает туда же, куда и без удара, удар — при приземлении.' },
+  { k: 'radius', l: 'Радиус удара', u: U.bl, min: 0.2, max: 6, step: 0.05, def: 1.8, d: 'Вокруг точки приземления.' },
+  { k: 'damageMultiplier', l: 'Множитель урона', u: U.x, min: 0, max: 5, step: 0.05, def: 1.5, d: '' },
+  { k: 'knockback', l: 'Отбрасывание', u: U.x, min: 0, max: 8, step: 0.1, def: 2.5, d: '' },
+  { k: 'staminaCost', l: 'Выносливость', u: U.pts, min: 0, max: 100, step: 1, def: 18, d: '' },
+  { k: 'landHold', l: 'Поза после приземления', u: U.s, min: 0, max: 1, step: 0.01, def: 0.25, d: '' },
+  { k: 'recovery', l: 'Возврат', u: U.s, min: 0, max: 1, step: 0.01, def: 0.2, d: '' },
+  { k: 'fxFrom', l: 'След клинка с', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: '−1 — автоматически.' },
+  { k: 'fxTo', l: 'След клинка до', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: '−1 — автоматически.' },
+];
+const HEAL_FIELDS = [
+  { k: 'charges', l: 'Заряды', t: 'int', u: U.pts, min: 1, max: 10, step: 1, def: 2, d: 'Сколько раз можно вылечиться между отдыхами у костра.' },
+  { k: 'healFraction', l: 'Лечит', u: U.frac, min: 0.05, max: 1, step: 0.05, def: 0.25, d: 'Доля максимального здоровья за одно использование: 0.25 — четверть.' },
+  { k: 'cooldown', l: 'Пауза', u: U.s, min: 0, max: 3, step: 0.05, def: 0.6, d: 'После использования повторное нажатие раньше не сработает.' },
+];
+const defaultsOf = fields => Object.fromEntries(fields.filter(x => x.t !== 'bool').map(x => [x.k, x.def]));
+// Множитель урона заряда через t секунд после пика (как AttackCharge.BonusAt).
+function chargeMultiplierAt(c, t) {
+  const full = num(c.damageMultiplier, 2), held = num(c.heldMultiplier, 1.3), win = num(c.perfectWindow, 0.12), fall = num(c.falloff, 0.25);
+  if (t <= win) return full;
+  if (fall <= 0) return held;
+  return full + (held - full) * Math.min(1, (t - win) / fall);
+}
+function vizCharge(c) {
+  if (!c) return '';
+  const tc = num(c.time, 0.4), mh = Math.max(0.01, num(c.maxHold, 0.5)), total = tc + mh;
+  const W = 290, H = 110, L = 26, R = 8, top = 12, bot = 22, sx = (W - L - R) / total;
+  const yMax = Math.max(num(c.damageMultiplier, 2), num(c.heldMultiplier, 1.3), 1) * 1.1, sy = (H - top - bot) / yMax;
+  const X = t => L + t * sx, Y = m => H - bot - m * sy;
+  let g = `<line x1="${L}" y1="${Y(1)}" x2="${W - R}" y2="${Y(1)}" stroke="${C.grid}" stroke-dasharray="3 3"/>` + T(L - 4, Y(1) + 3, '×1', { size: 9, anchor: 'end' });
+  const win = Math.min(mh, num(c.perfectWindow, 0.12));
+  g += `<rect x="${X(tc)}" y="${top}" width="${win * sx}" height="${H - top - bot}" fill="${C.yellow}" fill-opacity=".35"/>`;
+  let d = `M${X(0)},${Y(1)} L${X(tc)},${Y(1)}`;
+  for (let i = 0; i <= 60; i++) { const t = mh * i / 60; d += ` L${X(tc + t)},${Y(chargeMultiplierAt(c, t))}`; }
+  g += `<path d="${d}" fill="none" stroke="${C.dark}" stroke-width="1.6"/>`;
+  g += T(X(tc), H - 8, `пик ${r2(tc)} с`, { size: 9, anchor: 'middle' }) + T(W - R, H - 8, `${r2(total)} с — срыв`, { size: 9, anchor: 'end' });
+  g += T(X(tc) + 3, Y(num(c.damageMultiplier, 2)) - 4, `×${r2(num(c.damageMultiplier, 2))}`, { size: 9, weight: 600 });
+  return `<h4>Урон заряда от времени удержания (жёлтое — окно вспышки)</h4>` + svgWrap(W, H, g);
+}
 const SPECIALS = [
   ['ShieldSlide', 'Спуск на щите'], ['Lift', 'Лифт'], ['GrappleAnchor', 'Крюк-кошка'], ['FlailRing', 'Кольцо кистеня'],
   ['Lever', 'Рычаг'], ['ShortcutDoor', 'Дверь-срезка'], ['FloorTransition', 'Переход между этажами'],
@@ -773,6 +841,10 @@ function validateItems(d) {
   for (const [id, it] of Object.entries(d || {})) {
     const weapon = it.kind === 'OneHanded' || it.kind === 'TwoHanded';
     if (weapon && !it.ranged && !(it.combo?.length)) w.push(`${id}: у оружия должна быть хотя бы одна атака в серии или стрельба.`);
+    if (!it.ranged && !it.charge && (it.combo || []).some(st => st.chargeable)) w.push(`${id}: удары отмечены «Заряжается», но у оружия нет раздела «Заряд ударов» — заряда не будет.`);
+    if (it.finisher && num(it.finisher.delayMax, 0.6) < num(it.finisher.delayMin, 0.05)) w.push(`${id}: окно добивающего — «до» должно быть не меньше «с».`);
+    if (it.finisher && num(it.finisher.minHits, 2) < 1) w.push(`${id}: добивающему нужен хотя бы 1 удар серии.`);
+    if (it.plunge && num(it.plunge.radius, 1.8) <= 0) w.push(`${id}: радиус удара в прыжке должен быть больше 0.`);
     if (it.ranged) {
       const r = it.ranged;
       if (num(r.pellets, 8) < 1) w.push(`${id}: пуль за выстрел должно быть хотя бы 1.`);
@@ -829,8 +901,18 @@ function renderItems(main, f) {
       if (fd.onlyWeapon && it.ranged) continue; // окно комбо, след и поворот клинка стрелковому не нужны
       card.fields.append(fieldRow(f, [id, fd.k], fd, () => { if (fd.k === 'kind' || fd.k === 'color' || fd.k === 'name') renderPage(); }));
     }
-    const leftovers = collectUnknown(it, [...ITEM_FIELDS.map(x => x.k), 'combo', 'ranged', 'shield']);
+    const leftovers = collectUnknown(it, [...ITEM_FIELDS.map(x => x.k), 'combo', 'ranged', 'shield', 'charge', 'finisher', 'plunge', 'heal']);
     for (const p of leftovers) card.fields.append(genericRow(f, [id, ...p]));
+    if (it.kind === 'Consumable') {
+      const hs = el(`<div class="subhead">Лечилка ${it.heal ? '<button class="small danger">убрать</button>' : '<button class="small">+ лечит</button>'}</div>`);
+      card.fields.append(hs);
+      $('button', hs).onclick = () => { if (it.heal) { if (confirm('Предмет перестанет лечить?')) delete it.heal; } else it.heal = defaultsOf(HEAL_FIELDS); renderPage(); };
+      if (it.heal) {
+        card.fields.append(el(`<div class="desc" style="margin:0 0 6px">Кладётся в быстрый слот 1–4 в инвентаре. Заряды восполняются у костра и при возрождении.</div>`));
+        for (const fd of HEAL_FIELDS) card.fields.append(fieldRow(f, [id, 'heal', fd.k], fd));
+        for (const p of collectUnknown(it.heal, HEAL_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'heal', ...p]));
+      }
+    }
     if (isShield) {
       card.fields.append(el(`<div class="subhead">Апгрейды щита (костёр)</div>`));
       for (const fd of SHIELD_FIELDS) card.fields.append(fieldRow(f, [id, 'shield', fd.k], fd));
@@ -869,9 +951,53 @@ function renderItems(main, f) {
         cp.onclick = () => { it.combo.splice(i + 1, 0, clone(step)); renderPage(); };
         rm.onclick = () => { it.combo.splice(i, 1); renderPage(); };
         const fl = $('.fields', box);
-        for (const fd of STEP_FIELDS) fl.append(fieldRow(f, [id, 'combo', i, fd.k], fd));
+        for (const fd of STEP_FIELDS) fl.append(fieldRow(f, [id, 'combo', i, fd.k], fd, fd.k === 'chargeable' ? () => renderPage() : undefined));
+        for (const p of collectUnknown(step, STEP_FIELDS.map(x => x.k).concat(['duration', 'activeFrom', 'activeTo', 'hitFrom', 'hitTo']))) fl.append(genericRow(f, [id, 'combo', i, ...p]));
         card.fields.append(box);
       });
+
+      // Заряд ударов: общие параметры для ударов с галочкой «Заряжается».
+      const chargeable = (it.combo || []).map((st, i) => st.chargeable ? i + 1 : 0).filter(Boolean);
+      const chs = el(`<div class="subhead">Заряд ударов ${it.charge ? '<button class="small danger">убрать</button>' : '<button class="small">+ заряд</button>'}</div>`);
+      card.fields.append(chs);
+      $('button', chs).onclick = () => { if (it.charge) { if (confirm('Убрать заряд у оружия?')) delete it.charge; } else it.charge = defaultsOf(CHARGE_FIELDS); renderPage(); };
+      if (it.charge) {
+        card.fields.append(el(`<div class="desc" style="margin:0 0 6px">${chargeable.length ? `Заряжаются удары: ${chargeable.join(', ')}.` : 'Ни один удар не отмечен «Заряжается».'} Пик заряда — вспышка; отпустил во вспышку — полный урон, держишь дольше — урон спадает.</div>`));
+        for (const fd of CHARGE_FIELDS) card.fields.append(fieldRow(f, [id, 'charge', fd.k], fd));
+        for (const p of collectUnknown(it.charge, CHARGE_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'charge', ...p]));
+        const cv = el('<div style="margin:6px 0 10px"></div>');
+        card.fields.append(cv);
+        addViz(cv, () => vizCharge(f.data[id]?.charge), () => null);
+      }
+
+      // Добивающий удар (с отскоком) после паузы в серии.
+      const fns = el(`<div class="subhead">Добивающий после паузы (отскок) ${it.finisher ? '<button class="small danger">убрать</button>' : '<button class="small">+ добивающий</button>'}</div>`);
+      card.fields.append(fns);
+      $('button', fns).onclick = () => {
+        if (it.finisher) { if (confirm('Убрать добивающий удар?')) delete it.finisher; }
+        else it.finisher = { ...defaultsOf(FINISHER_FIELDS), step: { ...Object.fromEntries(STEP_FIELDS.filter(x => x.t !== 'bool').map(x => [x.k, x.def])), lunge: -1.5, hop: 0.3 } };
+        renderPage();
+      };
+      if (it.finisher) {
+        for (const fd of FINISHER_FIELDS) card.fields.append(fieldRow(f, [id, 'finisher', fd.k], fd));
+        const box = el(`<div class="combo"><div class="chead">Удар добивающего<span class="ctime"></span></div><div class="fields"></div></div>`);
+        addViz($('.ctime', box), st => st ? `${r2(comboStepTime(st))} с` : '', () => f.data[id]?.finisher?.step);
+        const fl = $('.fields', box);
+        it.finisher.step = it.finisher.step || {};
+        for (const fd of STEP_FIELDS) fl.append(fieldRow(f, [id, 'finisher', 'step', fd.k], fd));
+        for (const p of collectUnknown(it.finisher.step, STEP_FIELDS.map(x => x.k).concat(['hitFrom', 'hitTo']))) fl.append(genericRow(f, [id, 'finisher', 'step', ...p]));
+        card.fields.append(box);
+        for (const p of collectUnknown(it.finisher, [...FINISHER_FIELDS.map(x => x.k), 'step'])) card.fields.append(genericRow(f, [id, 'finisher', ...p]));
+      }
+
+      // Удар в прыжке.
+      const pls = el(`<div class="subhead">Удар в прыжке ${it.plunge ? '<button class="small danger">убрать</button>' : '<button class="small">+ удар в прыжке</button>'}</div>`);
+      card.fields.append(pls);
+      $('button', pls).onclick = () => { if (it.plunge) { if (confirm('Убрать удар в прыжке?')) delete it.plunge; } else it.plunge = defaultsOf(PLUNGE_FIELDS); renderPage(); };
+      if (it.plunge) {
+        for (const fd of PLUNGE_FIELDS) card.fields.append(fieldRow(f, [id, 'plunge', fd.k], fd));
+        for (const p of collectUnknown(it.plunge, PLUNGE_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'plunge', ...p]));
+      }
     }
     addViz(card.viz, vizItem, () => ({ id, it: f.data[id] }));
     main.append(card.root);
@@ -1467,7 +1593,7 @@ function vizItem({ id, it }) {
       + `<rect x="${x + p.w * sx}" y="18" width="${p.s * sx}" height="20" fill="${col}" fill-opacity=".55"/>`
       + `<rect x="${x + (p.w + p.s * num(st.hitFrom, 0)) * sx}" y="18" width="${Math.max(0, p.s * (num(st.hitTo, 1) - num(st.hitFrom, 0))) * sx}" height="20" fill="${col}"/>`
       + `<rect x="${x + (p.w + p.s) * sx}" y="18" width="${p.h * sx}" height="20" fill="${col}" fill-opacity=".35"/>`
-      + T(x + 3, 13, `${i + 1}`, { size: 10, fill: C.dark, weight: 600 })
+      + T(x + 3, 13, `${i + 1}${st.chargeable || st.charge ? ' ⚡' : ''}${num(st.upgrade, 0) ? ` ⇧${num(st.upgrade, 0)}` : ''}`, { size: 10, fill: C.dark, weight: 600 })
       // Полное время удара — под его полосой.
       + T(x + dur * sx / 2, 56, dur * sx >= 36 ? `${r2(dur)} с` : r2(dur), { size: 10, fill: C.dark, weight: 600, anchor: 'middle' });
     // Окно запрета переката — тёмная полоса под ударом.

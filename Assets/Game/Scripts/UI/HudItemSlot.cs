@@ -33,6 +33,38 @@ namespace ColorsAction.Unity
                 icons.Apply(icon, item, color);
             else if (icon != null)
                 icon.enabled = false;
+            SetCharges(item);
+        }
+
+        private Text charges;
+
+        /// <summary>Заряды лечилки «1/2» в углу ячейки; пустая лечилка бледнеет.</summary>
+        private void SetCharges(Item item)
+        {
+            var show = item != null && item.MaxCharges > 0;
+            if (!show)
+            {
+                if (charges != null)
+                    charges.gameObject.SetActive(false);
+                return;
+            }
+
+            if (charges == null)
+            {
+                charges = UiFactory.Text(transform, "Charges", string.Empty, 18, TextAnchor.UpperLeft, UiFactory.TextColor);
+                UiFactory.Stretch(charges.rectTransform, 4);
+                UiFactory.Outline(charges);
+            }
+
+            charges.gameObject.SetActive(true);
+            charges.text = $"{item.Charges}/{item.MaxCharges}";
+            charges.color = item.Charges > 0 ? UiFactory.TextColor : UiFactory.MutedText;
+            if (icon != null)
+            {
+                var c = icon.color;
+                c.a = item.Charges > 0 ? 1f : 0.35f;
+                icon.color = c;
+            }
         }
 
         public void SetKey(string label)

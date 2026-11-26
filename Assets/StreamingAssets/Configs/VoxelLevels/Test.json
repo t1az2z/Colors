@@ -8466,6 +8466,14 @@
       "item": "shield"
     },
     {
+      "id": "weaponpedestal_flask",
+      "kind": "WeaponPedestal",
+      "cell": "8,0,12",
+      "yaw": 0.0,
+      "height": 2,
+      "item": "flask"
+    },
+    {
       "id": "enemyspawn_1",
       "kind": "EnemySpawn",
       "cell": "18,0,15",

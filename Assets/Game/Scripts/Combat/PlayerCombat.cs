@@ -106,6 +106,9 @@ namespace ColorsAction.Unity
         {
             get
             {
+                // Удар в прыжке и удар с подскоком не гасят инерцию полёта.
+                if (attacking != null && (Plunging || LeapStep))
+                    return 1f;
                 if (attacking != null)
                     return playerConfig.AttackMoveMultiplier;
                 if (Bashing)
@@ -488,8 +491,8 @@ namespace ColorsAction.Unity
         public Vector3 ConsumeLunge(Vector3 forward)
         {
             var recoil = ConsumeRecoil() + ConsumeBashLunge(forward);
-            // Отрицательный выпад — шаг назад.
-            if (attacking == null || Mathf.Abs(step.Lunge) < 1e-4f)
+            // Отрицательный выпад — шаг назад. У удара с подскоком выпад уже отдан полётом.
+            if (attacking == null || LeapStep || Mathf.Abs(step.Lunge) < 1e-4f)
                 return recoil;
             var t = Mathf.Clamp01(attackTime / (step.Duration * step.ActiveTo));
             var target = step.Lunge * (1f - (1f - t) * (1f - t));
@@ -622,6 +625,8 @@ namespace ColorsAction.Unity
                 hand.Current = k >= 1f ? pose : AroundBody(hand.Current, pose, k);
                 hand.Socket.localPosition = deformer.DeformPoint(hand.Current.position);
                 hand.Socket.localRotation = deformer.DeformRotation(hand.Current.position) * hand.Current.rotation;
+                if (gunHand)
+                    UpdateGunModel(hand);
                 if (hand.Trail != null)
                 {
                     hand.Trail.Emitting = TrailEmitting(hand);
@@ -787,6 +792,9 @@ namespace ColorsAction.Unity
             public readonly float Side;
             public ItemConfig Item;
             public GameObject Visual;
+
+            /// <summary>Доля прицела стрелкового оружия 0..1 (0 — поза покоя).</summary>
+            public float GunAim;
             public WeaponTrail Trail;
             public Pose WindupFrom;
             public bool Holding;

@@ -1,3 +1,4 @@
+using ColorsAction.Configs;
 using ColorsAction.Inventory;
 using GameCore.DI;
 using UnityEngine;
@@ -86,17 +87,29 @@ namespace ColorsAction.Unity
             return folder + "Pickups/" + name;
         }
 
-        /// <summary>Запасной вид без префаба: модель из рук лежит на боку над полом, над ней точечный свет.</summary>
+        /// <summary>
+        /// Запасной вид без префаба: модель из рук лежит на боку над полом, над ней точечный свет.
+        /// У предмета без модели (лечилка) — склянка из примитивов: кубик-колба с горлышком, стоит вертикально.
+        /// </summary>
         private PickupVisual CreateFallbackVisual(string heldPrefab)
         {
             var prefab = string.IsNullOrEmpty(heldPrefab) ? null : Resources.Load<GameObject>(heldPrefab);
-            if (prefab == null)
+            var consumable = itemsDb.Get(itemId).Kind == ItemKind.Consumable;
+            if (prefab == null && !consumable)
                 return null;
             var root = new GameObject("Visual");
             root.transform.SetParent(transform, false);
-            var model = Instantiate(prefab, root.transform, false).transform;
-            model.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            model.localPosition = Vector3.up * 0.2f;
+            Transform model;
+            if (prefab != null)
+            {
+                model = Instantiate(prefab, root.transform, false).transform;
+                model.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                model.localPosition = Vector3.up * 0.2f;
+            }
+            else
+            {
+                model = BuildFlask(root.transform);
+            }
 
             var glow = new GameObject("Glow").AddComponent<Light>();
             glow.transform.SetParent(root.transform, false);
@@ -109,6 +122,35 @@ namespace ColorsAction.Unity
             var v = root.AddComponent<PickupVisual>();
             v.Configure(model, glow);
             return v;
+        }
+
+        /// <summary>
+        /// Склянка из примитивов (пока нет модели): кубическая колба, горлышко и пробка. Ось вращения подбора —
+        /// локальная Z модели, поэтому модель повёрнута так, что Z смотрит вверх.
+        /// </summary>
+        private static Transform BuildFlask(Transform parent)
+        {
+            var model = new GameObject("Flask").transform;
+            model.SetParent(parent, false);
+            model.localPosition = Vector3.up * 0.15f;
+            model.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+
+            void Part(PrimitiveType type, string name, Vector3 position, Vector3 scale)
+            {
+                var go = GameObject.CreatePrimitive(type);
+                go.name = name;
+                Destroy(go.GetComponent<Collider>());
+                go.transform.SetParent(model, false);
+                go.transform.localPosition = position;
+                go.transform.localScale = scale;
+            }
+
+            Part(PrimitiveType.Cube, "Body", new Vector3(0f, 0f, 0.15f), new Vector3(0.3f, 0.3f, 0.3f));
+            Part(PrimitiveType.Cube, "Neck", new Vector3(0f, 0f, 0.36f), new Vector3(0.12f, 0.12f, 0.14f));
+            Part(PrimitiveType.Cube, "Cork", new Vector3(0f, 0f, 0.46f), new Vector3(0.15f, 0.15f, 0.06f));
+            // Цвет предмета: ItemVisual красит все рендереры склянки.
+            model.gameObject.AddComponent<ItemVisual>();
+            return model;
         }
 
         private void Update()

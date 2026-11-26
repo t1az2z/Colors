@@ -318,8 +318,36 @@ namespace ColorsAction.Configs
         /// <summary>Подскок в начале удара, блоки высоты (0 — без подскока). Вместе с отрицательным выпадом — отскок назад.</summary>
         public float Hop { get; set; }
 
-        /// <summary>Заряд удержанием кнопки атаки (null — удар не заряжается).</summary>
+        /// <summary>
+        /// Удар заряжается удержанием кнопки атаки с общими параметрами заряда оружия (<see cref="ItemConfig.Charge"/>).
+        /// </summary>
+        public bool Chargeable { get; set; }
+
+        /// <summary>Собственные параметры заряда этого удара (поверх <see cref="ItemConfig.Charge"/>; null — общие).</summary>
         public ChargeConfig Charge { get; set; }
+    }
+
+    /// <summary>
+    /// Лечилка: <see cref="Charges"/> использований, каждое восстанавливает <see cref="HealFraction"/> максимального
+    /// здоровья. Заряды восполняются отдыхом у костра (и возрождением у него).
+    /// </summary>
+    [Preserve]
+    public sealed class HealConfig
+    {
+        /// <summary>Сколько использований между отдыхами у костра.</summary>
+        public int Charges { get; set; } = 2;
+
+        /// <summary>Доля максимального здоровья за одно использование (0.25 — четверть).</summary>
+        public float HealFraction { get; set; } = 0.25f;
+
+        /// <summary>Пауза после использования, секунды: повторное нажатие раньше не сработает.</summary>
+        public float Cooldown { get; set; } = 0.6f;
+
+        public void Validate(string id)
+        {
+            if (Charges < 1 || HealFraction <= 0f || Cooldown < 0f)
+                throw new InvalidOperationException($"item '{id}': heal needs charges >= 1, healFraction > 0, cooldown >= 0");
+        }
     }
 
     public static class AttackStepTiming
@@ -443,6 +471,17 @@ namespace ColorsAction.Configs
         /// <summary>Удар в прыжке: падение вниз и удар по площади при приземлении (null — в воздухе обычная серия).</summary>
         public PlungeConfig Plunge { get; set; }
 
+        /// <summary>Общие параметры заряда ударов ближнего боя, отмеченных <see cref="AttackStepConfig.Chargeable"/>.</summary>
+        public ChargeConfig Charge { get; set; }
+
+        /// <summary>Заряд удара: собственный у удара, иначе общий оружия, если удар отмечен заряжаемым; null — не заряжается.</summary>
+        public ChargeConfig ChargeFor(AttackStepConfig step)
+        {
+            if (step == null)
+                return null;
+            return step.Charge ?? (step.Chargeable ? Charge : null);
+        }
+
         /// <summary>
         /// Стрелковое оружие (дробовик): если задано, кнопка атаки стреляет вместо серии ударов,
         /// урон одной пули — <see cref="Damage"/>.
@@ -454,6 +493,9 @@ namespace ColorsAction.Configs
 
         /// <summary>Щит: параметры апгрейдов (дешевле блок, шире окно парирования, удар щитом).</summary>
         public ShieldConfig Shield { get; set; }
+
+        /// <summary>Лечилка (расходуемый предмет в быстром слоте 1–4): заряды и сила лечения. null — не лечит.</summary>
+        public HealConfig Heal { get; set; }
 
         public bool IsWeapon => Kind == ItemKind.OneHanded || Kind == ItemKind.TwoHanded || Kind == ItemKind.Shield;
         public bool IsTwoHanded => Kind == ItemKind.TwoHanded;
@@ -470,12 +512,14 @@ namespace ColorsAction.Configs
                 step?.Charge?.Validate(Id);
             }
 
+            Charge?.Validate(Id);
             Finisher?.Validate(Id);
             Plunge?.Validate(Id);
             Ranged?.Validate(Id);
             if (Kind == ItemKind.Shield)
                 Shield ??= new ShieldConfig();
             Shield?.Validate(Id);
+            Heal?.Validate(Id);
             if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Ranged == null && Combo.Count == 0)
                 throw new InvalidOperationException($"weapon '{Id}' needs at least one combo step");
         }
@@ -595,6 +639,15 @@ namespace ColorsAction.Configs
 
         /// <summary>Наклон ствола вниз, градусы.</summary>
         public float Pitch { get; set; } = 16f;
+
+        /// <summary>
+        /// Положение модели оружия относительно руки [x, y, z] (например, в покое — вдоль тела).
+        /// null — модель в руке без сдвига.
+        /// </summary>
+        public float[] ModelPosition { get; set; }
+
+        /// <summary>Поворот модели оружия относительно руки [x, y, z], градусы (Euler). null — без поворота (только хват).</summary>
+        public float[] ModelRotation { get; set; }
     }
 
     /// <summary>

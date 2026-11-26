@@ -39,12 +39,7 @@ namespace ColorsAction.Unity
         public int FinisherCount { get; private set; }
         public int PlungeCount { get; private set; }
         public int ChargeCount { get; private set; }
-
-        /// <summary>
-        /// Вертикальная скорость, которую задаёт удар в прыжке (зависание — 0, падение — вниз). null — обычная гравитация.
-        /// Читает <see cref="PlayerController"/>.
-        /// </summary>
-        public float? VerticalOverride => attacking != null ? plunge.VerticalVelocity : null;
+        public int PerfectChargeCount { get; private set; }
 
         private bool HasUpgrade(ItemConfig item, int tier)
         {
@@ -68,8 +63,11 @@ namespace ColorsAction.Unity
             plunge.Reset();
             specialStep = false;
             if (next.Hop > 0f)
-                controller.Hop(next.Hop);
+                controller.Leap(next.Hop, controller.Forward * next.Lunge);
         }
+
+        /// <summary>Удар с подскоком: выпад отдаётся полётом (<see cref="PlayerController.Leap"/>), а не рывком по кадрам.</summary>
+        private bool LeapStep => step != null && step.Hop > 0f;
 
         /// <summary>Отмена удара (перекат, смена оружия, урон): заряд, добивающий и удар в прыжке сбрасываются.</summary>
         private void ResetMoves()
@@ -113,11 +111,12 @@ namespace ColorsAction.Unity
 
             // Удар дошёл до конца замаха, а кнопка всё ещё зажата — копим заряд.
             var strikeStart = step.Windup;
-            if (step.Charge != null && charge.Config == null && attackTime <= strikeStart && attackTime + dt >= strikeStart &&
-                AttackHeld && HasUpgrade(attacking.Item, step.Charge.Upgrade))
+            var chargeConfig = attacking.Item.ChargeFor(step);
+            if (chargeConfig != null && charge.Config == null && attackTime <= strikeStart && attackTime + dt >= strikeStart &&
+                AttackHeld && HasUpgrade(attacking.Item, chargeConfig.Upgrade))
             {
                 attackTime = strikeStart;
-                charge.Begin(step.Charge);
+                charge.Begin(chargeConfig);
                 return true;
             }
 
@@ -139,15 +138,25 @@ namespace ColorsAction.Unity
                     controller.Deformer.Impulse(-1.6f);
                     return true;
                 case ChargeEvent.Released:
-                    // Заряженный удар срывается резче: короткий толчок куба вперёд.
+                    // Заряженный удар срывается резче: короткий толчок куба вперёд; во вспышку — ещё одна вспышка.
                     if (charge.Full)
-                        controller.Deformer.Impulse(-0.8f, new Vector2(0f, 1.5f));
+                    {
+                        controller.Deformer.Impulse(charge.Perfect ? -1.1f : -0.8f, new Vector2(0f, charge.Perfect ? 2f : 1.5f));
+                        if (charge.Perfect)
+                        {
+                            PerfectChargeCount++;
+                            glow?.Flash();
+                            if (flash > 0f)
+                                ParryFlash.Spawn(BladeTip(attacking), 0.4f * flash);
+                        }
+                    }
+
                     return false;
             }
 
-            // Заряд копится: оружие разгорается, куб мелко дрожит.
+            // Заряд копится: оружие разгорается, куб мелко дрожит; передержанный заряд гаснет вместе с бонусом.
             var level = charge.Level;
-            glow?.Hold(charge.Full ? 1f : level * 0.6f);
+            glow?.Hold(charge.Full ? 0.5f + 0.5f * charge.Bonus : level * 0.6f);
             controller.Deformer.Impulse(Random.Range(-1f, 1f) * 0.35f * level);
             return true;
         }
@@ -204,8 +213,7 @@ namespace ColorsAction.Unity
             specialStep = true;
             finisher.Reset();
             plunge.Start(config);
-            // Полёт прерывается: куб зависает на месте, дальше падает вертикально.
-            controller.StopHorizontal();
+            // Полёт не прерывается: прыжок идёт своим ходом (см. MoveMultiplier), удар — при приземлении.
             return true;
         }
 
@@ -219,8 +227,8 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>
-        /// Время удара в прыжке: зависание — замах (меч над головой), падение — клинок на полпути вниз,
-        /// приземление — сразу финальная поза и удар по площади; дальше обычные фиксация и возврат.
+        /// Время удара в прыжке: замах — меч поднимается над головой и так летит до земли;
+        /// приземление — удар по площади и быстрый взмах вниз, дальше обычные фиксация и возврат.
         /// </summary>
         private bool UpdatePlunge(float dt)
         {
@@ -229,13 +237,12 @@ namespace ColorsAction.Unity
             var landed = plunge.Tick(dt, controller.Grounded);
             if (landed)
             {
-                attackTime = StrikeEnd;
+                attackTime = step.Windup + step.Strike * 0.4f;
                 PlungeImpact();
                 return true;
             }
 
-            var limit = plunge.Phase == PlungePhase.Hang ? step.Windup : step.Windup + step.Strike * 0.6f;
-            attackTime = Mathf.Min(attackTime + dt, limit);
+            attackTime = Mathf.Min(attackTime + dt, step.Windup);
             return true;
         }
 

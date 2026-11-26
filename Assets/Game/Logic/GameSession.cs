@@ -36,6 +36,23 @@ namespace ColorsAction
     {
     }
 
+    /// <summary>Нажат быстрый слот 1–4: что произошло (лечилка использована, пуста, не нужна).</summary>
+    public readonly struct QuickItemUsed
+    {
+        public readonly Item Item;
+        public readonly QuickUseResult Result;
+
+        /// <summary>Сколько здоровья восстановлено.</summary>
+        public readonly float Healed;
+
+        public QuickItemUsed(Item item, QuickUseResult result, float healed)
+        {
+            Item = item;
+            Result = result;
+            Healed = healed;
+        }
+    }
+
     /// <summary>
     /// Состояние текущей игры, общее для состояний FSM и адаптеров движка:
     /// инвентарь игрока и флаг "игрок управляет персонажем".
@@ -137,6 +154,27 @@ namespace ColorsAction
                 EquipIfHandFree(item);
             return true;
         }
+
+        /// <summary>
+        /// Нажат быстрый слот <paramref name="index"/> (клавиши 1–4): лечилка лечит и тратит заряд.
+        /// Публикует <see cref="QuickItemUsed"/>, если в слоте что-то лежит.
+        /// </summary>
+        public QuickUseResult UseQuickItem(int index)
+        {
+            if (index < 0 || index >= Inventory.QuickCount)
+                return QuickUseResult.Nothing;
+            var item = Inventory.Get(SlotRef.Quick(index));
+            if (item == null)
+                return QuickUseResult.Nothing;
+            var result = HealItems.TryUse(item, Vitals.Health, out var healed);
+            if (result == QuickUseResult.Healed)
+                Inventory.NotifyItemChanged();
+            events.Publish(new QuickItemUsed(item, result, healed));
+            return result;
+        }
+
+        /// <summary>Отдых у костра (и возрождение у него): заряды лечилок восполнены.</summary>
+        public void RefillConsumables() => HealItems.Refill(Inventory);
 
         private void EquipIfHandFree(Item item)
         {

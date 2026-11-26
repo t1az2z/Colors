@@ -93,6 +93,18 @@ namespace ColorsAction.Combat
 
             return shot;
         }
+
+        /// <summary>
+        /// Заряженный залп с множителями урона и отбрасывания, которые дал сам заряд в момент отпускания
+        /// (<see cref="AttackCharge.DamageMultiplier"/>: во вспышку — полный, при передержке — меньше).
+        /// </summary>
+        public static ShotParams Charged(this ShotParams shot, ChargedShotConfig charged, float damageMultiplier, float knockbackMultiplier)
+        {
+            shot = shot.Charged(charged, null);
+            shot.DamageMultiplier *= damageMultiplier;
+            shot.Knockback *= knockbackMultiplier;
+            return shot;
+        }
     }
 
     /// <summary>Как вылетает одна пуля: поворот от направления выстрела (по горизонтали и вертикали) и скорость.</summary>

@@ -188,6 +188,7 @@ namespace ColorsAction.Unity
             {
                 player = FindAnyObjectByType<PlayerController>();
                 playerDamage = player != null ? player.GetComponent<PlayerDamageReceiver>() : null;
+                playerCombat = player != null ? player.GetComponent<PlayerCombat>() : null;
             }
 
             var dt = Time.deltaTime;
@@ -232,6 +233,8 @@ namespace ColorsAction.Unity
                 TryHitPlayer(distance, dir, false);
             else if (strikeEndedThisFrame)
                 TryHitPlayer(distance, dir, true);
+            else if (hitDeferred)
+                ResolveDeferredHit(distance, dir);
             strikeEndedThisFrame = false;
             UpdateParryWindow();
             UpdateParryContact();
@@ -414,6 +417,45 @@ namespace ColorsAction.Unity
             return forward * delta;
         }
 
+        // Удар достал игрока, пока его ещё можно парировать: урон ждёт конца окна парирования
+        // (или долёта пуль парирующего выстрела). Парировали — урона нет.
+        private bool hitDeferred;
+        private float parryHoldUntil = -1f;
+        private PlayerCombat playerCombat;
+
+        /// <summary>
+        /// Парирующий выстрел уже в полёте: удар по игроку подождёт <paramref name="seconds"/>, чтобы пули успели
+        /// парировать атаку до урона.
+        /// </summary>
+        public void HoldHitForParry(float seconds)
+        {
+            parryHoldUntil = Mathf.Max(parryHoldUntil, Time.time + seconds);
+        }
+
+        /// <summary>Атаку ещё может парировать игрок: окно парирования (с апгрейдом щита) или летящие пули.</summary>
+        private bool ParryStillPossible()
+        {
+            if (!brain.CanBeParried)
+                return false;
+            var widen = playerCombat != null ? playerCombat.ParryWidenNow : 0f;
+            return brain.IsInParryWindow(widen) || Time.time < parryHoldUntil;
+        }
+
+        /// <summary>Отложенный удар: парирован — отменён, окно прошло — наносится (если игрок ещё в зоне удара).</summary>
+        private void ResolveDeferredHit(float distance, Vector3 dirToPlayer)
+        {
+            if (hitThisAttack || brain.State == EnemyState.Parried || brain.Attack == null || Dead)
+            {
+                hitDeferred = false;
+                return;
+            }
+
+            if (ParryStillPossible())
+                return;
+            hitDeferred = false;
+            TryHitPlayer(distance, dirToPlayer, true);
+        }
+
         private void TryHitPlayer(float distance, Vector3 dirToPlayer, bool strikeEnded)
         {
             if (hitThisAttack || playerDamage == null || (!strikeEnded && brain.PhaseProgress < 0.4f))
@@ -427,6 +469,12 @@ namespace ColorsAction.Unity
                 return;
             if (distance > 0.5f && Vector3.Angle(forward, dirToPlayer) > attack.Arc * 0.5f)
                 return;
+            if (ParryStillPossible())
+            {
+                hitDeferred = true;
+                return;
+            }
+
             hitThisAttack = true;
             playerDamage.ReceiveEnemyHit(attack.Damage, transform.position, attack.Knockback);
         }
@@ -446,6 +494,7 @@ namespace ColorsAction.Unity
                 case EnemyState.Windup:
                     windupFrom = handPose;
                     hitThisAttack = false;
+                    hitDeferred = false;
                     lungeDone = 0f;
                     break;
                 case EnemyState.Strike:

@@ -57,6 +57,9 @@ namespace ColorsAction.Unity
             }
         }
 
+        /// <summary>Расширение окна парирования щитом в руках сейчас (0 — без апгрейда или без щита).</summary>
+        public float ParryWidenNow => ParryWiden(ShieldHand?.Item);
+
         /// <summary>Расширение окна парирования щитом (доля длины окна, апгрейд 2).</summary>
         private float ParryWiden(ItemConfig shield)
         {

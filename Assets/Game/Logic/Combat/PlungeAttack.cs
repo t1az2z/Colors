@@ -7,10 +7,10 @@ namespace ColorsAction.Combat
     {
         None,
 
-        /// <summary>Зависание в воздухе, оружие над головой.</summary>
+        /// <summary>Замах в воздухе: оружие поднимается над головой.</summary>
         Hang,
 
-        /// <summary>Быстрое падение.</summary>
+        /// <summary>Полёт до земли с оружием над головой (прыжок идёт своим ходом).</summary>
         Fall,
 
         /// <summary>Приземлились: удар по площади нанесён, поза удара и возврат.</summary>
@@ -18,8 +18,9 @@ namespace ColorsAction.Combat
     }
 
     /// <summary>
-    /// Удар в прыжке без движка: фазы зависание → падение → приземление и вертикальная скорость,
-    /// которую оружие навязывает контроллеру. Кадр приземления — <see cref="Tick"/> возвращает true.
+    /// Удар в прыжке без движка: фазы замах → полёт → приземление. Инерцию прыжка удар не трогает:
+    /// куб долетает туда же, куда и без удара, а удар наносится в момент приземления
+    /// (кадр приземления — <see cref="Tick"/> возвращает true).
     /// </summary>
     public sealed class PlungeAttack
     {
@@ -27,20 +28,6 @@ namespace ColorsAction.Combat
         public PlungePhase Phase { get; private set; }
         public float Time { get; private set; }
         public bool Active => Phase != PlungePhase.None;
-
-        /// <summary>Вертикальная скорость, которую задаёт удар (null — обычная гравитация).</summary>
-        public float? VerticalVelocity
-        {
-            get
-            {
-                switch (Phase)
-                {
-                    case PlungePhase.Hang: return 0f;
-                    case PlungePhase.Fall: return -Config.FallSpeed;
-                    default: return null;
-                }
-            }
-        }
 
         /// <summary>Можно ли начать удар: в воздухе и не ниже <see cref="PlungeConfig.MinHeight"/> над землёй.</summary>
         public static bool CanStart(PlungeConfig config, bool grounded, float heightAboveGround)

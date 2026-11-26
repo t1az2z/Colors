@@ -70,6 +70,53 @@ namespace ColorsAction.Tests
             Assert.That(charge.DamageMultiplier, Is.EqualTo(1f));
         }
 
+        [Test]
+        public void Charge_ReleaseInFlash_FullBonus_HeldLonger_Decays()
+        {
+            var config = new ChargeConfig
+            {
+                Time = 0.3f, MaxHold = 1f, PerfectWindow = 0.1f, Falloff = 0.2f, DamageMultiplier = 2f, HeldMultiplier = 1.4f,
+                KnockbackMultiplier = 3f, StaminaCost = 0f
+            };
+            var charge = new AttackCharge();
+            charge.Begin(config);
+            Assert.That(charge.Tick(0.3f, true, _ => true), Is.EqualTo(ChargeEvent.Charged));
+            Assert.That(charge.InPerfectWindow, Is.True);
+            charge.Tick(0.05f, true, _ => true);
+            Assert.That(charge.Tick(0.01f, false, _ => true), Is.EqualTo(ChargeEvent.Released));
+            Assert.That(charge.Perfect, Is.True);
+            Assert.That(charge.DamageMultiplier, Is.EqualTo(2f).Within(1e-4f));
+            Assert.That(charge.KnockbackMultiplier, Is.EqualTo(3f).Within(1e-4f));
+
+            // Передержали: середина спада — урон посередине между 2 и 1.4, отбрасывание спадает так же.
+            charge.Begin(config);
+            charge.Tick(0.3f, true, _ => true);
+            charge.Tick(0.2f, true, _ => true);
+            charge.Tick(0f, false, _ => true);
+            Assert.That(charge.Perfect, Is.False);
+            Assert.That(charge.DamageMultiplier, Is.EqualTo(1.7f).Within(1e-3f));
+            Assert.That(charge.KnockbackMultiplier, Is.EqualTo(2.5f).Within(1e-3f));
+
+            // После спада — множитель передержки.
+            charge.Begin(config);
+            charge.Tick(0.3f, true, _ => true);
+            charge.Tick(0.6f, true, _ => true);
+            charge.Tick(0f, false, _ => true);
+            Assert.That(charge.DamageMultiplier, Is.EqualTo(1.4f).Within(1e-4f));
+        }
+
+        [Test]
+        public void ChargeFor_StepFlagUsesWeaponCharge_OwnChargeWins()
+        {
+            var shared = new ChargeConfig();
+            var own = new ChargeConfig();
+            var item = new ItemConfig { Charge = shared };
+            Assert.That(item.ChargeFor(new AttackStepConfig()), Is.Null);
+            Assert.That(item.ChargeFor(new AttackStepConfig { Chargeable = true }), Is.SameAs(shared));
+            Assert.That(item.ChargeFor(new AttackStepConfig { Charge = own }), Is.SameAs(own));
+            Assert.That(new ItemConfig().ChargeFor(new AttackStepConfig { Chargeable = true }), Is.Null);
+        }
+
         private static FinisherConfig Finisher() => new FinisherConfig
         {
             MinHits = 2, DelayMin = 0.1f, DelayMax = 0.5f, Step = new AttackStepConfig()
@@ -127,24 +174,21 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void Plunge_HangsThenFallsUntilGround()
+        public void Plunge_RaisesThenFliesUntilGround()
         {
-            var config = new PlungeConfig { Hang = 0.1f, FallSpeed = 16f, MinHeight = 0.3f };
+            var config = new PlungeConfig { Hang = 0.1f, MinHeight = 0.3f };
             Assert.That(PlungeAttack.CanStart(config, grounded: false, heightAboveGround: 0.2f), Is.False);
             Assert.That(PlungeAttack.CanStart(config, grounded: true, heightAboveGround: 5f), Is.False);
             Assert.That(PlungeAttack.CanStart(config, grounded: false, heightAboveGround: 0.6f), Is.True);
 
             var plunge = new PlungeAttack();
             plunge.Start(config);
-            Assert.That(plunge.VerticalVelocity, Is.EqualTo(0f), "hang in the air");
             Assert.That(plunge.Tick(0.05f, false), Is.False);
             Assert.That(plunge.Phase, Is.EqualTo(PlungePhase.Hang));
             Assert.That(plunge.Tick(0.06f, false), Is.False);
             Assert.That(plunge.Phase, Is.EqualTo(PlungePhase.Fall));
-            Assert.That(plunge.VerticalVelocity, Is.EqualTo(-16f));
             Assert.That(plunge.Tick(0.02f, true), Is.True, "landing frame");
             Assert.That(plunge.Phase, Is.EqualTo(PlungePhase.Landed));
-            Assert.That(plunge.VerticalVelocity, Is.Null, "gravity is back after landing");
             Assert.That(plunge.Tick(0.02f, true), Is.False, "impact happens once");
         }
 
@@ -188,15 +232,19 @@ namespace ColorsAction.Tests
                 new ColorsActionInstaller());
 
         [Test]
-        public void Sword_ThrustThird_ChopBehindUpgrade1_FinisherAndChargeBehindUpgrades()
+        public void Sword_ThrustThird_ChargedChopBehindUpgrade1_FinisherAndChargeBehindUpgrades()
         {
             using var host = CreateHost();
             var sword = host.Container.Resolve<ItemDatabase>().Get("sword");
             Assert.That(sword.Combo.Count, Is.GreaterThanOrEqualTo(4));
             Assert.That(sword.Combo[2].Motion, Is.EqualTo(AttackMotion.Thrust));
             Assert.That(sword.Combo[2].Upgrade, Is.Zero);
-            Assert.That(sword.Combo[2].Charge, Is.Not.Null);
-            Assert.That(sword.Combo[2].Charge.Upgrade, Is.EqualTo(3));
+            Assert.That(sword.ChargeFor(sword.Combo[2]), Is.Null, "only the fourth attack charges by default");
+            Assert.That(sword.Combo[3].Chargeable, Is.True);
+            Assert.That(sword.ChargeFor(sword.Combo[3]), Is.SameAs(sword.Charge));
+            Assert.That(sword.Charge.Upgrade, Is.EqualTo(3));
+            Assert.That(sword.Charge.PerfectWindow, Is.GreaterThan(0f));
+            Assert.That(sword.Charge.HeldMultiplier, Is.LessThan(sword.Charge.DamageMultiplier));
             Assert.That(sword.Combo[3].Motion, Is.EqualTo(AttackMotion.Chop));
             Assert.That(sword.Combo[3].Upgrade, Is.EqualTo(1));
             Assert.That(sword.Finisher, Is.Not.Null);
