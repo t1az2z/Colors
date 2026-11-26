@@ -266,6 +266,15 @@ namespace ColorsAction.Level
                 });
             }
 
+            foreach (var b in config.Bridges)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = string.IsNullOrEmpty(b.Id) ? level.NewObjectId(LevelObjectKind.DrawBridge) : b.Id,
+                    Kind = LevelObjectKind.DrawBridge, Cell = StandCell(b.X, b.Z), Yaw = b.Yaw, Height = DrawBridgeShape.Height
+                });
+            }
+
             return level;
         }
     }

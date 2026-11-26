@@ -237,8 +237,10 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     : session.Level.NewObjectId(objectKind),
                 Kind = objectKind, Cell = cell.Value, Barrier = barrierKind,
                 Height = objectKind == LevelObjectKind.ShortcutDoor ? doorHeight
-                    : objectKind == LevelObjectKind.CrateStack ? crateHeight : barrierHeight,
-                Yaw = objectKind == LevelObjectKind.ShortcutDoor ? doorYaw : objectKind == LevelObjectKind.CrateStack ? crateYaw : 0f,
+                    : objectKind == LevelObjectKind.CrateStack ? crateHeight
+                    : objectKind == LevelObjectKind.DrawBridge ? DrawBridgeShape.Height : barrierHeight,
+                Yaw = objectKind == LevelObjectKind.ShortcutDoor ? doorYaw : objectKind == LevelObjectKind.CrateStack ? crateYaw
+                    : objectKind == LevelObjectKind.DrawBridge ? bridgeYaw : 0f,
                 Color = HasColor(objectKind) ? objectColor : null,
                 Item = string.IsNullOrEmpty(objectItem) ? null : objectItem,
                 Count = objectKind == LevelObjectKind.Chest ? chestCount : 1
@@ -380,6 +382,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 case LevelObjectKind.ShortcutDoor: return new Color(0.6f, 0.4f, 0.25f);
                 case LevelObjectKind.CrateStack: return new Color(0.18f, 0.42f, 1f);
                 case LevelObjectKind.Chest: return new Color(0.85f, 0.7f, 0.25f);
+                case LevelObjectKind.DrawBridge: return new Color(0.9f, 0.2f, 0.15f);
                 default: return Color.gray;
             }
         }
@@ -458,6 +461,25 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 Handles.color = c;
                 for (int k = 0; k < h; k++)
                     Handles.DrawWireCube(new Vector3(cx, pos.y + k + 0.5f, cz), new Vector3(size.x, 0.95f, size.z));
+            }
+            else if (o.IsBridge)
+            {
+                // Разводной мост: плоский настил 4×2 и поднятая дальняя створка (стенка 2 в высоту) посередине.
+                top = o.Cell.Y + DrawBridgeShape.Height;
+                var rot = Quaternion.Euler(0, DrawBridgeShape.SnapYaw(o.Yaw), 0);
+                var (cx, cz) = DrawBridgeShape.Center(o.Cell.X, o.Cell.Z, o.Yaw);
+                var deck = rot * new Vector3(DrawBridgeShape.Length, 0f, DrawBridgeShape.Width);
+                var deckCenter = new Vector3(cx, pos.y + 0.03f, cz);
+                Handles.color = new Color(0.85f, 0.85f, 0.85f, 0.45f);
+                DrawSolidBox(deckCenter, new Vector3(Mathf.Abs(deck.x), 0.06f, Mathf.Abs(deck.z)));
+                var leafCenter = deckCenter + rot * new Vector3(0.2f, DrawBridgeShape.Height * 0.5f, 0f);
+                var leaf = rot * new Vector3(0.25f, 0f, DrawBridgeShape.Width);
+                var leafSize = new Vector3(Mathf.Abs(leaf.x), DrawBridgeShape.Height, Mathf.Abs(leaf.z));
+                Handles.color = new Color(c.r, c.g, c.b, 0.55f);
+                DrawSolidBox(leafCenter, leafSize);
+                Handles.color = c;
+                Handles.DrawWireCube(leafCenter, leafSize);
+                Handles.DrawLine(pos + Vector3.up * 0.1f, leafCenter + Vector3.up * (DrawBridgeShape.Height * 0.45f) - rot * new Vector3(0.15f, 0f, 0f));
             }
             else if (o.IsDoor)
             {

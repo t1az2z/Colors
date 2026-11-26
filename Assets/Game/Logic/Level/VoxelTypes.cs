@@ -187,7 +187,15 @@ namespace ColorsAction.Level
         /// Сундук в одной клетке: открывается на E / X, из него вылетает ресурс <see cref="LevelObject.Item"/>
         /// (id из Items.json, kind Resource) в количестве <see cref="LevelObject.Count"/>. Вид — Configs/Chests.json.
         /// </summary>
-        Chest
+        Chest,
+
+        /// <summary>
+        /// Разводной мост (<see cref="DrawBridgeShape"/>): 4 клетки в длину от <see cref="LevelObject.Cell"/> в сторону
+        /// <see cref="LevelObject.Yaw"/>, 2 в ширину (вторая — слева по ходу), 2 в высоту. Ближняя створка опущена,
+        /// дальняя поднята и держится на красной цепи; выстрел из дробовика рвёт цепь, створка падает и открывает проход.
+        /// Параметры — Configs/Bridges.json.
+        /// </summary>
+        DrawBridge
     }
 
     /// <summary>Тип цветного барьера (раздел 8 GDD).</summary>
@@ -228,14 +236,18 @@ namespace ColorsAction.Level
 
         public bool IsCrate => Kind == LevelObjectKind.CrateStack;
 
-        /// <summary>Перекрывает ли проход, пока не открыт (барьер, дверь-срезка или неразбитые ящики).</summary>
-        public bool BlocksPath => IsBarrier || IsDoor || IsCrate;
+        public bool IsBridge => Kind == LevelObjectKind.DrawBridge;
+
+        /// <summary>Перекрывает ли проход, пока не открыт (барьер, дверь-срезка, неразбитые ящики, поднятый мост).</summary>
+        public bool BlocksPath => IsBarrier || IsDoor || IsCrate || IsBridge;
 
         public LevelObject Clone() => (LevelObject)MemberwiseClone();
 
-        /// <summary>Закрывает ли барьер, дверь или стопка ящиков клетку.</summary>
+        /// <summary>Закрывает ли барьер, дверь, стопка ящиков или поднятая створка моста клетку.</summary>
         public bool Covers(Int3 cell)
         {
+            if (IsBridge)
+                return DrawBridgeShape.RaisedLeafCovers(Cell, Yaw, cell);
             if (!BlocksPath || cell.Y < Cell.Y || cell.Y >= Cell.Y + Math.Max(1, Height))
                 return false;
             if (cell.X == Cell.X && cell.Z == Cell.Z)

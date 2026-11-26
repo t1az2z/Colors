@@ -16,7 +16,7 @@ namespace ColorsAction.Unity
     /// <summary>
     /// Строит уровень из карты высот (<see cref="LevelConfig"/>): столбики кубов 1×1, объединённые в меши по чанкам 16×16
     /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены, подсказки на полу, двери-срезки,
-    /// костры и стопки ящиков, обносит карту невидимыми стенами. Отдых у костра (и смерть игрока) возрождает врагов.
+    /// костры, стопки ящиков и разводные мосты, обносит карту невидимыми стенами. Отдых у костра (и смерть игрока) возрождает врагов.
     /// Воксельный уровень из веб-редактора (ключ "VoxelLevels/…") строится через <see cref="VoxelLevelView"/>, его объекты
     /// переводит <see cref="VoxelPlayLayout"/>. Какой уровень грузить — Game.json или окно «Параметры запуска».
     /// В редакторе показывает превью уровня (не сохраняется в сцену).
@@ -380,6 +380,16 @@ namespace ColorsAction.Unity
                 go.transform.SetParent(root, false);
                 go.transform.SetPositionAndRotation(PointPosition(c), Quaternion.Euler(0, CrateStackShape.SnapYaw(c.Yaw), 0));
                 go.AddComponent<CrateStack>().Init(c.Id, c.Height, worldMaterial);
+                bootstrap.Inject(go);
+            }
+
+            // Разводные мосты: дальняя створка поднята на цепи, выстрел из дробовика её опускает (Configs/Bridges.json).
+            foreach (var b in config.Bridges)
+            {
+                var go = new GameObject($"Bridge_{b.Id}");
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(PointPosition(b), Quaternion.Euler(0, DrawBridgeShape.SnapYaw(b.Yaw), 0));
+                go.AddComponent<DrawBridge>().Init(b.Id, worldMaterial);
                 bootstrap.Inject(go);
             }
 

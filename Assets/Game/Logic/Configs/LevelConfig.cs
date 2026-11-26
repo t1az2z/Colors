@@ -40,6 +40,7 @@ namespace ColorsAction.Configs
         public List<LevelBonfire> Bonfires { get; set; } = new List<LevelBonfire>();
         public List<LevelCrate> Crates { get; set; } = new List<LevelCrate>();
         public List<LevelChest> Chests { get; set; } = new List<LevelChest>();
+        public List<LevelBridge> Bridges { get; set; } = new List<LevelBridge>();
 
         public int Width { get; private set; }
         public int Length { get; private set; }
@@ -84,6 +85,13 @@ namespace ColorsAction.Configs
                 if (string.IsNullOrEmpty(c.Id))
                     c.Id = $"chest_{c.X}_{c.Z}";
                 c.Count = Math.Max(1, c.Count);
+            }
+
+            Bridges ??= new List<LevelBridge>();
+            foreach (var b in Bridges)
+            {
+                if (string.IsNullOrEmpty(b.Id))
+                    b.Id = $"bridge_{b.X}_{b.Z}";
             }
 
             foreach (var b in Bonfires)
@@ -254,6 +262,20 @@ namespace ColorsAction.Configs
 
         /// <summary>Сколько ящиков в высоту.</summary>
         public int Height { get; set; } = 2;
+    }
+
+    /// <summary>
+    /// Разводной мост 4×2 (<see cref="ColorsAction.Level.DrawBridgeShape"/>): клетка (X, Z) — ближний край опущенной
+    /// створки, мост тянется на 4 клетки в сторону <see cref="LevelPoint.Yaw"/> (0 — +X, 90 — −Z, 180 — −X, 270 — +Z)
+    /// и на 2 клетки в ширину (вторая — слева по ходу). Вторая створка поднята и держится на цепи: выстрел из дробовика
+    /// рвёт цепь, створка падает и открывает проход навсегда (<see cref="GameSession.OpenedBridges"/>).
+    /// Параметры — Configs/Bridges.json.
+    /// </summary>
+    [Preserve]
+    public sealed class LevelBridge : LevelPoint
+    {
+        /// <summary>Id моста (для запоминания опущенных). Пусто — "bridge_x_z".</summary>
+        public string Id { get; set; }
     }
 
     /// <summary>

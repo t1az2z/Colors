@@ -13,7 +13,7 @@ namespace ColorsAction.Unity
     /// персонажа), свободная камера доворачивается за спину. Повторное нажатие снимает фиксацию; она снимается и сама,
     /// если цель ушла дальше <see cref="CombatConfig.LockOnBreakRange"/>. Если цель-враг умерла, фиксация переходит
     /// на врага, ближайшего к погибшему (в радиусе <see cref="CombatConfig.LockOnRange"/>), а если такого нет — снимается.
-    /// Переключение на соседнюю цель — рывок правым стиком или мышью влево/вправо. Числа — Configs/Combat.json.
+    /// Цели — враги, манекены и цепи разводных мостов (<see cref="BridgeChain"/>). Переключение на соседнюю цель — рывок правым стиком или мышью влево/вправо. Числа — Configs/Combat.json.
     /// </summary>
     [DefaultExecutionOrder(-50)]
     [RequireComponent(typeof(PlayerController))]
@@ -217,6 +217,9 @@ namespace ColorsAction.Unity
                 Add(enemy);
             foreach (var dummy in FindObjectsByType<TrainingDummy>(FindObjectsSortMode.None))
                 Add(dummy);
+            // Цепи разводных мостов: взять в фиксацию и прицелиться дробовиком.
+            foreach (var chain in BridgeChain.All)
+                Add(chain);
         }
 
         private void Add(Component c)
@@ -233,6 +236,8 @@ namespace ColorsAction.Unity
             if (c == null || !c.gameObject.activeInHierarchy)
                 return false;
             if (c is EnemyController enemy && enemy.Dead)
+                return false;
+            if (c is BridgeChain chain && !chain.Lockable)
                 return false;
             var d = c.transform.position - transform.position;
             d.y = 0f;

@@ -106,6 +106,9 @@ namespace ColorsAction
         /// <summary>Id открытых сундуков: открытый сундук остаётся пустым навсегда (позже уйдёт в сохранение).</summary>
         public HashSet<string> OpenedChests { get; } = new HashSet<string>();
 
+        /// <summary>Id опущенных разводных мостов: цепь порвана, створка лежит, проход открыт навсегда (позже уйдёт в сохранение).</summary>
+        public HashSet<string> OpenedBridges { get; } = new HashSet<string>();
+
         /// <summary>Id костра, у которого игрок отдыхал последним (точка возрождения), null — ещё нигде.</summary>
         public string LastBonfire { get; set; }
 

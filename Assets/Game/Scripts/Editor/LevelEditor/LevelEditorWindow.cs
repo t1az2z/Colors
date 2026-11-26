@@ -55,6 +55,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         [SerializeField] private int doorYaw;
         [SerializeField] private int crateYaw;
         [SerializeField] private int crateHeight = CrateStackShape.DefaultHeight;
+        [SerializeField] private int bridgeYaw;
         [SerializeField] private int chestCount = 1;
         [SerializeField] private string objectItem = "";
         [SerializeField] private InteractionAction pointAction = InteractionAction.ShieldSlide;
@@ -396,6 +397,16 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                                                 "Две и больше в высоту не перепрыгнуть.", MessageType.None);
                     }
 
+                    if (objectKind == LevelObjectKind.DrawBridge)
+                    {
+                        bridgeYaw = EditorGUILayout.IntPopup(new GUIContent("Мост тянется"), DrawBridgeShape.SnapYaw(bridgeYaw),
+                            new[] { new GUIContent("→ +X"), new GUIContent("↓ −Z"), new GUIContent("← −X"), new GUIContent("↑ +Z") },
+                            new[] { 0, 90, 180, 270 });
+                        EditorGUILayout.HelpBox("Разводной мост 4×2: щелчок — ближняя клетка опущенной створки, мост тянется по стрелке " +
+                                                "на 4 клетки, вторая клетка ширины — слева по ходу. Дальняя створка поднята на цепи; " +
+                                                "выстрел из дробовика её опускает (Configs/Bridges.json).", MessageType.None);
+                    }
+
                     if (objectKind == LevelObjectKind.Chest)
                     {
                         chestCount = Mathf.Max(1, EditorGUILayout.IntField("Количество", chestCount));
@@ -413,7 +424,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     {
                         if (HasColor(objectKind))
                             DrawColorPicker(ref objectColor, false);
-                        if (objectKind != LevelObjectKind.ShortcutDoor && objectKind != LevelObjectKind.CrateStack)
+                        if (objectKind != LevelObjectKind.ShortcutDoor && objectKind != LevelObjectKind.CrateStack &&
+                            objectKind != LevelObjectKind.DrawBridge)
                             objectItem = EditorGUILayout.TextField(ItemLabel(objectKind), objectItem);
                     }
 

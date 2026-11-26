@@ -20,6 +20,7 @@ namespace ColorsAction.Configs
         public const string Upgrades = "Upgrades";
         public const string Crates = "Crates";
         public const string Chests = "Chests";
+        public const string Bridges = "Bridges";
     }
 
     /// <summary>Configs/Game.json — что загружать при старте.</summary>

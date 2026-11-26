@@ -6,7 +6,7 @@ namespace ColorsAction.Level
 {
     /// <summary>
     /// Воксельный уровень (формат веб-редактора, Configs/VoxelLevels) для игры: объекты переводятся в списки
-    /// <see cref="LevelConfig"/> (точка появления, оружие, враги, манекены, подсказки, двери, костры, ящики, сундуки) с высотой опоры
+    /// <see cref="LevelConfig"/> (точка появления, оружие, враги, манекены, подсказки, двери, костры, ящики, сундуки, мосты) с высотой опоры
     /// <see cref="LevelPoint.Y"/>. Геометрию строит сам воксельный уровень. Барьеры и NPC игра пока не умеет — пропускаются.
     /// </summary>
     public static class VoxelPlayLayout
@@ -56,6 +56,9 @@ namespace ColorsAction.Level
                         if (string.IsNullOrEmpty(o.Item))
                             skipped?.Add($"{o.Id}: в сундуке не выбран ресурс — будет пустым");
                         config.Chests.Add(Point(new LevelChest { Id = o.Id, Item = o.Item, Count = Math.Max(1, o.Count) }, o, y));
+                        break;
+                    case LevelObjectKind.DrawBridge:
+                        config.Bridges.Add(Point(new LevelBridge { Id = o.Id }, o, y));
                         break;
                     default:
                         skipped?.Add($"{o.Id}: {o.Kind} пока не поддерживается в игре");

@@ -151,7 +151,7 @@
    Описания параметров — в SCHEMA ниже. Неописанные ключи показываются как есть.
    ===================================================================== */
 
-const FILE_ORDER = ['Player', 'Camera', 'Items', 'Upgrades', 'Enemies', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Movement', 'Game'];
+const FILE_ORDER = ['Player', 'Camera', 'Items', 'Upgrades', 'Enemies', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Movement', 'Game'];
 const S = { dir: null, files: {}, current: null, levels: [], mode: 'none' };
 
 /* ---------- утилиты ---------- */
@@ -390,6 +390,48 @@ const SCHEMA = {
       const w = [];
       if (d.color && S.files.Colors && !S.files.Colors.data[d.color]) w.push(`Цвета «${d.color}» нет в Colors.json.`);
       for (const id of d.breakableBy || []) if (S.files.Items && !itemsData()[id]) w.push(`Оружия «${id}» нет в Items.json.`);
+      return w;
+    },
+  },
+
+  Bridges: {
+    title: 'Мосты', desc: 'Разводной мост 4×2×2: ближняя створка опущена, дальняя поднята и держится на цепи. Цепь рвётся только оружием из списка breakableBy (по умолчанию дробовик), створка падает и открывает проход навсегда. Шестерни и цепь — цвета color, настил — в цвете мира. Где стоит мост — задаётся в редакторе уровней.',
+    sections: [
+      { title: 'Цепь', fields: [
+        { k: 'chainHp', l: 'Прочность цепи', d: 'Один залп дробовика наносит больше 1 — цепь рвётся с первого попадания.', u: U.pts, min: 0.1, max: 100, step: 0.1 },
+        { k: 'color', l: 'Цвет шестерён и цепи', t: 'colorRef', d: 'По умолчанию красный — цвет дробовика.' },
+        { k: 'lockOnChain', l: 'Фиксация на цепи', t: 'bool', d: 'Цепь можно взять в цель (СКМ / R3), чтобы прицелиться дробовиком.' },
+        { k: 'chainLinks', l: 'Звеньев в цепи', t: 'int', u: 'шт.', min: 3, max: 30, step: 1, d: '' },
+        { k: 'chainSwing', l: 'Раскачка от удара', u: U.deg, min: 0, max: 30, step: 0.5, d: 'Удар неподходящим оружием цепь только раскачивает.' },
+        { k: 'chainSwingTime', l: 'Время раскачки', u: U.s, min: 0, max: 2, step: 0.05, d: '' },
+        { k: 'flashTime', l: 'Вспышка при попадании', u: U.s, min: 0, max: 0.5, step: 0.01, d: '' },
+        { k: 'chainBreakForce', l: 'Разлёт звеньев', u: U.bls, min: 0, max: 10, step: 0.1, d: 'Звенья у места разрыва отлетают, дальние просто падают.' },
+        { k: 'debrisLife', l: 'Время жизни звеньев', u: U.s, min: 0.2, max: 8, step: 0.1, d: '' },
+      ] },
+      { title: 'Вид', fields: [
+        { k: 'deckTint', l: 'Цвет настила (hex)', t: 'text', d: 'Пусто — цвет мира.' },
+        { k: 'deckShade', l: 'Яркость досок', u: U.x, min: 0, max: 2, step: 0.05, d: '1 — как цвет мира.' },
+        { k: 'beamShade', l: 'Яркость балок', u: U.x, min: 0, max: 2, step: 0.05, d: 'Бортики, поперечины и оси.' },
+        { k: 'gearShade', l: 'Яркость шестерён и цепи', u: U.x, min: 0, max: 2, step: 0.05, d: '' },
+        { k: 'gearRadius', l: 'Большие шестерни', u: U.bl, min: 0.3, max: 1, step: 0.01, d: 'Радиус шестерён у шарнира поднятой створки.' },
+        { k: 'smallGearRadius', l: 'Малые шестерни', u: U.bl, min: 0.2, max: 0.8, step: 0.01, d: 'Радиус шестерён в начале моста.' },
+        { k: 'raisedAngle', l: 'Угол поднятой створки', u: U.deg, min: 10, max: 89, step: 1, d: 'От горизонтали. Меньше 90 — створка наклонена вперёд и падает, когда цепь рвётся.' },
+      ] },
+      { title: 'Падение створки', fields: [
+        { k: 'fallDelay', l: 'Пауза после разрыва', u: U.s, min: 0, max: 1, step: 0.01, d: 'Створка вздрагивает и только потом валится.' },
+        { k: 'fallGravity', l: 'Сила тяжести', u: U.x, min: 0.2, max: 4, step: 0.05, d: '1 — как настоящая доска длиной 2 блока.' },
+        { k: 'gearRatio', l: 'Передача шестерён', u: U.x, min: 0, max: 8, step: 0.1, d: 'Сколько оборотов делает шестерня за оборот створки.' },
+        { k: 'bounce', l: 'Отскок', u: U.frac, min: 0, max: 0.8, step: 0.01, d: 'Доля скорости, с которой створка подпрыгивает от земли.' },
+        { k: 'bounces', l: 'Отскоков', t: 'int', u: 'шт.', min: 0, max: 5, step: 1, d: '' },
+        { k: 'landShake', l: 'Тряска камеры', u: U.x, min: 0, max: 2, step: 0.05, d: 'При ударе створки о землю.' },
+        { k: 'landDust', l: 'Пыль при ударе', t: 'int', u: 'шт.', min: 0, max: 40, step: 1, d: '' },
+      ] },
+    ],
+    validate(d) {
+      const w = [];
+      if (d.color && S.files.Colors && !S.files.Colors.data[d.color]) w.push(`Цвета «${d.color}» нет в Colors.json.`);
+      for (const id of d.breakableBy || []) if (S.files.Items && !itemsData()[id]) w.push(`Оружия «${id}» нет в Items.json.`);
+      if (d.raisedAngle >= 90) w.push('Угол поднятой створки должен быть меньше 90°, иначе она не упадёт.');
       return w;
     },
   },

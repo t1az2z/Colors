@@ -185,7 +185,11 @@ const OBJECT_KINDS = {
   ShortcutDoor:   { name: 'Дверь-срезка',   mk: '⊓', col: '#9a6a3f' },
   CrateStack:     { name: 'Ящики (меч)',    mk: '▦', col: '#2F6BFF' },
   Chest:          { name: 'Сундук',         mk: '▣', col: '#b8892e' },
+  DrawBridge:     { name: 'Мост (дробовик)', mk: '⊼', col: '#E8413C' },
 };
+// Разводной мост 4×2×2 (DrawBridgeShape в Unity): от клетки по стрелке на 4 клетки, вторая клетка ширины — слева по ходу.
+// Ближняя створка опущена, дальняя (клетки 3–4) поднята на цепи — её опускает выстрел из дробовика.
+const BRIDGE_DIRS = [[0, '→ +X'], [90, '↓ −Z'], [180, '← −X'], [270, '↑ +Z']];
 // Стопка ящиков 2×1×N (CrateStackShape в Unity): вторая клетка по повороту — 0° → +X, 270° → +Z.
 const CRATE_DIRS = [[0, '→ +X'], [270, '↑ +Z']];
 function crateDir(yaw) { return doorSide(yaw) === 270 || doorSide(yaw) === 90 ? 270 : 0; }
@@ -600,7 +604,7 @@ const st = {
   height: 1, top: '', rot: 0, color: null, brush: 1, slab: false,
   blockShape: 'F', blockMode: 'add',
   paintColumn: false,
-  objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, crateYaw: 0, crateHeight: 2,
+  objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, crateYaw: 0, crateHeight: 2, bridgeYaw: 0,
   objResource: 'metal', chestCount: 1,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
@@ -769,6 +773,9 @@ function objectPanel() {
     desc('Стопка деревянных ящиков 2×1: закрывает проход, разбивается только мечом. Две в высоту не перепрыгнуть. Тап — первая клетка, вторая — по стрелке.'),
     row('Вторая клетка', chips(CRATE_DIRS, st.crateYaw, v => { st.crateYaw = v; renderPanel(); })),
     row('Ящиков в высоту', stepper(st.crateHeight, v => st.crateHeight = v, 1, 3)));
+  if (st.objKind === 'DrawBridge') out.push(
+    desc('Разводной мост 4×2: ближняя створка опущена, дальняя поднята на красной цепи и не пускает дальше (2 куба в высоту). Выстрел из дробовика рвёт цепь — створка падает и открывает проход навсегда. Тап — ближняя клетка, мост тянется по стрелке на 4 клетки, вторая клетка ширины — слева по ходу. Под дальнюю створку можно оставить пропасть.'),
+    row('Мост тянется', chips(BRIDGE_DIRS, st.bridgeYaw, v => { st.bridgeYaw = v; renderPanel(); requestRender(); })));
   if (st.objKind === 'Chest') out.push(
     desc('Сундук в одной клетке: игрок открывает его (E / X), ресурс вылетает и летит к нему. На значке сундука подписано, что внутри.'),
     H3('Ресурс'), resourceList(st.objResource, v => { st.objResource = v; renderPanel(); }),
@@ -781,6 +788,7 @@ function objectPanel() {
       // Дверь стоит строго поперёк прохода: поворот только по 90°, высота по умолчанию — как у стены.
       if (v === 'ShortcutDoor' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
       if (v === 'CrateStack' && o.kind !== v) { o.yaw = crateDir(o.yaw); o.height = st.crateHeight; o.color = null; o.item = null; }
+      if (v === 'DrawBridge' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = 2; o.color = null; o.item = null; }
       if (v === 'Chest' && o.kind !== v) { o.color = null; o.item = st.objResource; o.count = st.chestCount; }
       o.kind = v;
     }))));
@@ -791,6 +799,8 @@ function objectPanel() {
     else if (o.kind === 'CrateStack') out.push(
       row('Вторая клетка', chips(CRATE_DIRS, crateDir(o.yaw), v => edit(() => o.yaw = v))),
       row('Ящиков в высоту', stepper(o.height ?? 2, v => edit(() => o.height = v), 1, 3)));
+    else if (o.kind === 'DrawBridge') out.push(
+      row('Мост тянется', chips(BRIDGE_DIRS, doorSide(o.yaw), v => edit(() => o.yaw = v))));
     else out.push(row('Поворот ' + Math.round(o.yaw || 0) + '°', h('span', { class: 'chips' },
       h('button', { on: { click: () => edit(() => o.yaw = norm180((o.yaw || 0) - 45)) } }, '⟲ 45'),
       h('button', { on: { click: () => edit(() => o.yaw = norm180((o.yaw || 0) + 45)) } }, '⟳ 45'))));
@@ -803,7 +813,7 @@ function objectPanel() {
     if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })));
     else if (o.kind === 'Chest') out.push(H3('Ресурс в сундуке'), resourceList(o.item, v => edit(() => o.item = v)),
       row('Количество', stepper(o.count || 1, v => edit(() => o.count = v), 1, 99)));
-    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack')
+    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack' && o.kind !== 'DrawBridge')
       out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
 
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'ShortcutDoor')
@@ -867,9 +877,9 @@ function pointPanel() {
     out.push(row('Действие', selectInput(p.action, Object.entries(ACTIONS).map(([k, v]) => [k, v.name]), v => edit(() => p.action = v))));
     out.push(row('Клетка', h('span', {}, cellStr(p.cell))));
     out.push(row('Нужен предмет', itemSelect(p.requiredItem, v => edit(() => p.requiredItem = v), true, ['hook', 'flail'])));
-    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'CrateStack').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
+    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Нужен предмет', textInput(p.requiredItem, v => edit(() => p.requiredItem = v), [...ITEMS, 'hook', 'flail'])));
-    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'ShortcutDoor' || o.kind === 'CrateStack').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
+    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'ShortcutDoor' || o.kind === 'CrateStack' || o.kind === 'DrawBridge').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Точка B', selectInput(p.targetPoint, [[null, '—'], ...L.points.filter(x => x !== p).map(x => [x.id, x.id])], v => edit(() => p.targetPoint = v))));
     out.push(row('Объект-цель', selectInput(p.targetObject, [[null, '—'], ...L.objects.map(o => [o.id, o.id])], v => edit(() => p.targetObject = v))));
     out.push(row('Этаж-цель', selectInput(p.targetFloor, [[null, '—'], ...L.floors.map(f => [f.id, f.name])], v => edit(() => p.targetFloor = v))));
@@ -1150,6 +1160,7 @@ function buildMarkers() {
     if (o.kind === 'ShortcutDoor') { addDoorMesh(o); continue; }
     if (o.kind === 'CrateStack') { addCrateMesh(o); continue; }
     if (o.kind === 'Chest') { addChestMesh(o); continue; }
+    if (o.kind === 'DrawBridge') { addBridgeMesh(o); continue; }
     if (o.kind !== 'Barrier') continue;
     const hgt = Math.max(1, o.height ?? 2);
     const col = new THREE.Color(PALETTE[o.color]?.hex || '#999');
@@ -1231,6 +1242,62 @@ function addCrateMesh(o) {
   g.updateMatrixWorld(true);
   // Как у двери: меши переносятся в мировые координаты прямо в markerGroup.
   for (const m of parts) { m.renderOrder = 3; m.applyMatrix4(g.matrixWorld); m.visible = g.visible; g.remove(m); markerGroup.add(m); }
+}
+// Разводной мост: настил из двух створок (ближняя лежит, дальняя поднята на 80° на шарнире посередине),
+// красные шестерни по бокам шарниров и красная цепь от кольца на настиле к краю поднятой створки — как в игре (DrawBridge.cs).
+function addBridgeMesh(o) {
+  const fi = floorIndexOf(o.cell[1]);
+  const faded = fi > activeFloor;
+  const mat = c => new THREE.MeshLambertMaterial({ color: c, transparent: faded, opacity: faded ? 0.2 : 1, depthWrite: !faded });
+  const line = c => new THREE.LineBasicMaterial({ color: c, transparent: faded, opacity: faded ? 0.3 : 1 });
+  const RED = '#E8413C', DECK = '#dcdde0', BEAM = '#a3a5ab', EDGE = '#8b8e95';
+  const g = new THREE.Group();
+  const parts = [];
+  const add = (parent, m) => { parent.add(m); parts.push(m); return m; };
+  const leafParts = (parent, raised) => {
+    const deck = add(parent, new THREE.Mesh(new THREE.BoxGeometry(2, 0.09, 1.84), mat(DECK))); deck.position.set(1, 0, 0.5);
+    const e = add(parent, new THREE.LineSegments(new THREE.EdgesGeometry(deck.geometry), line(EDGE))); e.position.copy(deck.position);
+    // Щели между досками поперёк хода.
+    for (let i = 1; i < 8; i++) { const s = add(parent, new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.092, 1.84), mat(EDGE))); s.position.set(i * 0.25, 0.001, 0.5); }
+    for (const z of [-0.43, 1.43]) { const b = add(parent, new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 0.14), mat(BEAM))); b.position.set(1, 0.02, z); }
+    if (raised) { const cap = add(parent, new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.16, 1.8), mat(RED))); cap.position.set(1.94, -0.02, 0.5); }
+  };
+  const near = new THREE.Group(); near.position.set(-0.5, 0, 0); g.add(near); leafParts(near, false);
+  const ring = add(near, new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.05, 0.26), mat(RED))); ring.position.set(0.9, 0.07, 0.5);
+  const leaf = new THREE.Group(); leaf.position.set(1.5, 0, 0); leaf.rotation.z = 80 * Math.PI / 180; g.add(leaf); leafParts(leaf, true);
+  // Шестерни: диск с зубьями, ось поперёк моста.
+  const gear = (x, z, r) => {
+    const disk = add(g, new THREE.Mesh(new THREE.CylinderGeometry(r * 0.86, r * 0.86, 0.1, 20), mat(RED)));
+    disk.rotation.x = Math.PI / 2; disk.position.set(x, 0, z);
+    const n = Math.max(8, Math.round(2 * Math.PI * r / 0.21));
+    for (let i = 0; i < n; i++) {
+      const a = 2 * Math.PI * i / n;
+      const t = add(g, new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.1), mat(RED)));
+      t.position.set(x + Math.cos(a) * (r - 0.07), Math.sin(a) * (r - 0.07), z); t.rotation.z = a;
+    }
+    const hub = add(g, new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.16), mat('#8a2420'))); hub.position.set(x, 0, z); hub.rotation.z = Math.PI / 4;
+  };
+  for (const z of [-0.6, 1.6]) { gear(1.5, z, 0.72); gear(-0.22, z, 0.5); }
+  // Цепь — от кольца на ближней створке к краю поднятой.
+  const a = new THREE.Vector3(0.4, 0.13, 0.5);
+  const k = 80 * Math.PI / 180;
+  const b = new THREE.Vector3(1.5 + 1.88 * Math.cos(k) - 0.1 * Math.sin(k), 1.88 * Math.sin(k) + 0.1 * Math.cos(k), 0.5);
+  const len = a.distanceTo(b);
+  const chain = add(g, new THREE.Mesh(new THREE.BoxGeometry(0.07, len, 0.07), mat(RED)));
+  chain.position.copy(a).add(b).multiplyScalar(0.5);
+  chain.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  g.position.set(o.cell[0] + .5, surfaceOf(o.cell), o.cell[2] + .5);
+  g.rotation.y = doorSide(o.yaw) * Math.PI / 180;
+  g.updateMatrixWorld(true);
+  // Как у двери: меши переносятся в мировые координаты прямо в markerGroup (вложенные группы — через matrixWorld).
+  const visible = !(faded && st.upper === 'hide');
+  for (const m of parts) {
+    const mw = m.matrixWorld.clone();
+    m.parent.remove(m);
+    mw.decompose(m.position, m.quaternion, m.scale);
+    m.renderOrder = 3; m.visible = visible;
+    markerGroup.add(m);
+  }
 }
 let grid = null;
 function buildGrid() {
@@ -1350,7 +1417,7 @@ function drawOverlay() {
   // объекты и точки
   const r = Math.max(9, Math.min(17, ppu * 0.36));
   const markers = [];
-  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' ? '' : o.kind === 'EnemySpawn' ? enemyName(o.item) : o.kind === 'Chest' ? chestLabel(o) : o.item, badge: o.kind === 'Chest', kind: 'obj' });
+  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? '' : o.kind === 'EnemySpawn' ? enemyName(o.item) : o.kind === 'Chest' ? chestLabel(o) : o.item, badge: o.kind === 'Chest', kind: 'obj' });
   for (const p of L.points) markers.push({ id: p.id, cell: p.cell, col: '#8a5cf0', mk: '◆', sel: sel.point === p.id, diamond: true, label: ACTIONS[p.action]?.name, kind: 'pt' });
   for (const m of markers) {
     const fi = floorIndexOf(m.cell[1]);
@@ -1601,7 +1668,7 @@ function objectTap(px, py) {
   touchMarkup();
   const o = {
     id: kind === 'PlayerSpawn' && !L.objects.some(o => o.id === 'spawn') ? 'spawn' : newId(kind.toLowerCase() + '_', L.objects),
-    kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : kind === 'CrateStack' ? st.crateYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
+    kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : kind === 'CrateStack' ? st.crateYaw : kind === 'DrawBridge' ? st.bridgeYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
     height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : 2,
     item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : kind === 'Chest' ? st.objResource : null,
     count: kind === 'Chest' ? st.chestCount : 1,
