@@ -1397,8 +1397,46 @@ function drawOverlay() {
     octx.fillText(`${x1 - x0}×${z1 - z0}`, (pts[0][0] + pts[2][0]) / 2, (pts[0][1] + pts[2][1]) / 2);
   }
   lastMarkers = markers;
+  drawAxes(W, Hh);
 }
 let lastMarkers = [];
+
+/**
+ * Оси координат справа внизу, над кнопками камеры (слева внизу — этажи): куда смотрят +X, +Z (и вверх Y) при текущем
+ * повороте камеры. Поворот объектов: 0° — +Z, 90° — +X.
+ */
+function drawAxes(W, Hh) {
+  const len = 38, camBox = $("#cam");
+  const ox = W - 10 - (camBox ? camBox.offsetWidth : 156) / 2, oy = Hh - 10 - (camBox ? camBox.offsetHeight : 102) - 14 - (len + 16);
+  const o = project(0, 0, 0);
+  const axes = [
+    { v: [1, 0, 0], col: '#E8413C', name: 'X' },
+    { v: [0, 0, 1], col: '#2F6BFF', name: 'Z' },
+    { v: [0, 1, 0], col: '#3DBE5A', name: 'Y' },
+  ].map(a => { const p = project(...a.v); return { ...a, dx: p[0] - o[0], dy: p[1] - o[1] }; });
+  const scale = len / Math.max(1e-6, ...axes.map(a => Math.hypot(a.dx, a.dy)));
+  octx.save();
+  octx.globalAlpha = 1; octx.setLineDash([]);
+  octx.fillStyle = 'rgba(255,255,255,.88)'; octx.strokeStyle = 'rgba(0,0,0,.12)'; octx.lineWidth = 1;
+  octx.beginPath(); octx.arc(ox, oy, len + 16, 0, Math.PI * 2); octx.fill(); octx.stroke();
+  // Дальние оси рисуются первыми, чтобы ближняя была сверху (примерно: по экранному y).
+  for (const a of axes.sort((p, q) => p.dy - q.dy)) {
+    const ex = ox + a.dx * scale, ey = oy + a.dy * scale, l = Math.hypot(ex - ox, ey - oy);
+    octx.strokeStyle = a.col; octx.fillStyle = a.col; octx.lineWidth = 3;
+    octx.beginPath(); octx.moveTo(ox, oy); octx.lineTo(ex, ey); octx.stroke();
+    if (l > 6) {
+      const ux = (ex - ox) / l, uy = (ey - oy) / l;
+      octx.beginPath(); octx.moveTo(ex + ux * 4, ey + uy * 4);
+      octx.lineTo(ex - ux * 6 - uy * 5, ey - uy * 6 + ux * 5); octx.lineTo(ex - ux * 6 + uy * 5, ey - uy * 6 - ux * 5);
+      octx.closePath(); octx.fill();
+    }
+    const tx = l > 6 ? ex + (ex - ox) / l * 11 : ox + 12, ty = l > 6 ? ey + (ey - oy) / l * 11 : oy - 12;
+    octx.font = '700 12px system-ui, sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+    octx.fillText((a.name === 'Y' ? '' : '+') + a.name, tx, ty);
+  }
+  octx.fillStyle = '#23262b'; octx.beginPath(); octx.arc(ox, oy, 3, 0, Math.PI * 2); octx.fill();
+  octx.restore();
+}
 
 function hud() {
   const f = L.floors[activeFloor];
