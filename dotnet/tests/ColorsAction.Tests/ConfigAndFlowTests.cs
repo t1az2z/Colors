@@ -64,17 +64,19 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void PlayerHealth_MaxGrowsPerLevel_AndBlinkHidesShareOfPeriod()
+        public void PlayerHealth_MaxGrowsPerLevel_AndBlinkPulsesToStrength()
         {
             var health = new PlayerHealthConfig { Max = 100, MaxPerLevel = 15, BlinkRate = 10, BlinkStrength = 0.4f };
             Assert.That(health.MaxAt(0), Is.EqualTo(100f));
             Assert.That(health.MaxAt(3), Is.EqualTo(145f));
             Assert.That(health.MaxAt(-2), Is.EqualTo(100f));
-            // Период 0.1 с: первые 60% виден, последние 40% скрыт.
-            Assert.That(health.BlinkHidden(0.02f), Is.False);
-            Assert.That(health.BlinkHidden(0.08f), Is.True);
+            // Период 0.1 с: в начале периода подсветки нет, в середине — полная сила.
+            Assert.That(health.BlinkAmount(0f), Is.EqualTo(0f).Within(1e-4));
+            Assert.That(health.BlinkAmount(0.05f), Is.EqualTo(0.4f).Within(1e-4));
+            health.BlinkRate = 0f;
+            Assert.That(health.BlinkAmount(0.03f), Is.EqualTo(0.4f), "rate 0 — steady tint");
             health.BlinkStrength = 0f;
-            Assert.That(health.BlinkHidden(0.08f), Is.False);
+            Assert.That(health.BlinkAmount(0.05f), Is.EqualTo(0f));
         }
 
         [Test]

@@ -163,10 +163,49 @@ namespace ColorsAction.Unity
             if (!Dead && controller != null)
                 UpdateQuickItems();
 
-            // Мигание во время неуязвимости после урона.
+            SetVisible(!Dead);
+            // Мигание во время неуязвимости после урона: тело пульсирует белым свечением.
             var invulnerable = session.Vitals.Invulnerable && !Dead;
-            var visible = !invulnerable || !config.Health.BlinkHidden(Time.time);
-            SetVisible(visible);
+            ApplyBlink(invulnerable ? config.Health.BlinkAmount(Time.time) : 0f);
+        }
+
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
+
+        private Renderer bodyRenderer;
+        private MaterialPropertyBlock blinkBlock;
+        private Color bodyColor;
+        private float blinkApplied;
+
+        /// <summary>
+        /// Белое свечение тела (подматериал 0, глаза не трогаем) и оружия в руках: цвет тянется к белому,
+        /// emission даёт bloom. Материалам нужен _EMISSION — берём светящиеся копии (<see cref="GlowMaterials"/>).
+        /// </summary>
+        private void ApplyBlink(float amount)
+        {
+            var glow = config.Health.BlinkGlow;
+            if (amount > 0f || blinkApplied > 0f)
+                foreach (var visual in controller.Body.GetComponentsInChildren<ItemVisual>(true))
+                    visual.SetBlink(amount, glow);
+
+            if (bodyRenderer == null)
+            {
+                bodyRenderer = controller.Deformer != null ? controller.Deformer.GetComponent<Renderer>() : null;
+                if (bodyRenderer == null)
+                    return;
+                var material = bodyRenderer.sharedMaterial;
+                bodyColor = material != null && material.HasProperty(BaseColorId) ? material.GetColor(BaseColorId) : Color.gray;
+                GlowMaterials.EnsureEmission(bodyRenderer);
+                blinkBlock = new MaterialPropertyBlock();
+            }
+
+            if (Mathf.Approximately(amount, blinkApplied))
+                return;
+            blinkApplied = amount;
+            bodyRenderer.GetPropertyBlock(blinkBlock, 0);
+            blinkBlock.SetColor(BaseColorId, Color.Lerp(bodyColor, Color.white, amount));
+            blinkBlock.SetColor(EmissionColorId, Color.white * (amount * glow));
+            bodyRenderer.SetPropertyBlock(blinkBlock, 0);
         }
 
         private bool shown = true;

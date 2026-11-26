@@ -133,28 +133,35 @@ namespace ColorsAction.Configs
         /// <summary>Частота мигания во время неуязвимости, раз в секунду.</summary>
         public float BlinkRate { get; set; } = 12f;
 
-        /// <summary>Сила мигания: доля каждого периода, когда куб скрыт (0 — не мигает, 1 — невидим всё время).</summary>
-        public float BlinkStrength { get; set; } = 0.45f;
+        /// <summary>Сила мигания: насколько куб высветляется на пике вспышки (0 — не мигает, 1 — полностью белый).</summary>
+        public float BlinkStrength { get; set; } = 0.6f;
+
+        /// <summary>Яркость свечения (emission) на пике вспышки при силе 1; больше 1 — заметнее bloom.</summary>
+        public float BlinkGlow { get; set; } = 2f;
 
         /// <summary>Максимум здоровья после <paramref name="levels"/> уровней прокачки здоровья.</summary>
         public float MaxAt(int levels) => Max + MaxPerLevel * Math.Max(0, levels);
 
-        /// <summary>Скрыт ли куб в момент <paramref name="time"/> (секунды) во время неуязвимости.</summary>
-        public bool BlinkHidden(float time)
+        /// <summary>
+        /// Насколько куб высветлен в момент <paramref name="time"/> (секунды) во время неуязвимости: 0..BlinkStrength.
+        /// Плавная пульсация с частотой BlinkRate; при BlinkRate = 0 — ровная подсветка силой BlinkStrength.
+        /// </summary>
+        public float BlinkAmount(float time)
         {
-            if (BlinkRate <= 0f || BlinkStrength <= 0f)
-                return false;
-            var phase = time * BlinkRate;
-            phase -= (float)Math.Floor(phase);
-            return phase >= 1f - BlinkStrength;
+            if (BlinkStrength <= 0f)
+                return 0f;
+            if (BlinkRate <= 0f)
+                return BlinkStrength;
+            var wave = 0.5 - 0.5 * Math.Cos(2.0 * Math.PI * time * BlinkRate);
+            return BlinkStrength * (float)wave;
         }
 
         public void Validate()
         {
             if (Max <= 0f)
                 throw new InvalidOperationException("health.max must be positive");
-            if (MaxPerLevel < 0f || HitInvulnerability < 0f || BlinkRate < 0f)
-                throw new InvalidOperationException("health.maxPerLevel, hitInvulnerability and blinkRate must not be negative");
+            if (MaxPerLevel < 0f || HitInvulnerability < 0f || BlinkRate < 0f || BlinkGlow < 0f)
+                throw new InvalidOperationException("health.maxPerLevel, hitInvulnerability and blinkRate, blinkGlow must not be negative");
             if (BlinkStrength < 0f || BlinkStrength > 1f)
                 throw new InvalidOperationException("health.blinkStrength must be within 0..1");
         }
