@@ -14,11 +14,13 @@ namespace ColorsAction.States
     {
         private readonly ConfigService configs;
         private readonly StateMachine fsm;
+        private readonly LaunchOptions launch;
 
-        public BootState(ConfigService configs, StateMachine fsm)
+        public BootState(ConfigService configs, StateMachine fsm, LaunchOptions launch = null)
         {
             this.configs = configs;
             this.fsm = fsm;
+            this.launch = launch ?? LaunchOptions.None;
             AllowTransitionsTo(typeof(PlayState));
         }
 
@@ -34,7 +36,11 @@ namespace ColorsAction.States
             configs.LoadTable<ItemConfig>(ConfigKeys.Items);
             configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies);
             configs.LoadTable<WeaponUpgradeConfig>(ConfigKeys.Upgrades);
-            configs.Load<LevelConfig>(game.Level);
+            var level = launch.LevelKey(game);
+            if (LevelKeys.IsVoxel(level))
+                configs.Load<Level.VoxelLevelData>(level);
+            else
+                configs.Load<LevelConfig>(level);
             fsm.SetState<PlayState>();
         }
     }

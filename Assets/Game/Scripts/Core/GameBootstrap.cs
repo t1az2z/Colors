@@ -41,6 +41,7 @@ namespace ColorsAction.Unity
                 new ActionInstaller(c => c
                     .RegisterInstance(input)
                     .RegisterInstance(this)
+                    .RegisterInstance(LaunchOptionsStore.Load())
                     .Register(r => new Palette(r.Resolve<GameCore.Config.ConfigService>()))));
         }
 

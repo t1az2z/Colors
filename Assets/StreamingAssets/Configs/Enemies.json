@@ -21,7 +21,8 @@
       { "motion": "Sweep", "windup": 0.4, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07 },
       { "motion": "Overhead", "windup": 0.5, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.03, "parryTo": 0.06 }
     ],
-    "flankBias": 0.7
+    "flankBias": 0.7,
+    "parriedDuration": 2
   },
   "club_cube_red": {
     "name": "Красный куб с дубиной",
@@ -45,6 +46,7 @@
       { "motion": "Sweep", "windup": 0.4, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07 },
       { "motion": "Overhead", "windup": 0.6, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.04, "parryTo": 0.06 }
     ],
-    "flankBias": 0.7
+    "flankBias": 0.7,
+    "parriedDuration": 2
   }
 }

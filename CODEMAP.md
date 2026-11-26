@@ -15,25 +15,25 @@
 
 ## Логика (`Assets/Game/Logic`)
 
-- `ColorsActionInstaller.cs` — регистрация сервисов в DI. `GameSession.cs` — состояние игры: инвентарь, выносливость, здоровье, опыт, открытые срезки, `CompletedHints`, `LastBonfire`, `Upgrades`, схема управления.
+- `ColorsActionInstaller.cs` — регистрация сервисов в DI. `LaunchOptions.cs` — параметры запуска (уровень, стартовое оружие с апгрейдом, опыт) и `LevelKeys` (ключ `VoxelLevels/…` — воксельная карта). `GameSession.cs` — состояние игры: инвентарь, выносливость, здоровье, опыт, открытые срезки, `CompletedHints`, `LastBonfire`, `Upgrades`, схема управления.
 - `Configs/` — классы JSON-конфигов: `Configs.cs` (Game, Player + выносливость/деформация, Camera, Colors, Items + `AttackStepConfig` комбо с `fxFrom/fxTo`, `upgrade`, `hop`, `charge`, Combat, Inventory), `DodgeConfig.cs` (серия отскоков), `WeaponMoveConfigs.cs` (`ChargeConfig`, `FinisherConfig`, `PlungeConfig`), `UpgradeConfigs.cs` (Upgrades.json: цены апгрейдов), `EnemyConfigs.cs`, `LevelConfig.cs` (+ `bonfires`, подсказки с `target`).
 - `Combat/` — `DamageRules` (урон и цвет), `Health`/`PlayerVitals`, `Stamina`, `EnemyBrain` (решения врага), `CombatDirector` (очередь врагов на атаку), `LockOnRules` (+ `Nearest` — передача фокуса), `Shotgun` (`ShotParams` — параметры залпа, `ShotPattern`, `PelletVolley`, `GunTrigger`), `DodgeCombo` (серия отскоков), `AttackCharge` (общий заряд удержанием), `ComboFinisher` + `ComboSteps` (отложенный добивающий, удары за апгрейдами), `PlungeAttack` (удар в прыжке), `ShieldBash`.
 - `Inventory/` — `PlayerInventory` (сетка, руки, быстрые слоты), `ItemDatabase`.
 - `Progression/` — `WeaponUpgrades` (уровни апгрейдов 0..3, `Has(itemId, tier)`; отладка `debugWeaponUpgrades` в Game.json), `WeaponUpgradeShop` (покупка за опыт), `Bonfire` (события отдыха/респауна).
-- `Level/` — воксельная модель (`VoxelLevel`, `VoxelLevelData`, `VoxelTypes`), правки и история (`LevelEditing`), `SurfaceSmoothing`, `ShortcutDoorRules`, `HintTargets` (подсказки гаснут после подбора/двери), `LevelEdgeWalls`, `Navigation/` (граф и A* для врагов).
+- `Level/` — воксельная модель (`VoxelLevel`, `VoxelLevelData`, `VoxelTypes`), `VoxelPlayLayout` (объекты воксельной карты → списки `LevelConfig` с высотой опоры `Y` для игры), правки и история (`LevelEditing`), `SurfaceSmoothing`, `ShortcutDoorRules`, `HintTargets` (подсказки гаснут после подбора/двери), `LevelEdgeWalls`, `Navigation/` (граф и A* для врагов).
 - `States/States.cs` — FSM: Boot → Play ↔ Inventory / Bonfire. `UI/` — `InventoryScreenViewModel`, `BonfireScreenViewModel`.
 
 ## Unity (`Assets/Game/Scripts`)
 
-- `Core/` — `GameBootstrap` (точка входа сцены, хост ядра, создаёт HUD/инвентарь/EventSystem из префабов), `GameInput` (действия клавиатура/геймпад), `Palette`, `ComponentPool` (пулинг).
+- `Core/` — `GameBootstrap` (точка входа сцены, хост ядра, создаёт HUD/инвентарь/EventSystem из префабов, регистрирует `LaunchOptions`), `LaunchOptionsStore` (UserSettings/ColorsActionLaunch.json), `GameInput` (действия клавиатура/геймпад), `Palette`, `ComponentPool` (пулинг).
 - `Player/` — `PlayerController` (ходьба, бег, прыжок, серия отскоков, хуки удара в прыжке), `BoxMotor` (кинематика бокса), `CubeDeformer` (деформация куба), `PlayerDamageReceiver` (урон, блок, i-frames, смерть/респаун), `PlayerLockOn` (фиксация цели), `AimMarker`.
 - `Combat/` — `PlayerCombat` (partial: `.cs` — атаки обеих рук, комбо, позы; `.Moves.cs` — заряд, добивающий, удар в прыжке, окно эффекта; `.Shotgun.cs` — выстрел пулями, заряд, позы дробовика; `.Shield.cs` — блок, парирование, удар щитом), `Pellet` (пуля из пула), `WeaponGlow`, `ShockRingFx`, `WeaponTrail`, `ParryFlash`, `TrainingDummy`, `Hittable` (`IHittable`, `HitInfo`). `ShotFx` больше не используется.
 - `Enemies/` — `EnemyController` (движение, атаки, анимации, реакция на парирование), `EnemyFx` (трещины, осколки `DebrisChip` из пула, опыт, маркер тревоги).
 - `Items/` — `Pickup` (предмет на земле, префаб `Resources/Items/Pickups/<Name>`), `PickupVisual`, `ItemVisual`, `Interactable`/`PlayerInteractor` (E / X).
-- `Level/` — `LevelBuilder` (уровень из конфига, спавн предметов/врагов/подсказок/дверей/костров, невидимые стены, `RespawnEnemies`), `Bonfire` (костёр), `Voxel/` (`VoxelLevelView`, `VoxelMesher`), `HintMarker` (подсказки на полу), `ShortcutDoor`.
+- `Level/` — `LevelBuilder` (уровень из конфига: карта высот или воксельная карта через `VoxelLevelView`, спавн предметов/врагов/подсказок/дверей/костров, невидимые стены, `RespawnEnemies`), `Bonfire` (костёр), `Voxel/` (`VoxelLevelView`, `VoxelMesher`), `HintMarker` (подсказки на полу), `ShortcutDoor`.
 - `UI/` — `Hud`, `InventoryView`, `SlotView`, `HudItemSlot`, `ItemIcons` (id → спрайт), `BonfireView`/`BonfireCell` (меню костра), `UiFactory`, `UiSprites`. Префабы UI: `Assets/Game/Resources/UI` (Canvas + CanvasScaler 1920×1080), иконки: `Assets/Game/Art/UI/Icons`.
 - `Camera/CameraRig.cs` — Cinemachine-камера.
-- `Editor/` — `PrototypeSceneBuilder` (собирает сцену/префабы из кода), `UiPrefabBuilder` и `BonfireMenuPrefabBuilder` (меню ColorsAction/UI), `PrototypePlaytest` (автопрогон), `PlayModeStepper`, `ModelImportSettings`, `LevelEditor/`.
+- `Editor/` — `LaunchOptionsWindow` (окно «Параметры запуска»: карта, стартовое оружие, опыт, кнопка «Играть»), `LevelImporter` (импорт карт веб-редактора .json/.json.txt в `Configs/VoxelLevels`, меню ColorsAction/Уровни), `PrototypeSceneBuilder` (собирает сцену/префабы из кода), `UiPrefabBuilder` и `BonfireMenuPrefabBuilder` (меню ColorsAction/UI), `PrototypePlaytest` (автопрогон), `PlayModeStepper`, `ModelImportSettings`, `LevelEditor/`.
 
 ## Данные и ассеты
 

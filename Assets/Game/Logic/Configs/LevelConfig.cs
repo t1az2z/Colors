@@ -171,6 +171,12 @@ namespace ColorsAction.Configs
         public int X { get; set; }
         public int Z { get; set; }
 
+        /// <summary>
+        /// Высота опоры в метрах. Пусто — берётся с карты высот; задаётся для воксельных уровней
+        /// (<see cref="ColorsAction.Level.VoxelPlayLayout"/>), где в одной клетке бывает несколько этажей.
+        /// </summary>
+        public float? Y { get; set; }
+
         /// <summary>Поворот вокруг вертикали, в градусах.</summary>
         public float Yaw { get; set; }
     }

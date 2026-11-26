@@ -3,6 +3,7 @@ using System.IO;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Level;
+using ColorsAction.Unity.Voxel;
 using GameCore.Config;
 using GameCore.DI;
 using GameCore.Events;
@@ -16,6 +17,8 @@ namespace ColorsAction.Unity
     /// Строит уровень из карты высот (<see cref="LevelConfig"/>): столбики кубов 1×1, объединённые в меши по чанкам 16×16
     /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены, подсказки на полу, двери-срезки
     /// и костры, обносит карту невидимыми стенами. Отдых у костра (и смерть игрока) возрождает врагов.
+    /// Воксельный уровень из веб-редактора (ключ "VoxelLevels/…") строится через <see cref="VoxelLevelView"/>, его объекты
+    /// переводит <see cref="VoxelPlayLayout"/>. Какой уровень грузить — Game.json или окно «Параметры запуска».
     /// В редакторе показывает превью уровня (не сохраняется в сцену).
     /// </summary>
     [ExecuteAlways]
@@ -30,6 +33,8 @@ namespace ColorsAction.Unity
         [SerializeField] private string editorPreviewLevel = "Levels/Test";
 
         private LevelConfig level;
+        private VoxelLevel voxel;
+        private Palette palette;
         private GameConfig game;
         private GameBootstrap bootstrap;
         private GameInput input;
@@ -46,7 +51,22 @@ namespace ColorsAction.Unity
         {
             var configs = resolver.Resolve<ConfigService>();
             game = configs.Load<GameConfig>(ConfigKeys.Game);
-            level = configs.Load<LevelConfig>(game.Level);
+            var launch = resolver.TryResolve<LaunchOptions>(out var l) ? l : LaunchOptions.None;
+            var key = launch.LevelKey(game);
+            palette = resolver.Resolve<Palette>();
+            if (LevelKeys.IsVoxel(key))
+            {
+                voxel = configs.Load<VoxelLevelData>(key).ToLevel();
+                var skipped = new List<string>();
+                level = VoxelPlayLayout.ToLevelConfig(voxel, skipped);
+                if (skipped.Count > 0)
+                    Debug.LogWarning($"Уровень {key}: пропущено в игре —\n" + string.Join("\n", skipped), this);
+            }
+            else
+            {
+                level = configs.Load<LevelConfig>(key);
+            }
+
             bootstrap = resolver.Resolve<GameBootstrap>();
             input = resolver.Resolve<GameInput>();
             session = resolver.Resolve<GameSession>();
@@ -89,7 +109,10 @@ namespace ColorsAction.Unity
             if (!Application.isPlaying || level == null)
                 return;
             ClearRoot();
-            BuildGeometry(level);
+            if (voxel != null)
+                BuildVoxelGeometry(voxel);
+            else
+                BuildGeometry(level);
             SpawnEntities(level);
         }
 
@@ -109,12 +132,30 @@ namespace ColorsAction.Unity
             root = null;
         }
 
-        private void BuildGeometry(LevelConfig config)
+        private void CreateRoot()
         {
             root = new GameObject("Generated").transform;
             root.SetParent(transform, false);
             if (!Application.isPlaying)
                 root.gameObject.hideFlags = HideFlags.DontSave | HideFlags.NotEditable;
+        }
+
+        /// <summary>Воксельный уровень: куски 16×16 по этажам с MeshCollider, цвет блоков — из палитры.</summary>
+        private void BuildVoxelGeometry(VoxelLevel source)
+        {
+            CreateRoot();
+            var go = new GameObject("Voxel");
+            go.transform.SetParent(root, false);
+            go.isStatic = true;
+            var view = go.AddComponent<VoxelLevelView>();
+            view.BaseMaterial = worldMaterial;
+            view.Colliders = true;
+            view.Bind(source, id => palette != null ? palette.Get(id) : Color.white);
+        }
+
+        private void BuildGeometry(LevelConfig config)
+        {
+            CreateRoot();
 
             for (int cz = 0; cz < config.Length; cz += ChunkSize)
             for (int cx = 0; cx < config.Width; cx += ChunkSize)
@@ -278,11 +319,15 @@ namespace ColorsAction.Unity
 
         public Vector3 CellPosition(int x, int z) => new Vector3(x + 0.5f, level.SurfaceHeight(x, z, 0.5f, 0.5f), z + 0.5f);
 
+        /// <summary>Место объекта: высота опоры из точки (воксельный уровень) или с карты высот.</summary>
+        public Vector3 PointPosition(LevelPoint p) =>
+            p.Y.HasValue ? new Vector3(p.X + 0.5f, p.Y.Value, p.Z + 0.5f) : CellPosition(p.X, p.Z);
+
         private void SpawnEntities(LevelConfig config)
         {
             if (player != null)
             {
-                var spawn = CellPosition(config.Spawn.X, config.Spawn.Z);
+                var spawn = PointPosition(config.Spawn);
                 player.Teleport(spawn, config.Spawn.Yaw);
                 player.SetSpawn(spawn, config.Spawn.Yaw);
             }
@@ -293,7 +338,7 @@ namespace ColorsAction.Unity
                 var item = config.Items[i];
                 var go = new GameObject($"Pickup_{item.Item}");
                 go.transform.SetParent(root, false);
-                go.transform.SetPositionAndRotation(CellPosition(item.X, item.Z), Quaternion.Euler(0, item.Yaw, 0));
+                go.transform.SetPositionAndRotation(PointPosition(item), Quaternion.Euler(0, item.Yaw, 0));
                 pickups[i] = go.AddComponent<Pickup>();
                 pickups[i].Init(item.Item);
                 bootstrap.Inject(go);
@@ -303,7 +348,7 @@ namespace ColorsAction.Unity
             {
                 foreach (var d in config.Dummies)
                 {
-                    var go = Instantiate(dummyPrefab, CellPosition(d.X, d.Z), Quaternion.Euler(0, d.Yaw, 0), root);
+                    var go = Instantiate(dummyPrefab, PointPosition(d), Quaternion.Euler(0, d.Yaw, 0), root);
                     go.name = "TrainingDummy";
                     bootstrap.Inject(go);
                 }
@@ -318,7 +363,7 @@ namespace ColorsAction.Unity
                 var door = config.Doors[i];
                 var go = new GameObject($"ShortcutDoor_{door.Id}");
                 go.transform.SetParent(root, false);
-                go.transform.SetPositionAndRotation(CellPosition(door.X, door.Z), Quaternion.Euler(0, door.Yaw, 0));
+                go.transform.SetPositionAndRotation(PointPosition(door), Quaternion.Euler(0, door.Yaw, 0));
                 doors[i] = go.AddComponent<ShortcutDoor>();
                 doors[i].Init(door.Id, door.Height, worldMaterial);
                 bootstrap.Inject(go);
@@ -331,7 +376,7 @@ namespace ColorsAction.Unity
             {
                 var go = new GameObject($"Bonfire_{b.Id}");
                 go.transform.SetParent(root, false);
-                go.transform.SetPositionAndRotation(CellPosition(b.X, b.Z), Quaternion.Euler(0, b.Yaw, 0));
+                go.transform.SetPositionAndRotation(PointPosition(b), Quaternion.Euler(0, b.Yaw, 0));
                 go.AddComponent<Bonfire>().Init(b.Id, RestPoint(config, b), b.Yaw, worldMaterial);
                 bootstrap.Inject(go);
             }
@@ -353,7 +398,7 @@ namespace ColorsAction.Unity
             if (mesh == null)
                 return;
             foreach (var e in config.Enemies)
-                enemies.Add(EnemyController.Spawn(e.Type, CellPosition(e.X, e.Z), e.Yaw, root, bootstrap, mesh, materials));
+                enemies.Add(EnemyController.Spawn(e.Type, PointPosition(e), e.Yaw, root, bootstrap, mesh, materials));
         }
 
         /// <summary>
@@ -392,7 +437,7 @@ namespace ColorsAction.Unity
             {
                 if (session != null && session.CompletedHints.Contains(hint.Id))
                     continue;
-                var marker = HintMarker.Create(root, CellPosition(hint.X, hint.Z), hint.Action, input, hintFont);
+                var marker = HintMarker.Create(root, PointPosition(hint), hint.Action, input, hintFont);
                 hints.Add(marker);
                 HintTargets.Resolve(config, hint, itemIndices, doorIndices);
                 if (itemIndices.Count == 0 && doorIndices.Count == 0)
@@ -429,8 +474,13 @@ namespace ColorsAction.Unity
             var dx = Mathf.RoundToInt(Mathf.Sin(yaw));
             var dz = Mathf.RoundToInt(Mathf.Cos(yaw));
             int x = b.X + dx, z = b.Z + dz;
-            var own = CellPosition(b.X, b.Z);
-            if ((dx != 0 || dz != 0) && config.InBounds(x, z) && config.HeightSteps(x, z) != LevelConfig.Hole)
+            var own = PointPosition(b);
+            if (voxel != null)
+            {
+                if ((dx != 0 || dz != 0) && VoxelPlayLayout.TryStandNear(voxel, x, z, own.y, 0.3f, out var h))
+                    return new Vector3(x + 0.5f, h, z + 0.5f);
+            }
+            else if ((dx != 0 || dz != 0) && config.InBounds(x, z) && config.HeightSteps(x, z) != LevelConfig.Hole)
             {
                 var p = CellPosition(x, z);
                 if (Mathf.Abs(p.y - own.y) <= 0.3f)
@@ -446,13 +496,26 @@ namespace ColorsAction.Unity
             var walls = new GameObject("EdgeWalls").transform;
             walls.SetParent(root, false);
             var i = 0;
-            foreach (var w in LevelEdgeWalls.Build(config))
+            var offset = Vector3.zero;
+            List<WallBox> boxes;
+            if (voxel != null)
+            {
+                var (min, max) = voxel.Bounds();
+                offset = new Vector3(min.X, 0f, min.Z);
+                boxes = LevelEdgeWalls.Build(max.X - min.X + 1, max.Z - min.Z + 1, min.Y - 2f, max.Y + 1 + LevelEdgeWalls.Headroom);
+            }
+            else
+            {
+                boxes = LevelEdgeWalls.Build(config);
+            }
+
+            foreach (var w in boxes)
             {
                 var go = new GameObject($"Wall{i++}");
                 go.transform.SetParent(walls, false);
                 go.isStatic = true;
                 var box = go.AddComponent<BoxCollider>();
-                box.center = new Vector3(w.CenterX, w.CenterY, w.CenterZ);
+                box.center = offset + new Vector3(w.CenterX, w.CenterY, w.CenterZ);
                 box.size = new Vector3(w.SizeX, w.SizeY, w.SizeZ);
             }
         }

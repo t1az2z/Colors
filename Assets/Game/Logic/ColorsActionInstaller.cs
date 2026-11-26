@@ -29,6 +29,9 @@ namespace ColorsAction
                     var session = new GameSession(r.Resolve<ConfigService>(), r.Resolve<ItemDatabase>(), r.Resolve<IEventBus>());
                     r.Resolve<TickScheduler>().Add(session.Stamina);
                     r.Resolve<TickScheduler>().Add(session.Vitals);
+                    // Стартовое оружие и опыт из окна «Параметры запуска» (платформа регистрирует LaunchOptions сама).
+                    if (r.TryResolve<LaunchOptions>(out var launch))
+                        launch.Apply(session);
                     return session;
                 })
                 .Register(r =>
@@ -37,7 +40,8 @@ namespace ColorsAction
                     r.Resolve<TickScheduler>().Add(director);
                     return director;
                 })
-                .Register(r => new BootState(r.Resolve<ConfigService>(), r.Resolve<StateMachine>()))
+                .Register(r => new BootState(r.Resolve<ConfigService>(), r.Resolve<StateMachine>(),
+                    r.TryResolve<LaunchOptions>(out var launch) ? launch : LaunchOptions.None))
                 .Register(r => new PlayState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(), r.Resolve<IEventBus>()))
                 .Register(r => new InventoryState(r.Resolve<GameSession>(), r.Resolve<StateMachine>(),
                     r.Resolve<IEventBus>(), r.Resolve<ScreenStack>()))

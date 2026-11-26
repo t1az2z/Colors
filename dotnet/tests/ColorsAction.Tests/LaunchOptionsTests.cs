@@ -1,0 +1,97 @@
+using System.Collections.Generic;
+using ColorsAction.Configs;
+using ColorsAction.Level;
+using ColorsAction.States;
+using GameCore;
+using GameCore.Config;
+using GameCore.Hosting;
+using GameCore.Newtonsoft;
+using NUnit.Framework;
+
+namespace ColorsAction.Tests
+{
+    /// <summary>Параметры запуска (окно редактора) и запуск воксельных карт из веб-редактора.</summary>
+    public class LaunchOptionsTests
+    {
+        private static GameHost CreateHost(LaunchOptions options) =>
+            new GameHost(new ConsoleLogger(),
+                new ConfigInstaller(new FileConfigSource(TestPaths.ConfigsRoot()), new NewtonsoftConfigSerializer()),
+                new ColorsActionInstaller(),
+                new ActionInstaller(c => c.RegisterInstance(options)));
+
+        [Test]
+        public void Launch_GivesWeaponsUpgradesAndExperience_AndBootsVoxelLevel()
+        {
+            var options = new LaunchOptions
+            {
+                Enabled = true,
+                Level = "VoxelLevels/Test",
+                Weapons = new List<StartWeapon>
+                {
+                    new StartWeapon { Item = "sword", Upgrade = 2 },
+                    new StartWeapon { Item = "shield", Upgrade = 1 },
+                    new StartWeapon { Item = "shotgun", Upgrade = 9 }
+                },
+                Experience = 777
+            };
+            using var host = CreateHost(options);
+            host.Start<BootState>();
+            Assert.That(host.States.Current, Is.InstanceOf<PlayState>());
+
+            var session = host.Container.Resolve<GameSession>();
+            Assert.That(session.Inventory.Right?.Id, Is.EqualTo("sword"));
+            Assert.That(session.Inventory.Left?.Id, Is.EqualTo("shield"));
+            Assert.That(session.Upgrades.Level("sword"), Is.EqualTo(2));
+            Assert.That(session.Upgrades.Level("shield"), Is.EqualTo(1));
+            Assert.That(session.Upgrades.Level("shotgun"), Is.EqualTo(3), "уровень обрезается до максимума");
+            Assert.That(session.Experience.Value, Is.EqualTo(777));
+        }
+
+        [Test]
+        public void Disabled_KeepsDefaults()
+        {
+            var game = new GameConfig { Level = "Levels/Test" };
+            var options = new LaunchOptions { Enabled = false, Level = "VoxelLevels/Test", Experience = 5 };
+            Assert.That(options.LevelKey(game), Is.EqualTo("Levels/Test"));
+            using var host = CreateHost(options);
+            host.Start<BootState>();
+            Assert.That(host.Container.Resolve<GameSession>().Experience.Value, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void VoxelLayout_MapsObjectsWithStandHeight()
+        {
+            var configs = new ConfigService(new FileConfigSource(TestPaths.ConfigsRoot()), new NewtonsoftConfigSerializer());
+            var voxel = configs.Load<VoxelLevelData>("VoxelLevels/Test").ToLevel();
+            var skipped = new List<string>();
+            var layout = VoxelPlayLayout.ToLevelConfig(voxel, skipped);
+
+            var spawn = voxel.Objects[0];
+            foreach (var o in voxel.Objects)
+                if (o.Kind == LevelObjectKind.PlayerSpawn)
+                    spawn = o;
+            Assert.That(layout.Spawn.X, Is.EqualTo(spawn.Cell.X));
+            Assert.That(layout.Spawn.Y, Is.Not.Null);
+            Assert.That(layout.Spawn.Y!.Value, Is.EqualTo(VoxelPlayLayout.StandHeight(voxel, spawn.Cell)));
+
+            var pedestals = 0;
+            foreach (var o in voxel.Objects)
+                if (o.Kind == LevelObjectKind.WeaponPedestal)
+                    pedestals++;
+            Assert.That(layout.Items.Count, Is.EqualTo(pedestals));
+        }
+
+        [Test]
+        public void StandHeight_OnCubeAndInsideHalfBlock()
+        {
+            var level = new VoxelLevel();
+            level.Set(new Int3(0, 0, 0), Block.Cube());
+            level.Set(new Int3(1, 0, 0), Block.Cube());
+            level.Set(new Int3(1, 1, 0), new Block(BlockShape.Half));
+            Assert.That(VoxelPlayLayout.StandHeight(level, new Int3(0, 1, 0)), Is.EqualTo(1f));
+            Assert.That(VoxelPlayLayout.StandHeight(level, new Int3(1, 1, 0)), Is.EqualTo(1.5f));
+            Assert.That(VoxelPlayLayout.TryStandNear(level, 1, 0, 1f, 0.6f, out var h), Is.True);
+            Assert.That(h, Is.EqualTo(1.5f));
+        }
+    }
+}

@@ -21,9 +21,24 @@
     "comboWindow": 0.35,
     "inputBuffer": 0.18,
     "steps": [
-      { "distance": 1.6, "duration": 0.26, "hopHeight": 0.22, "flip": false, "midPause": 0, "midSpeed": 0, "invulnerableFrom": 0.05, "invulnerableTo": 0.75, "staminaCost": 14, "cooldown": 0.05, "chainFrom": 1, "takeoffSquash": -0.28, "stretch": 0.12, "bend": 0.1, "dirSquash": 0.15, "landSquash": -0.22 },
-      { "distance": 2.2, "duration": 0.3, "hopHeight": 0.28, "flip": false, "midPause": 0, "midSpeed": 0, "invulnerableFrom": 0.05, "invulnerableTo": 0.75, "staminaCost": 16, "cooldown": 0.05, "chainFrom": 1, "takeoffSquash": -0.3, "stretch": 0.15, "bend": 0.12, "dirSquash": 0.18, "landSquash": -0.25 },
-      { "distance": 4, "duration": 0.5, "hopHeight": 0.29, "flip": true, "midPause": 0, "midSpeed": 0, "invulnerableFrom": 0, "invulnerableTo": 0.7, "staminaCost": 22, "cooldown": 0.15, "chainFrom": 1, "takeoffSquash": 0, "stretch": 0, "bend": 0.18, "dirSquash": 0.22, "landSquash": -0.25 }
+      {
+        "distance": 4,
+        "duration": 0.5,
+        "hopHeight": 0.35,
+        "flip": true,
+        "midPause": 0,
+        "midSpeed": 0,
+        "invulnerableFrom": 0,
+        "invulnerableTo": 0.7,
+        "staminaCost": 22,
+        "cooldown": 0.15,
+        "chainFrom": 1,
+        "takeoffSquash": -0.1,
+        "stretch": 0,
+        "bend": 0.18,
+        "dirSquash": 0.03,
+        "landSquash": -0.3
+      }
     ]
   },
   "stamina": {

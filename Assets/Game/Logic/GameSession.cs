@@ -115,18 +115,39 @@ namespace ColorsAction
             }
 
             // Автоэкипировка (Inventory.json): оружие встаёт в свою руку, если она свободна.
-            if (inventoryConfig.AutoEquipOnPickup && item.Config.IsWeapon)
-            {
-                var hand = Inventory.ChooseHand(item);
-                var free = item.Config.IsTwoHanded
-                    ? Inventory.Left == null && Inventory.Right == null
-                    : Inventory.InHand(hand) == null;
-                if (free)
-                    Inventory.Equip(item, hand);
-            }
+            if (inventoryConfig.AutoEquipOnPickup)
+                EquipIfHandFree(item);
 
             events.Publish(new ItemPickedUp(item));
             return true;
+        }
+
+        /// <summary>
+        /// Выдать предмет без подбора (стартовое снаряжение): в инвентарь и, если <paramref name="equip"/>, в свободную руку.
+        /// Неизвестный id или полный инвентарь — false, событий не публикует.
+        /// </summary>
+        public bool GiveItem(string itemId, bool equip)
+        {
+            if (string.IsNullOrEmpty(itemId) || !items.Exists(itemId))
+                return false;
+            var item = items.Create(itemId);
+            if (!Inventory.TryAdd(item))
+                return false;
+            if (equip)
+                EquipIfHandFree(item);
+            return true;
+        }
+
+        private void EquipIfHandFree(Item item)
+        {
+            if (!item.Config.IsWeapon)
+                return;
+            var hand = Inventory.ChooseHand(item);
+            var free = item.Config.IsTwoHanded
+                ? Inventory.Left == null && Inventory.Right == null
+                : Inventory.InHand(hand) == null;
+            if (free)
+                Inventory.Equip(item, hand);
         }
     }
 }
