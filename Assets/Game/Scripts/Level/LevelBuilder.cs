@@ -530,16 +530,23 @@ namespace ColorsAction.Unity
             var i = 0;
             var offset = Vector3.zero;
             List<WallBox> boxes;
+            float killHeight;
             if (voxel != null)
             {
                 var (min, max) = voxel.Bounds();
                 offset = new Vector3(min.X, 0f, min.Z);
                 boxes = LevelEdgeWalls.Build(max.X - min.X + 1, max.Z - min.Z + 1, min.Y - 2f, max.Y + 1 + LevelEdgeWalls.Headroom);
+                killHeight = LevelEdgeWalls.KillHeight(min.Y);
             }
             else
             {
                 boxes = LevelEdgeWalls.Build(config);
+                killHeight = LevelEdgeWalls.KillHeight(config);
             }
+
+            // Провалился в дыру ниже дна мира — смерть и возрождение у костра.
+            if (player != null && player.TryGetComponent<PlayerDamageReceiver>(out var receiver))
+                receiver.KillHeight = killHeight;
 
             foreach (var w in boxes)
             {

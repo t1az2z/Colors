@@ -12,7 +12,7 @@ namespace ColorsAction.Unity
     /// Урон по игроку: перекат уворачивает (i-frames), щит в блоке гасит удар спереди за выносливость,
     /// иначе — урон, отбрасывание, сжатие куба, толчок камеры, красная цифра и 2 секунды неуязвимости с миганием.
     /// При смерти куб раскалывается и через пару секунд игрок появляется у последнего костра (или на старте),
-    /// публикуется <see cref="PlayerRespawned"/>.
+    /// публикуется <see cref="PlayerRespawned"/>. Упав ниже <see cref="KillHeight"/>, игрок погибает сразу.
     /// </summary>
     [RequireComponent(typeof(PlayerController))]
     public sealed class PlayerDamageReceiver : GameBehaviour
@@ -28,6 +28,12 @@ namespace ColorsAction.Unity
         private float quickCooldown;
 
         public bool Dead { get; private set; }
+
+        /// <summary>
+        /// Ниже этой высоты игрок погибает от падения (провалился в дыру за дно мира).
+        /// Задаёт <see cref="LevelBuilder"/> по дну уровня (<see cref="ColorsAction.Level.LevelEdgeWalls.KillHeight(float)"/>).
+        /// </summary>
+        public float KillHeight { get; set; } = float.NegativeInfinity;
 
         /// <summary>Сколько раз игрок вылечился лечилкой (для автотестов).</summary>
         public int HealCount { get; private set; }
@@ -158,6 +164,12 @@ namespace ColorsAction.Unity
                 }
 
                 return;
+            }
+
+            if (!Dead && controller != null && transform.position.y < KillHeight)
+            {
+                session.Vitals.Kill();
+                Die();
             }
 
             if (!Dead && controller != null)

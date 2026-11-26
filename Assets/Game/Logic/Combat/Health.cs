@@ -77,6 +77,13 @@ namespace ColorsAction.Combat
             return true;
         }
 
+        /// <summary>Мгновенная смерть (падение за границу мира): мимо неуязвимости.</summary>
+        public void Kill()
+        {
+            if (!Health.IsDead)
+                Health.TakeDamage(Health.Current.Value);
+        }
+
         public void Revive()
         {
             Health.Restore();

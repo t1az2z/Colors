@@ -251,6 +251,22 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void FallKill_BelowLevelBottom_AndKillIgnoresInvulnerability()
+        {
+            using var host = CreateHost();
+            var level = host.Container.Resolve<ConfigService>().Load<LevelConfig>("Levels/Test");
+            var kill = LevelEdgeWalls.KillHeight(level);
+            Assert.That(kill, Is.LessThan(-level.Depth - 2f), "below the bottom of holes and edge walls");
+            Assert.That(LevelEdgeWalls.KillHeight(-3f), Is.EqualTo(-3f - LevelEdgeWalls.FallKillDepth));
+
+            var vitals = new ColorsAction.Combat.PlayerVitals(100f, 2f);
+            vitals.TryHit(10f);
+            Assert.That(vitals.Invulnerable, Is.True);
+            vitals.Kill();
+            Assert.That(vitals.Health.IsDead, Is.True, "falling kills even during i-frames");
+        }
+
+        [Test]
         public void LockOn_AfterTargetDies_GoesToEnemyNearestToIt_WithinRange()
         {
             // Игрок в (0,0), цель умерла в (0,5). Кандидаты: рядом с погибшей, ближе к игроку, далеко за радиусом.

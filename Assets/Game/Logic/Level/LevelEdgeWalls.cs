@@ -34,6 +34,15 @@ namespace ColorsAction.Level
         public const float Thickness = 1f;
         public const float Headroom = 6f;
 
+        /// <summary>Насколько ниже самой нижней точки уровня игрок погибает от падения, метры.</summary>
+        public const float FallKillDepth = 6f;
+
+        /// <summary>Высота, ниже которой упавший игрок погибает: дно уровня минус <see cref="FallKillDepth"/>.</summary>
+        public static float KillHeight(float levelBottom) => levelBottom - FallKillDepth;
+
+        /// <summary>Высота смерти от падения для уровня-карты высот: дно — глубина дыр.</summary>
+        public static float KillHeight(LevelConfig level) => KillHeight(-level.Depth);
+
         public static List<WallBox> Build(LevelConfig level)
         {
             var top = 0f;
