@@ -46,8 +46,6 @@ namespace ColorsAction.Tests
             Assert.That(shot.Speed, Is.GreaterThan(10f), "pellets are projectiles with real speed");
             Assert.That(shot.DamageMultiplier, Is.EqualTo(1f));
             Assert.That(shotgun.Ranged.Upgrades.StaminaCostMultiplier, Is.LessThan(1f), "upgrade 1: cheaper shot");
-            Assert.That(shotgun.Ranged.Upgrades.ParryPellets, Is.EqualTo(3));
-            Assert.That(shotgun.Ranged.Upgrades.ParryDamageMultiplier, Is.GreaterThan(1f));
             Assert.That(shotgun.Ranged.IdleHold.Forward, Is.GreaterThan(0.5f), "idle: held in front of the cube");
             Assert.That(shotgun.Ranged.IdleHold.Pitch, Is.GreaterThan(0f), "idle: barrel tilted down");
         }
@@ -57,7 +55,7 @@ namespace ColorsAction.Tests
         {
             var ranged = Configs().LoadTable<ItemConfig>(ConfigKeys.Items).Get("shotgun").Ranged;
             Assert.That(ranged.Charge, Is.Not.Null, "shotgun charges with the generic charge mechanism");
-            Assert.That(ranged.Charge.Upgrade, Is.EqualTo(3), "charged shot is upgrade 3");
+            Assert.That(ranged.Charge.Upgrade, Is.EqualTo(2), "charged shot is upgrade 2");
             Assert.That(ranged.Charge.StaminaCost, Is.GreaterThan(0f), "charging costs extra stamina");
             var normal = ShotParams.From(ranged);
             var charged = normal.Charged(ranged.ChargedShot, ranged.Charge);
@@ -69,6 +67,48 @@ namespace ColorsAction.Tests
             Assert.That(charged.Glow, Is.GreaterThan(normal.Glow));
             Assert.That(charged.PelletSize, Is.GreaterThan(normal.PelletSize));
             Assert.That(normal.Pellets, Is.EqualTo(ranged.Pellets), "the normal shot is untouched (struct copy)");
+        }
+
+        // ------------------------------------------------------------------ блок дробовиком
+
+        [Test]
+        public void ShotgunBlock_OnSecondary_PartialAbsorb_ChargedParryAtUpgrade3()
+        {
+            var ranged = Configs().LoadTable<ItemConfig>(ConfigKeys.Items).Get("shotgun").Ranged;
+            Assert.That(ranged.Block, Is.Not.Null, "the shotgun blocks on the secondary attack");
+            Assert.That(ranged.Block.Absorb, Is.GreaterThan(0f).And.LessThan(1f), "blocks only part of the damage");
+            Assert.That(ranged.Block.Angle, Is.GreaterThan(0f));
+            Assert.That(ranged.Block.ChargedParryUpgrade, Is.EqualTo(3), "upgrade 3: fully charged shot after a parry");
+            Assert.That(ranged.Block.Hold.Height, Is.GreaterThan(ranged.IdleHold.Height), "raised in front");
+        }
+
+        [Test]
+        public void BlockRules_Shield_TakesNothing_Gun_TakesTheRest()
+        {
+            var shield = BlockRules.Resolve(10f, 1f, 100f, 5f, 1f);
+            Assert.That(shield.Held, Is.True);
+            Assert.That(shield.Damage, Is.EqualTo(0f));
+            Assert.That(shield.StaminaCost, Is.EqualTo(5f + 10f * BlockRules.CostPerDamage).Within(1e-4));
+
+            var gun = BlockRules.Resolve(10f, 0.5f, 100f, 5f, 1f);
+            Assert.That(gun.Held, Is.True);
+            Assert.That(gun.Damage, Is.EqualTo(5f).Within(1e-4), "half of the hit gets through");
+            Assert.That(gun.StaminaCost, Is.EqualTo(5f + 5f * BlockRules.CostPerDamage).Within(1e-4), "pays only for what it blocked");
+
+            var cheaper = BlockRules.Resolve(10f, 0.5f, 100f, 5f, 0.6f);
+            Assert.That(cheaper.StaminaCost, Is.EqualTo(gun.StaminaCost * 0.6f).Within(1e-4), "upgrade 1 makes the block cheaper");
+        }
+
+        [Test]
+        public void BlockRules_NotEnoughStamina_BlockBroken_HalfProtection()
+        {
+            var shield = BlockRules.Resolve(10f, 1f, 1f, 5f, 1f);
+            Assert.That(shield.Held, Is.False);
+            Assert.That(shield.Damage, Is.EqualTo(5f).Within(1e-4), "broken shield still halves the hit");
+
+            var gun = BlockRules.Resolve(10f, 0.5f, 1f, 5f, 1f);
+            Assert.That(gun.Held, Is.False);
+            Assert.That(gun.Damage, Is.EqualTo(7.5f).Within(1e-4));
         }
 
         // ------------------------------------------------------------------ парирование выстрелом

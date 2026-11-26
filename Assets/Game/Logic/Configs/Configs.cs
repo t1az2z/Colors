@@ -704,6 +704,9 @@ namespace ColorsAction.Configs
         /// <summary>Апгрейды на костре.</summary>
         public RangedUpgradesConfig Upgrades { get; set; } = new RangedUpgradesConfig();
 
+        /// <summary>Блок и парирование на кнопке доп. атаки (null — блока нет).</summary>
+        public GunBlockConfig Block { get; set; }
+
         /// <summary>
         /// Заряд выстрела удержанием кнопки (общий механизм заряда, апгрейд <see cref="ChargeConfig.Upgrade"/>):
         /// время, выносливость за полный заряд, множители урона и отбрасывания. null — выстрел не заряжается.
@@ -721,13 +724,14 @@ namespace ColorsAction.Configs
             Upgrades ??= new RangedUpgradesConfig();
             ChargedShot ??= new ChargedShotConfig();
             Charge?.Validate(id);
+            Block?.Validate(id);
             ChargedShot.Validate(id);
             if (PelletSpeed <= 0f || SpeedJitter < 0f || SpeedJitter >= 1f || AngleJitter < 0f || VerticalJitter < 0f)
                 throw new InvalidOperationException($"ranged weapon '{id}': pelletSpeed > 0, speedJitter in 0..1, jitters not negative");
             if (PelletSize <= 0f || HitRadius < 0f)
                 throw new InvalidOperationException($"ranged weapon '{id}': pelletSize > 0, hitRadius >= 0");
-            if (Upgrades.StaminaCostMultiplier < 0f || Upgrades.ParryPellets < 1 || Upgrades.ParryDamageMultiplier < 1f)
-                throw new InvalidOperationException($"ranged weapon '{id}': upgrades staminaCostMultiplier >= 0, parryPellets >= 1, parryDamageMultiplier >= 1");
+            if (Upgrades.StaminaCostMultiplier < 0f)
+                throw new InvalidOperationException($"ranged weapon '{id}': upgrades staminaCostMultiplier >= 0");
             if (Pellets < 1)
                 throw new InvalidOperationException($"ranged weapon '{id}': pellets must be at least 1");
             if (Range <= 0f || Cooldown < 0f || Spread < 0f || Spread > 180f)
@@ -798,21 +802,51 @@ namespace ColorsAction.Configs
     }
 
     /// <summary>
-    /// Апгрейды стрелкового оружия (id предмета в WeaponUpgrades). 1 — дешевле выстрел; 2 — парирование выстрелом:
-    /// залп в окно парирования вражеской атаки парирует её, если в врага попало не меньше <see cref="ParryPellets"/> пуль,
-    /// и урон этих пуль умножается на <see cref="ParryDamageMultiplier"/>. 3 — заряженный выстрел (<see cref="RangedConfig.Charge"/>, <see cref="RangedConfig.ChargedShot"/>).
+    /// Апгрейды стрелкового оружия (id предмета в WeaponUpgrades). 1 — дешевле выстрел и блок
+    /// (<see cref="StaminaCostMultiplier"/>); 2 — заряженный выстрел (<see cref="RangedConfig.Charge"/>);
+    /// 3 — после удачного парирования блоком выстрел полностью заряжен (<see cref="GunBlockConfig.ChargedParryUpgrade"/>).
     /// </summary>
     [Preserve]
     public sealed class RangedUpgradesConfig
     {
-        /// <summary>Апгрейд 1: множитель выносливости за выстрел.</summary>
+        /// <summary>Апгрейд 1: множитель выносливости за выстрел и за блок.</summary>
         public float StaminaCostMultiplier { get; set; } = 0.6f;
+    }
 
-        /// <summary>Апгрейд 2: сколько пуль залпа должно попасть во врага, чтобы парировать.</summary>
-        public int ParryPellets { get; set; } = 3;
+    /// <summary>
+    /// Блок стрелковым оружием (кнопка доп. атаки — ПКМ / LT): оружие поднимается перед собой и гасит часть урона
+    /// удара спереди за выносливость. Блок, поставленный в окно парирования (тайминг как у щита), парирует атаку,
+    /// и оружие сразу стреляет; с апгрейдом <see cref="ChargedParryUpgrade"/> — полностью заряженным залпом.
+    /// </summary>
+    [Preserve]
+    public sealed class GunBlockConfig
+    {
+        /// <summary>Угол блока перед персонажем, градусы.</summary>
+        public float Angle { get; set; } = 120f;
 
-        /// <summary>Апгрейд 2: множитель урона пуль парирующего залпа.</summary>
-        public float ParryDamageMultiplier { get; set; } = 3f;
+        /// <summary>Доля урона, которую гасит блок (щит гасит весь удар — 1).</summary>
+        public float Absorb { get; set; } = 0.5f;
+
+        /// <summary>Выносливость за выстрел после парирования (0 — бесплатно).</summary>
+        public float ParryShotStaminaCost { get; set; }
+
+        /// <summary>Ступень прокачки, с которой выстрел после парирования — полностью заряженный (0 — всегда).</summary>
+        public int ChargedParryUpgrade { get; set; } = 3;
+
+        /// <summary>Поза в руках при блоке: поднято перед собой.</summary>
+        public GunHoldConfig Hold { get; set; } = new GunHoldConfig
+        {
+            Side = 0f, Height = 0.72f, Forward = 0.7f, Pitch = 0f,
+            ModelPosition = new[] { -0.35f, 0f, 0f }, ModelRotation = new[] { 0f, -90f, 0f }
+        };
+
+        public void Validate(string id)
+        {
+            Hold ??= new GunHoldConfig();
+            if (Angle <= 0f || Angle > 360f || Absorb < 0f || Absorb > 1f || ParryShotStaminaCost < 0f || ChargedParryUpgrade < 0)
+                throw new InvalidOperationException(
+                    $"ranged weapon '{id}': block angle in 0..360, absorb in 0..1, parryShotStaminaCost >= 0, chargedParryUpgrade >= 0");
+        }
     }
 
     /// <summary>

@@ -64,7 +64,8 @@ namespace ColorsAction.Tests
             Assert.That(table.Get("sword").Tier(1).Name, Does.Contain("4-я атака"));
             Assert.That(table.Get("sword").Tier(2).Name, Does.Contain("удар щитом"), "sword and shield are one weapon");
             Assert.That(table.TryGet("shield", out _), Is.False, "the shield has no upgrades of its own");
-            Assert.That(table.Get("shotgun").Tier(2).Name, Is.EqualTo("Парирование дробовиком"));
+            Assert.That(table.Get("shotgun").Tier(2).Name, Is.EqualTo("Заряженный выстрел"));
+            Assert.That(table.Get("shotgun").Tier(3).Name, Is.EqualTo("Отбить и выстрелить"));
         }
 
         [Test]

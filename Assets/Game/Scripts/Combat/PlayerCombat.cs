@@ -244,8 +244,10 @@ namespace ColorsAction.Unity
             UpdateShieldBash(control, dt);
 
             var wasBlocking = Blocking;
+            // Блок: щит (кнопкой своей руки) или стрелковое оружие с блоком (доп. атака, пока не копится заряд).
             Blocking = control && attacking == null && !Bashing &&
-                       ((right.Item?.Kind == ItemKind.Shield && right.Holding) || (left.Item?.Kind == ItemKind.Shield && left.Holding));
+                       ((right.Item?.Kind == ItemKind.Shield && right.Holding) || (left.Item?.Kind == ItemKind.Shield && left.Holding) ||
+                        (GunBlockHand != null && left.Holding && !GunCharging));
             session.Stamina.Blocking = Blocking;
             if (Blocking && !wasBlocking && !session.Stamina.TrySpend(playerConfig.Stamina.BlockStartCost * BlockCostMultiplier))
                 Blocking = false;
@@ -831,6 +833,9 @@ namespace ColorsAction.Unity
 
             /// <summary>Доля прицела стрелкового оружия 0..1 (0 — поза покоя).</summary>
             public float GunAim;
+
+            /// <summary>Доля позы блока стрелкового оружия 0..1 (0 — не поднято).</summary>
+            public float GunBlock;
             public WeaponTrail Trail;
             public Pose WindupFrom;
             public bool Holding;

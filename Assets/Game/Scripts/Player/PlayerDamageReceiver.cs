@@ -91,22 +91,22 @@ namespace ColorsAction.Unity
             away.y = 0;
             away = away.sqrMagnitude > 0.001f ? away.normalized : -controller.Forward;
 
-            // Блок щитом: удар спереди гасится за выносливость; не хватило — блок пробит.
+            // Блок: удар спереди гасится за выносливость (щит — целиком, дробовик — часть); не хватило — блок пробит.
             if (combat != null && combat.Blocking && BlockCovers(-away))
             {
-                // Апгрейд 1 щита: блок дешевле.
-                var cost = (config.Stamina.BlockStartCost + damage * 1.2f) * combat.BlockCostMultiplier;
-                var hadStamina = session.Stamina.Current.Value >= cost;
-                session.Stamina.TrySpend(cost);
-                if (hadStamina)
+                // Апгрейд 1: блок дешевле.
+                var block = BlockRules.Resolve(damage, combat.BlockAbsorb, session.Stamina.Current.Value,
+                    config.Stamina.BlockStartCost, combat.BlockCostMultiplier);
+                session.Stamina.TrySpend(block.StaminaCost);
+                damage = block.Damage;
+                if (block.Held)
                 {
                     controller.ApplyKnockback(away * 0.25f * knockback);
                     controller.Deformer.SetSquash(-0.18f, -1f);
                     combat.Shake(0.15f);
-                    return false;
+                    if (damage <= 0f)
+                        return false;
                 }
-
-                damage *= 0.5f; // пробитый блок всё же смягчает
             }
 
             if (!session.Vitals.TryHit(damage))
@@ -153,7 +153,7 @@ namespace ColorsAction.Unity
         private bool BlockCovers(Vector3 towardAttacker)
         {
             // Щит может быть второй рукой меча и не лежать в инвентаре: угол блока знает бой.
-            var angle = combat != null ? combat.ShieldBlockAngle : null;
+            var angle = combat != null ? combat.BlockAngle : null;
             if (angle == null)
                 return false;
             return Vector3.Angle(controller.Forward, towardAttacker) <= angle.Value * 0.5f;

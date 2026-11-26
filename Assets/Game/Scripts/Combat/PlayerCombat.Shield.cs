@@ -27,7 +27,7 @@ namespace ColorsAction.Unity
         private bool bashHitDone;
         private float bashLungeDone;
 
-        /// <summary>Сколько атак парировано за игру (щит, удар щитом, выстрел; для автотестов).</summary>
+        /// <summary>Сколько атак парировано за игру (щит, удар щитом, блок дробовика; для автотестов).</summary>
         public int ParryCount { get; private set; }
 
         /// <summary>Ударов щитом и попаданий ими за игру (для автотестов).</summary>
@@ -48,8 +48,11 @@ namespace ColorsAction.Unity
             }
         }
 
-        /// <summary>Угол блока щита в руках (null — щита нет).</summary>
-        public float? ShieldBlockAngle => ShieldHand?.Item.BlockAngle;
+        /// <summary>Угол блока: щит в руках или стрелковое оружие с блоком (null — блокировать нечем).</summary>
+        public float? BlockAngle => ShieldHand?.Item.BlockAngle ?? GunBlockHand?.Item.Ranged.Block.Angle;
+
+        /// <summary>Доля урона, которую гасит блок: щит — весь удар, стрелковое оружие — <see cref="GunBlockConfig.Absorb"/>.</summary>
+        public float BlockAbsorb => ShieldHand == null && GunBlockHand != null ? GunBlockHand.Item.Ranged.Block.Absorb : 1f;
 
         /// <summary>Открыта ли ступень прокачки щита (0 — никогда); ступень — у владельца щита (меча).</summary>
         private bool HasShieldUpgrade(HandState hand, int tier)
@@ -58,12 +61,14 @@ namespace ColorsAction.Unity
                    session.Upgrades.Has(hand.UpgradeOwner, tier);
         }
 
-        /// <summary>Множитель выносливости на блок: подъём щита и принятый удар (апгрейд щита).</summary>
+        /// <summary>Множитель выносливости на блок: подъём и принятый удар (апгрейд щита или стрелкового оружия).</summary>
         public float BlockCostMultiplier
         {
             get
             {
                 var hand = ShieldHand;
+                if (hand == null && GunBlockHand != null)
+                    return GunCostMultiplier(GunBlockHand.Item);
                 return HasShieldUpgrade(hand, hand?.Item?.Shield?.BlockCostUpgrade ?? 0) ? hand.Item.Shield.BlockCostMultiplier : 1f;
             }
         }
@@ -79,15 +84,20 @@ namespace ColorsAction.Unity
 
         // ------------------------------------------------------------------ парирование
 
-        /// <summary>Блок поставлен: враги в окне парирования (с учётом апгрейда) перед щитом — парированы.</summary>
+        /// <summary>
+        /// Блок поставлен: враги в окне парирования (с учётом апгрейда щита) перед блоком — парированы.
+        /// Блок стрелковым оружием в момент столкновения сразу стреляет (<see cref="GunParryShot"/>, один выстрел на блок).
+        /// </summary>
         private void TryParry()
         {
             var shieldHand = ShieldHand;
-            var shield = shieldHand?.Item;
-            if (shield == null)
+            var gunHand = shieldHand == null ? GunBlockHand : null;
+            var angle = BlockAngle;
+            if (angle == null)
                 return;
             var widen = ParryWiden(shieldHand);
             var count = 0;
+            var shotDone = false;
             foreach (var enemy in EnemyController.All)
             {
                 if (enemy == null || enemy.Dead || !enemy.Brain.IsInParryWindow(widen))
@@ -95,9 +105,20 @@ namespace ColorsAction.Unity
                 var to = enemy.transform.position - transform.position;
                 to.y = 0f;
                 var reach = (enemy.Brain.Attack?.Range ?? 2f) + 0.8f;
-                if (to.magnitude > reach || Vector3.Angle(controller.Forward, to) > shield.BlockAngle * 0.5f)
+                if (to.magnitude > reach || Vector3.Angle(controller.Forward, to) > angle.Value * 0.5f)
                     continue;
-                if (enemy.TryParry(transform.position, widen, OnParryContact))
+                var parried = enemy;
+                System.Action<Vector3> contact = OnParryContact;
+                if (gunHand != null)
+                    contact = point =>
+                    {
+                        OnParryContact(point);
+                        if (shotDone)
+                            return;
+                        shotDone = true;
+                        GunParryShot(gunHand, parried);
+                    };
+                if (enemy.TryParry(transform.position, widen, contact))
                     count++;
             }
 
