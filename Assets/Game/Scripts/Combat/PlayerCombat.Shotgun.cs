@@ -399,7 +399,7 @@ namespace ColorsAction.Unity
                     Apply(pair.Key, pair.Value, 1f, flat);
                 // Одна цифра урона на цель за весь залп.
                 foreach (var pair in tally)
-                    if (pair.Value.Damage > 0f)
+                    if (pair.Value.Damage > 0f && HitGate.ShowsDamage(pair.Key))
                         owner.events.Publish(new DamageDealt(pair.Value.Point, pair.Value.Damage, pair.Value.ColorBonus, color));
             }
 
@@ -407,9 +407,11 @@ namespace ColorsAction.Unity
             {
                 if (target is Object unityObject && unityObject == null)
                     return; // цель уже уничтожена
+                direction.y = 0f;
+                if (HitGate.Deflects(target, weapon.Id, direction.sqrMagnitude > 0.0001f ? direction.normalized : flat, color))
+                    return;
                 var result = owner.rules.Calculate(weapon, null, target.ColorId);
                 var damage = result.Damage * shot.DamageMultiplier * multiplier * pellets;
-                direction.y = 0f;
                 target.ReceiveHit(new HitInfo
                 {
                     Damage = damage,
@@ -417,7 +419,8 @@ namespace ColorsAction.Unity
                     WeaponColor = color,
                     Direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : flat,
                     Point = target.HitPoint,
-                    Knockback = shot.Knockback * pellets / Mathf.Max(1, shot.Pellets)
+                    Knockback = shot.Knockback * pellets / Mathf.Max(1, shot.Pellets),
+                    WeaponId = weapon.Id
                 });
                 tally.TryGetValue(target, out var t);
                 t.Damage += damage;

@@ -1,0 +1,18 @@
+{
+  "hp": 20,
+  "breakableBy": ["sword"],
+  "color": "blue",
+  "tint": "",
+  "plankShade": 1.15,
+  "frameShade": 0.7,
+  "topTwist": 8,
+  "topOffset": 0.05,
+  "showDamageNumbers": false,
+  "shakeAmount": 0.06,
+  "shakeTime": 0.25,
+  "deflectShake": 0.35,
+  "flashTime": 0.12,
+  "chipsPerHit": 4,
+  "breakForce": 4.5,
+  "debrisLife": 2.5
+}

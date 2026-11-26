@@ -53,6 +53,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         [SerializeField] private int barrierHeight = 2;
         [SerializeField] private int doorHeight = 3;
         [SerializeField] private int doorYaw;
+        [SerializeField] private int crateYaw;
+        [SerializeField] private int crateHeight = CrateStackShape.DefaultHeight;
         [SerializeField] private string objectItem = "";
         [SerializeField] private InteractionAction pointAction = InteractionAction.ShieldSlide;
 
@@ -384,6 +386,15 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                                                 "Ставьте её в проём стены.", MessageType.None);
                     }
 
+                    if (objectKind == LevelObjectKind.CrateStack)
+                    {
+                        crateYaw = EditorGUILayout.IntPopup(new GUIContent("Вторая клетка"), crateYaw == (int)CrateStackShape.AlongZ ? 270 : 0,
+                            new[] { new GUIContent("→ +X"), new GUIContent("↑ +Z") }, new[] { 0, 270 });
+                        crateHeight = EditorGUILayout.IntSlider("Ящиков в высоту", crateHeight, 1, 3);
+                        EditorGUILayout.HelpBox("Стопка ящиков 2×1: закрывает проход, ломается мечом (Configs/Crates.json). " +
+                                                "Две и больше в высоту не перепрыгнуть.", MessageType.None);
+                    }
+
                     if (objectKind == LevelObjectKind.Bonfire)
                         EditorGUILayout.HelpBox("Костёр: отдых (F / X) лечит, возрождает всех врагов уровня, становится точкой " +
                                                 "возрождения; у костра — меню апгрейдов оружия. Поворот — где встаёт игрок.", MessageType.None);
@@ -394,7 +405,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     {
                         if (HasColor(objectKind))
                             DrawColorPicker(ref objectColor, false);
-                        if (objectKind != LevelObjectKind.ShortcutDoor)
+                        if (objectKind != LevelObjectKind.ShortcutDoor && objectKind != LevelObjectKind.CrateStack)
                             objectItem = EditorGUILayout.TextField(ItemLabel(objectKind), objectItem);
                     }
 

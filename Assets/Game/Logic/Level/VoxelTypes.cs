@@ -174,7 +174,14 @@ namespace ColorsAction.Level
         /// Односторонняя дверь-срезка: <see cref="LevelObject.Yaw"/> смотрит в сторону, с которой её открывают,
         /// <see cref="LevelObject.Height"/> — высота в клетках. Закрытая блокирует проход, как барьер.
         /// </summary>
-        ShortcutDoor
+        ShortcutDoor,
+
+        /// <summary>
+        /// Стопка ломаемых ящиков (<see cref="CrateStackShape"/>): 2 клетки в ширину (от <see cref="LevelObject.Cell"/>
+        /// в сторону <see cref="LevelObject.Yaw"/>), 1 в глубину, <see cref="LevelObject.Height"/> ящиков в высоту.
+        /// Закрывает проход, пока не разбита; чем ломается и сколько выдерживает — Configs/Crates.json.
+        /// </summary>
+        CrateStack
     }
 
     /// <summary>Тип цветного барьера (раздел 8 GDD).</summary>
@@ -208,14 +215,22 @@ namespace ColorsAction.Level
 
         public bool IsDoor => Kind == LevelObjectKind.ShortcutDoor;
 
-        /// <summary>Перекрывает ли проход, пока не открыт (барьер или дверь-срезка).</summary>
-        public bool BlocksPath => IsBarrier || IsDoor;
+        public bool IsCrate => Kind == LevelObjectKind.CrateStack;
+
+        /// <summary>Перекрывает ли проход, пока не открыт (барьер, дверь-срезка или неразбитые ящики).</summary>
+        public bool BlocksPath => IsBarrier || IsDoor || IsCrate;
 
         public LevelObject Clone() => (LevelObject)MemberwiseClone();
 
-        /// <summary>Закрывает ли барьер или дверь клетку.</summary>
-        public bool Covers(Int3 cell) =>
-            BlocksPath && cell.X == Cell.X && cell.Z == Cell.Z && cell.Y >= Cell.Y && cell.Y < Cell.Y + Math.Max(1, Height);
+        /// <summary>Закрывает ли барьер, дверь или стопка ящиков клетку.</summary>
+        public bool Covers(Int3 cell)
+        {
+            if (!BlocksPath || cell.Y < Cell.Y || cell.Y >= Cell.Y + Math.Max(1, Height))
+                return false;
+            if (cell.X == Cell.X && cell.Z == Cell.Z)
+                return true;
+            return IsCrate && CrateStackShape.CoversColumn(Cell, Yaw, cell.X, cell.Z);
+        }
     }
 
     /// <summary>Действие точки взаимодействия.</summary>

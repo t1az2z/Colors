@@ -274,17 +274,22 @@ namespace ColorsAction.Unity
                 hitThisSwing.Add(target);
                 var away = target.HitPoint - origin;
                 away.y = 0f;
+                var direction = away.sqrMagnitude > 0.0001f ? away.normalized : controller.Forward;
+                if (HitGate.Deflects(target, weapon.Id, direction, color))
+                    continue;
                 var result = rules.Calculate(weapon, step, target.ColorId);
                 target.ReceiveHit(new HitInfo
                 {
                     Damage = result.Damage,
                     ColorBonus = result.ColorBonus,
                     WeaponColor = color,
-                    Direction = away.sqrMagnitude > 0.0001f ? away.normalized : controller.Forward,
+                    Direction = direction,
                     Point = target.HitPoint,
-                    Knockback = config.Knockback
+                    Knockback = config.Knockback,
+                    WeaponId = weapon.Id
                 });
-                events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.ColorBonus, color));
+                if (HitGate.ShowsDamage(target))
+                    events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.ColorBonus, color));
                 hits++;
             }
 

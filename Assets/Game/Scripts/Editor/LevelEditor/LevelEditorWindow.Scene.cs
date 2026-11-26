@@ -236,8 +236,9 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     ? "spawn"
                     : session.Level.NewObjectId(objectKind),
                 Kind = objectKind, Cell = cell.Value, Barrier = barrierKind,
-                Height = objectKind == LevelObjectKind.ShortcutDoor ? doorHeight : barrierHeight,
-                Yaw = objectKind == LevelObjectKind.ShortcutDoor ? doorYaw : 0f,
+                Height = objectKind == LevelObjectKind.ShortcutDoor ? doorHeight
+                    : objectKind == LevelObjectKind.CrateStack ? crateHeight : barrierHeight,
+                Yaw = objectKind == LevelObjectKind.ShortcutDoor ? doorYaw : objectKind == LevelObjectKind.CrateStack ? crateYaw : 0f,
                 Color = HasColor(objectKind) ? objectColor : null,
                 Item = string.IsNullOrEmpty(objectItem) ? null : objectItem
             };
@@ -376,6 +377,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 case LevelObjectKind.Npc: return new Color(0.4f, 0.8f, 1f);
                 case LevelObjectKind.Hint: return Color.white;
                 case LevelObjectKind.ShortcutDoor: return new Color(0.6f, 0.4f, 0.25f);
+                case LevelObjectKind.CrateStack: return new Color(0.18f, 0.42f, 1f);
                 default: return Color.gray;
             }
         }
@@ -439,6 +441,21 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                         Handles.DrawLine(center + off + Vector3.down * h * 0.5f, center + off + Vector3.up * h * 0.5f);
                     }
                 }
+            }
+            else if (o.IsCrate)
+            {
+                // Стопка ящиков: коробка на две клетки по направлению поворота.
+                var h = Mathf.Max(1, o.Height);
+                top = o.Cell.Y + h;
+                var (cx, cz) = CrateStackShape.Center(o.Cell.X, o.Cell.Z, o.Yaw);
+                var (dx, dz) = CrateStackShape.Step(o.Yaw);
+                var size = new Vector3(dx != 0 ? 1.9f : 0.9f, h - 0.05f, dz != 0 ? 1.9f : 0.9f);
+                var center = new Vector3(cx, pos.y + size.y * 0.5f, cz);
+                Handles.color = new Color(c.r, c.g, c.b, 0.55f);
+                DrawSolidBox(center, size);
+                Handles.color = c;
+                for (int k = 0; k < h; k++)
+                    Handles.DrawWireCube(new Vector3(cx, pos.y + k + 0.5f, cz), new Vector3(size.x, 0.95f, size.z));
             }
             else if (o.IsDoor)
             {

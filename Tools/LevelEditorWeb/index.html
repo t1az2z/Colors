@@ -176,7 +176,11 @@ const OBJECT_KINDS = {
   Npc:            { name: 'NPC',            mk: '☺', col: '#3DBE5A' },
   Hint:           { name: 'Подсказка',      mk: '?', col: '#6b7078' },
   ShortcutDoor:   { name: 'Дверь-срезка',   mk: '⊓', col: '#9a6a3f' },
+  CrateStack:     { name: 'Ящики (меч)',    mk: '▦', col: '#2F6BFF' },
 };
+// Стопка ящиков 2×1×N (CrateStackShape в Unity): вторая клетка по повороту — 0° → +X, 270° → +Z.
+const CRATE_DIRS = [[0, '→ +X'], [270, '↑ +Z']];
+function crateDir(yaw) { return doorSide(yaw) === 270 || doorSide(yaw) === 90 ? 270 : 0; }
 // Сторона, с которой открывается дверь-срезка (= её поворот, как в Unity: 0° — +Z).
 const DOOR_SIDES = [[0, '↑ +Z'], [90, '→ +X'], [180, '↓ −Z'], [270, '← −X']];
 function doorSide(yaw) { return (((Math.round((yaw || 0) / 90) % 4) + 4) % 4) * 90; }
@@ -581,7 +585,7 @@ const st = {
   height: 1, top: '', rot: 0, color: null, brush: 1, slab: false,
   blockShape: 'F', blockMode: 'add',
   paintColumn: false,
-  objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0,
+  objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, crateYaw: 0, crateHeight: 2,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
 };
@@ -745,6 +749,10 @@ function objectPanel() {
     row('Высота, кубов', stepper(st.doorHeight, v => st.doorHeight = v, 1, 12)));
   if (st.objKind === 'WeaponPedestal') out.push(row('Оружие', textInput(st.objItem, v => st.objItem = v, ITEMS)));
   if (st.objKind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(st.objEnemy, v => { st.objEnemy = v; renderPanel(); }));
+  if (st.objKind === 'CrateStack') out.push(
+    desc('Стопка деревянных ящиков 2×1: закрывает проход, разбивается только мечом. Две в высоту не перепрыгнуть. Тап — первая клетка, вторая — по стрелке.'),
+    row('Вторая клетка', chips(CRATE_DIRS, st.crateYaw, v => { st.crateYaw = v; renderPanel(); })),
+    row('Ящиков в высоту', stepper(st.crateHeight, v => st.crateHeight = v, 1, 3)));
   if (o) {
     out.push(H3('Выбран: ' + o.id));
     const edit = fn => { touchMarkup(); fn(); commit(); renderPanel(); };
@@ -752,12 +760,16 @@ function objectPanel() {
     out.push(row('Тип', selectInput(o.kind, Object.entries(OBJECT_KINDS).map(([k, v]) => [k, v.name]), v => edit(() => {
       // Дверь стоит строго поперёк прохода: поворот только по 90°, высота по умолчанию — как у стены.
       if (v === 'ShortcutDoor' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
+      if (v === 'CrateStack' && o.kind !== v) { o.yaw = crateDir(o.yaw); o.height = st.crateHeight; o.color = null; o.item = null; }
       o.kind = v;
     }))));
     out.push(row('Клетка', h('span', {}, cellStr(o.cell))));
     if (o.kind === 'ShortcutDoor') out.push(
       row('Открывается со стороны', chips(DOOR_SIDES, doorSide(o.yaw), v => edit(() => o.yaw = v))),
       row('Высота', stepper(o.height ?? 3, v => edit(() => o.height = v), 1, 12)));
+    else if (o.kind === 'CrateStack') out.push(
+      row('Вторая клетка', chips(CRATE_DIRS, crateDir(o.yaw), v => edit(() => o.yaw = v))),
+      row('Ящиков в высоту', stepper(o.height ?? 2, v => edit(() => o.height = v), 1, 3)));
     else out.push(row('Поворот ' + Math.round(o.yaw || 0) + '°', h('span', { class: 'chips' },
       h('button', { on: { click: () => edit(() => o.yaw = norm180((o.yaw || 0) - 45)) } }, '⟲ 45'),
       h('button', { on: { click: () => edit(() => o.yaw = norm180((o.yaw || 0) + 45)) } }, '⟳ 45'))));
@@ -768,7 +780,7 @@ function objectPanel() {
     }
     const itemList = o.kind === 'WeaponPedestal' ? ITEMS : o.kind === 'Hint' ? HINTS : null;
     if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })));
-    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire')
+    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack')
       out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
 
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'ShortcutDoor')
@@ -824,9 +836,9 @@ function pointPanel() {
     out.push(row('Действие', selectInput(p.action, Object.entries(ACTIONS).map(([k, v]) => [k, v.name]), v => edit(() => p.action = v))));
     out.push(row('Клетка', h('span', {}, cellStr(p.cell))));
     out.push(row('Нужен предмет', itemSelect(p.requiredItem, v => edit(() => p.requiredItem = v), true, ['hook', 'flail'])));
-    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
+    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'CrateStack').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Нужен предмет', textInput(p.requiredItem, v => edit(() => p.requiredItem = v), [...ITEMS, 'hook', 'flail'])));
-    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'ShortcutDoor').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
+    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'ShortcutDoor' || o.kind === 'CrateStack').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Точка B', selectInput(p.targetPoint, [[null, '—'], ...L.points.filter(x => x !== p).map(x => [x.id, x.id])], v => edit(() => p.targetPoint = v))));
     out.push(row('Объект-цель', selectInput(p.targetObject, [[null, '—'], ...L.objects.map(o => [o.id, o.id])], v => edit(() => p.targetObject = v))));
     out.push(row('Этаж-цель', selectInput(p.targetFloor, [[null, '—'], ...L.floors.map(f => [f.id, f.name])], v => edit(() => p.targetFloor = v))));
@@ -1105,6 +1117,7 @@ function buildMarkers() {
   markerGroup.clear();
   for (const o of L.objects) {
     if (o.kind === 'ShortcutDoor') { addDoorMesh(o); continue; }
+    if (o.kind === 'CrateStack') { addCrateMesh(o); continue; }
     if (o.kind !== 'Barrier') continue;
     const hgt = Math.max(1, o.height ?? 2);
     const col = new THREE.Color(PALETTE[o.color]?.hex || '#999');
@@ -1137,6 +1150,36 @@ function addDoorMesh(o) {
   // Меши переносим в мировые координаты: очистка markerGroup ожидает у детей geometry/material.
   g.updateMatrixWorld(true);
   for (const m of [slab, bar]) { m.applyMatrix4(g.matrixWorld); m.visible = g.visible; }
+}
+// Стопка ящиков: ящики 2×1×1 один на другом (верхние чуть повёрнуты, как в игре), тянутся от клетки по стрелке.
+function addCrateMesh(o) {
+  const n = Math.max(1, o.height ?? 2);
+  const fi = floorIndexOf(o.cell[1]);
+  const g = new THREE.Group();
+  const faded = fi > activeFloor;
+  const parts = [];
+  for (let k = 0; k < n; k++) {
+    const side = k % 2 ? 1 : -1, twist = k ? 8 * side : 0, shift = k ? 0.05 * side : 0;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(1.88, 0.96, 0.88),
+      new THREE.MeshLambertMaterial({ color: '#5b8bff', transparent: true, opacity: faded ? 0.2 : 0.9, depthWrite: !faded }));
+    box.position.set(0.5, k + 0.5, shift); box.rotation.y = twist * Math.PI / 180;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(box.geometry), new THREE.LineBasicMaterial({ color: '#1b46b8', transparent: faded, opacity: faded ? 0.3 : 1 }));
+    edges.position.copy(box.position); edges.rotation.copy(box.rotation);
+    // Просветы между досками: две тёмные полосы на длинных сторонах.
+    for (const y of [-0.16, 0.16]) for (const z of [-0.445, 0.445]) {
+      const gap = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.05, 0.01), new THREE.MeshLambertMaterial({ color: '#1b46b8', transparent: faded, opacity: faded ? 0.3 : 1 }));
+      gap.position.set(0.5, k + 0.5 + y, shift + z); gap.rotation.y = box.rotation.y;
+      parts.push(gap);
+    }
+    parts.push(box, edges);
+  }
+  g.position.set(o.cell[0] + .5, surfaceOf(o.cell), o.cell[2] + .5);
+  g.rotation.y = doorSide(o.yaw) * Math.PI / 180;
+  g.visible = !(faded && st.upper === 'hide');
+  g.add(...parts);
+  g.updateMatrixWorld(true);
+  // Как у двери: меши переносятся в мировые координаты прямо в markerGroup.
+  for (const m of parts) { m.renderOrder = 3; m.applyMatrix4(g.matrixWorld); m.visible = g.visible; g.remove(m); markerGroup.add(m); }
 }
 let grid = null;
 function buildGrid() {
@@ -1255,7 +1298,7 @@ function drawOverlay() {
   // объекты и точки
   const r = Math.max(9, Math.min(17, ppu * 0.36));
   const markers = [];
-  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' ? null : o.yaw || 0, label: o.kind === 'Barrier' ? '' : o.kind === 'EnemySpawn' ? enemyName(o.item) : o.item, kind: 'obj' });
+  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' ? '' : o.kind === 'EnemySpawn' ? enemyName(o.item) : o.item, kind: 'obj' });
   for (const p of L.points) markers.push({ id: p.id, cell: p.cell, col: '#8a5cf0', mk: '◆', sel: sel.point === p.id, diamond: true, label: ACTIONS[p.action]?.name, kind: 'pt' });
   for (const m of markers) {
     const fi = floorIndexOf(m.cell[1]);
@@ -1461,8 +1504,8 @@ function objectTap(px, py) {
   touchMarkup();
   const o = {
     id: kind === 'PlayerSpawn' && !L.objects.some(o => o.id === 'spawn') ? 'spawn' : newId(kind.toLowerCase() + '_', L.objects),
-    kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
-    height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' ? st.doorHeight : 2,
+    kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : kind === 'CrateStack' ? st.crateYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
+    height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : 2,
     item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : null,
   };
   if (kind === 'PlayerSpawn') { L.objects = L.objects.filter(x => x.kind !== 'PlayerSpawn'); o.id = 'spawn'; }

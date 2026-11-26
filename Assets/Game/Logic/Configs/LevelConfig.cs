@@ -38,6 +38,7 @@ namespace ColorsAction.Configs
         public List<LevelHint> Hints { get; set; } = new List<LevelHint>();
         public List<LevelDoor> Doors { get; set; } = new List<LevelDoor>();
         public List<LevelBonfire> Bonfires { get; set; } = new List<LevelBonfire>();
+        public List<LevelCrate> Crates { get; set; } = new List<LevelCrate>();
 
         public int Width { get; private set; }
         public int Length { get; private set; }
@@ -69,6 +70,13 @@ namespace ColorsAction.Configs
                     Doors[i].Id = $"door_{Doors[i].X}_{Doors[i].Z}";
             }
             Bonfires ??= new List<LevelBonfire>();
+            Crates ??= new List<LevelCrate>();
+            foreach (var c in Crates)
+            {
+                if (string.IsNullOrEmpty(c.Id))
+                    c.Id = $"crates_{c.X}_{c.Z}";
+            }
+
             foreach (var b in Bonfires)
             {
                 if (string.IsNullOrEmpty(b.Id))
@@ -223,6 +231,20 @@ namespace ColorsAction.Configs
     {
         /// <summary>Id костра. Пусто — "bonfire_x_z".</summary>
         public string Id { get; set; }
+    }
+
+    /// <summary>
+    /// Стопка ломаемых ящиков (<see cref="ColorsAction.Level.CrateStackShape"/>): клетка (X, Z) — первая из двух,
+    /// вторая — в сторону <see cref="LevelPoint.Yaw"/> (0 — +X, 270 — +Z). Параметры — Configs/Crates.json.
+    /// </summary>
+    [Preserve]
+    public sealed class LevelCrate : LevelPoint
+    {
+        /// <summary>Id стопки (для запоминания разбитых). Пусто — "crates_x_z".</summary>
+        public string Id { get; set; }
+
+        /// <summary>Сколько ящиков в высоту.</summary>
+        public int Height { get; set; } = 2;
     }
 
     /// <summary>
