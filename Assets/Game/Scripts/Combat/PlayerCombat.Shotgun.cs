@@ -451,7 +451,7 @@ namespace ColorsAction.Unity
                 direction.y = 0f;
                 if (HitGate.Deflects(target, weapon.Id, direction.sqrMagnitude > 0.0001f ? direction.normalized : flat, color))
                     return;
-                var result = owner.rules.Calculate(weapon, null, target.ColorId);
+                var result = StatusDamage.Scale(owner.session.PlayerStatus, target, owner.rules.Calculate(weapon, null, target.ColorId));
                 var damage = result.Damage * shot.DamageMultiplier * multiplier * pellets;
                 target.ReceiveHit(new HitInfo
                 {

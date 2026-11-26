@@ -288,7 +288,7 @@ namespace ColorsAction.Unity
                 var direction = away.sqrMagnitude > 0.0001f ? away.normalized : controller.Forward;
                 if (HitGate.Deflects(target, weapon.Id, direction, color))
                     continue;
-                var result = rules.Calculate(weapon, step, target.ColorId);
+                var result = StatusDamage.Scale(session.PlayerStatus, target, rules.Calculate(weapon, step, target.ColorId));
                 target.ReceiveHit(new HitInfo
                 {
                     Damage = result.Damage,

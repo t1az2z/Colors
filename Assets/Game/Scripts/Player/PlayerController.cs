@@ -49,7 +49,10 @@ namespace ColorsAction.Unity
         private int controlResumedFrame;
 
         /// <summary>Игрок управляет персонажем. Кадр, в котором закрыли инвентарь, пропускается, чтобы B/A не сработали дважды.</summary>
-        public bool HasControl => session != null && session.PlayerControl.Value && !Frozen && Time.frameCount > controlResumedFrame;
+        public bool HasControl => session != null && session.PlayerControl.Value && !Frozen && !Stunned && Time.frameCount > controlResumedFrame;
+
+        /// <summary>Оглушён статус-эффектом (<see cref="GameSession.PlayerStatus"/>): ни движения, ни атак.</summary>
+        public bool Stunned => session != null && session.PlayerStatus.IsStunned;
 
         /// <summary>Персонаж не управляется (погиб и ждёт появления).</summary>
         public bool Frozen { get; set; }

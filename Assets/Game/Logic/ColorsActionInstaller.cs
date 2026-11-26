@@ -29,6 +29,7 @@ namespace ColorsAction
                     var session = new GameSession(r.Resolve<ConfigService>(), r.Resolve<ItemDatabase>(), r.Resolve<IEventBus>());
                     r.Resolve<TickScheduler>().Add(session.Stamina);
                     r.Resolve<TickScheduler>().Add(session.Vitals);
+                    r.Resolve<TickScheduler>().Add(session.PlayerStatus);
                     // Стартовое оружие и опыт из окна «Параметры запуска» (платформа регистрирует LaunchOptions сама).
                     if (r.TryResolve<LaunchOptions>(out var launch))
                         launch.Apply(session);

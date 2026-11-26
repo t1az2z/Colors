@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
+using ColorsAction.Status;
 using GameCore.Config;
 using GameCore.DI;
 using GameCore.Events;
@@ -13,7 +14,7 @@ namespace ColorsAction.Unity
     /// здесь — тело: движение на <see cref="BoxMotor"/>, деформация, позы дубины, попадания, реакция на урон,
     /// трещины и смерть с разлётом на осколки, часть которых летит к игроку как опыт.
     /// </summary>
-    public sealed class EnemyController : GameBehaviour, IHittable
+    public sealed class EnemyController : GameBehaviour, IHittable, IStatusHolder
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
@@ -59,6 +60,9 @@ namespace ColorsAction.Unity
         private float hopTimer = -1f;
 
         public EnemyBrain Brain => brain;
+
+        /// <summary>Статус-эффекты врага (живут в <see cref="EnemyBrain.Status"/>).</summary>
+        public StatusEffects Status => brain?.Status;
         public string ColorId => config != null ? config.Color : "blue";
         public Vector3 HitPoint => transform.position + Vector3.up * (config != null ? config.Size * 0.6f : 0.5f);
         public bool Dead => brain != null && brain.State == EnemyState.Dead;
@@ -107,7 +111,7 @@ namespace ColorsAction.Unity
             palette = resolver.Resolve<Palette>();
             events = resolver.Resolve<IEventBus>();
             var id = nextId++;
-            brain = new EnemyBrain(id, config, resolver.Resolve<CombatDirector>(), id * 7919);
+            brain = new EnemyBrain(id, config, resolver.Resolve<CombatDirector>(), id * 7919, session.StatusConfig);
             brain.StateChanged += OnStateChanged;
             BuildBody();
             if (isActiveAndEnabled && !all.Contains(this))
@@ -172,11 +176,15 @@ namespace ColorsAction.Unity
         private void ApplyColor()
         {
             var white = Mathf.Clamp01(flash / 0.12f);
+            var tint = StatusTint.Glow(brain?.Status, Time.time);
             bodyRenderer.GetPropertyBlock(block, 0);
-            block.SetColor(BaseColorId, Color.Lerp(color, Color.white, white * 0.85f));
-            block.SetColor(EmissionColorId, Color.white * (white * 1.2f));
+            var baseColor = Color.Lerp(color, new Color(tint.r, tint.g, tint.b), Mathf.Clamp01(tint.a) * 0.35f);
+            block.SetColor(BaseColorId, Color.Lerp(baseColor, Color.white, white * 0.85f));
+            block.SetColor(EmissionColorId, Color.white * (white * 1.2f) + new Color(tint.r, tint.g, tint.b) * tint.a);
             bodyRenderer.SetPropertyBlock(block, 0);
         }
+
+        private bool tinted;
 
         // ------------------------------------------------------------------ кадр
 
@@ -239,12 +247,15 @@ namespace ColorsAction.Unity
             UpdateParryWindow();
             UpdateParryContact();
 
-            if (flash > 0f)
+            // Подсветка статус-эффектов (уязвимость пульсирует своим цветом) и белая вспышка попадания.
+            var tintNow = StatusTint.Any(brain.Status);
+            if (flash > 0f || tintNow || tinted)
             {
-                flash -= dt;
+                flash = Mathf.Max(0f, flash - dt);
                 ApplyColor();
             }
 
+            tinted = tintNow;
             UpdateDeformation(dt);
         }
 
@@ -377,6 +388,8 @@ namespace ColorsAction.Unity
             flash = 0.08f;
             var tip = WeaponTip();
             ParticleFx.Flash(tip, 0.9f);
+            // Оружие встретило щит: эффекты парирования (уязвимость и др. из StatusEffects.json).
+            brain.ApplyParryEffects();
             var callback = parryContact;
             parryContact = null;
             callback?.Invoke(tip);
@@ -476,7 +489,8 @@ namespace ColorsAction.Unity
             }
 
             hitThisAttack = true;
-            playerDamage.ReceiveEnemyHit(attack.Damage, transform.position, attack.Knockback);
+            // Усиление врага статус-эффектом; уязвимость игрока учитывает PlayerVitals.
+            playerDamage.ReceiveEnemyHit(attack.Damage * brain.Status.DamageDealtMultiplier, transform.position, attack.Knockback);
         }
 
         // ------------------------------------------------------------------ состояния
@@ -507,6 +521,12 @@ namespace ColorsAction.Unity
                 case EnemyState.Staggered:
                 case EnemyState.Idle:
                     marker.Hide();
+                    break;
+                case EnemyState.Stunned:
+                    // Оглушён со стороны: вздрогнул и обмяк, оружие опускается (поза — StunnedPose).
+                    marker.Hide();
+                    hitDeferred = false;
+                    deformer.SetSquash(-0.25f, -1.5f);
                     break;
                 case EnemyState.Parried:
                     // Удар ещё идёт (до столкновения со щитом): отдача и отскок — в ParryContact.
@@ -634,6 +654,12 @@ namespace ColorsAction.Unity
         {
             if (brain.State == EnemyState.Parried)
                 return ParriedPose(ParryRecoilTime);
+            if (brain.State == EnemyState.Stunned)
+            {
+                var stunned = Lowered;
+                stunned.position += new Vector3(0f, Mathf.Sin(brain.StateTime * 5f) * 0.015f, 0f);
+                return stunned;
+            }
             var attack = brain.Attack;
             if (attack == null)
                 return Rest;
@@ -742,6 +768,14 @@ namespace ColorsAction.Unity
                     twist = 0f;
                     deformer.SquashTarget = t < 0.2f ? 0f : -0.06f;
                 }
+            }
+
+            if (state == EnemyState.Stunned)
+            {
+                // Оглушён: обмяк, поклон вперёд и лёгкое покачивание.
+                pitch = 7f;
+                twist = Mathf.Sin(brain.StateTime * 4f) * 6f;
+                deformer.SquashTarget = -0.06f;
             }
 
             deformer.TwistTarget = twist;

@@ -1,4 +1,5 @@
 using System;
+using ColorsAction.Status;
 using GameCore.Ticking;
 using GameCore.UI;
 
@@ -61,6 +62,9 @@ namespace ColorsAction.Combat
 
         public bool Invulnerable => InvulnerableTime > 0f;
 
+        /// <summary>Статус-эффекты игрока: уязвимость умножает урон от ударов. Задаёт <see cref="GameSession"/>.</summary>
+        public StatusEffects Status { get; set; }
+
         public PlayerVitals(float maxHealth, float invulnerabilityAfterHit)
         {
             Health = new Health(maxHealth);
@@ -72,7 +76,7 @@ namespace ColorsAction.Combat
         {
             if (Invulnerable || Health.IsDead || damage <= 0f)
                 return false;
-            Health.TakeDamage(damage);
+            Health.TakeDamage(damage * (Status?.DamageTakenMultiplier ?? 1f));
             InvulnerableTime = invulnerabilityAfterHit;
             return true;
         }
@@ -89,6 +93,7 @@ namespace ColorsAction.Combat
 
         public void Revive()
         {
+            Status?.Clear();
             Health.Restore();
             InvulnerableTime = invulnerabilityAfterHit;
         }

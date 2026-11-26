@@ -151,7 +151,7 @@
    Описания параметров — в SCHEMA ниже. Неописанные ключи показываются как есть.
    ===================================================================== */
 
-const FILE_ORDER = ['Player', 'Camera', 'Items', 'Upgrades', 'Enemies', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Movement', 'Game'];
+const FILE_ORDER = ['Player', 'Camera', 'Items', 'Upgrades', 'Enemies', 'StatusEffects', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Movement', 'Game'];
 const S = { dir: null, files: {}, current: null, levels: [], mode: 'none' };
 
 /* ---------- утилиты ---------- */
@@ -773,7 +773,7 @@ async function saveAll() {
 
 const isDirty = n => S.files[n] && fmt(S.files[n].data) !== S.files[n].saved;
 function firstFile() { return FILE_ORDER.find(n => S.files[n]) || Object.keys(S.files)[0]; }
-function warningsFor(n) { const f = S.files[n]; const sc = SCHEMA[n]; return f && sc?.validate ? sc.validate(f.data) : (n === 'Items' ? validateItems(f.data) : n === 'Enemies' ? validateEnemies(f.data) : n === 'Upgrades' ? validateUpgrades(f.data) : []); }
+function warningsFor(n) { const f = S.files[n]; const sc = SCHEMA[n]; return f && sc?.validate ? sc.validate(f.data) : (n === 'Items' ? validateItems(f.data) : n === 'Enemies' ? validateEnemies(f.data) : n === 'Upgrades' ? validateUpgrades(f.data) : n === 'StatusEffects' ? validateStatusEffects(f.data) : []); }
 
 /* =====================================================================
    Рендер: навигация и страница
@@ -795,7 +795,7 @@ function renderNav() {
   if (!names.length) { nav.innerHTML = '<div class="hint">Откройте папку <code>Assets/StreamingAssets/Configs</code> (или корень проекта).</div>'; return; }
   const order = [...FILE_ORDER.filter(n => S.files[n]), ...names.filter(n => !FILE_ORDER.includes(n)).sort()];
   nav.innerHTML = order.map(n => {
-    const t = SCHEMA[n]?.title || ({ Items: 'Оружие и предметы', Enemies: 'Враги', Colors: 'Цвета', Movement: 'Профили передвижения' })[n] || n;
+    const t = SCHEMA[n]?.title || ({ Items: 'Оружие и предметы', Enemies: 'Враги', Colors: 'Цвета', Movement: 'Профили передвижения', StatusEffects: 'Статус-эффекты' })[n] || n;
     const w = warningsFor(n).length;
     return `<a data-f="${esc(n)}" class="${n === S.current ? 'active' : ''}"><span>${esc(t)}<small>${esc(n)}.json</small></span>${w ? `<span class="err" title="Есть ошибки">!</span>` : isDirty(n) ? '<span class="dot" title="Есть несохранённые правки"></span>' : ''}</a>`;
   }).join('');
@@ -816,7 +816,7 @@ function renderPage() {
   if (!f) { main.innerHTML = emptyHtml(); return; }
   const sc = SCHEMA[n];
   main.innerHTML = '';
-  const head = el(`<div class="pagehead"><h2>${esc(sc?.title || ({ Items: 'Оружие и предметы', Enemies: 'Враги', Colors: 'Цвета', Movement: 'Профили передвижения' })[n] || n)}</h2>
+  const head = el(`<div class="pagehead"><h2>${esc(sc?.title || ({ Items: 'Оружие и предметы', Enemies: 'Враги', Colors: 'Цвета', Movement: 'Профили передвижения', StatusEffects: 'Статус-эффекты' })[n] || n)}</h2>
     <span class="file">Assets/StreamingAssets/Configs/${esc(n)}.json</span>
     <span class="actions"><button id="btnRevert">Отменить правки</button><button class="primary" id="btnSave">${S.mode === 'dir' ? 'Сохранить' : 'Скачать'} ${esc(n)}.json</button></span></div>`);
   main.append(head);
@@ -830,6 +830,7 @@ function renderPage() {
   else if (n === 'Colors') renderColors(main, f);
   else if (n === 'Movement') renderMovement(main, f);
   else if (n === 'Enemies') renderEnemies(main, f);
+  else if (n === 'StatusEffects') renderStatusEffects(main, f);
   else if (sc) {
     const used = new Set();
     for (const s of sc.sections) {
@@ -854,6 +855,7 @@ function renderPage() {
 }
 
 const PAGE_DESC = {
+  StatusEffects: 'Статус-эффекты: накладываются на время и на врага, и на игрока. Вид (kind) — какое поведение в коде: оглушение (не двигается и не атакует), уязвимость (получаемый урон ×), усиление (наносимый урон ×); новые виды (яд, горение, шанс крита) добавляются классом в коде и записью здесь. Эффект «stun» — им же оглушается враг после парирования (на время parriedDuration врага). Ниже — что ещё враг получает в момент парирования.',
   Upgrades: 'Апгрейды оружия у костра: по 3 ступени на оружие. Цена ступени — опыт (деньги прокачки) и ресурс оружия из инвентаря (металл — синий «меч и щит», шестерёнки — дробовик). Щит своих апгрейдов не имеет: его ступени задаются у щита в Items.json и берутся у меча.',
   Items: 'Оружие и предметы. Ключ (id) используется в коде, инвентаре и Combat.unarmedItem. У оружия — серия ударов (комбо): каждое нажатие атаки в окне комбо запускает следующий удар.',
   Colors: 'Палитра: id цвета → название и HEX. Цвета оружия, врагов и стен ссылаются на эти id.',
@@ -1228,6 +1230,109 @@ function renderUpgrades(main, f) {
     });
     main.append(card.root);
   }
+}
+
+/* ---------- StatusEffects ---------- */
+const STATUS_KINDS = [['Stun', 'Оглушение — не двигается и не атакует'], ['DamageTaken', 'Уязвимость — получаемый урон ×'], ['DamageDealt', 'Усиление — наносимый урон ×']];
+const STATUS_STACKING = [['Refresh', 'Обновить время'], ['Extend', 'Прибавить время'], ['Stack', 'Стак (+сила, время заново)'], ['Ignore', 'Не накладывать повторно']];
+const STATUS_FIELDS = [
+  { k: 'name', l: 'Название', t: 'text', def: '', d: '' },
+  { k: 'kind', l: 'Вид', t: 'enum', opts: STATUS_KINDS, def: 'Stun', d: 'Какое поведение исполняет эффект. Новые виды добавляются в коде (StatusEffectKinds).' },
+  { k: 'duration', l: 'Длительность', u: U.s, min: 0, max: 10, step: 0.05, def: 1, d: '0 — пока не снимут. Оглушение после парирования берёт время из parriedDuration врага.' },
+  { k: 'value', l: 'Сила', u: U.x, min: 0, max: 4, step: 0.05, def: 1, d: 'Уязвимость и усиление — множитель урона (1.5 = +50%). У оглушения не используется.' },
+  { k: 'stacking', l: 'Повторное наложение', t: 'enum', opts: STATUS_STACKING, def: 'Refresh', d: 'Что происходит, если эффект наложили, пока он ещё действует.' },
+  { k: 'maxStacks', l: 'Предел стаков', t: 'int', min: 1, max: 10, step: 1, def: 1, d: 'Для «Стак»: сила растёт на (сила − 1) за каждый стак.' },
+  { k: 'tint', l: 'Цвет подсветки', t: 'color', def: '', d: 'Тело носителя пульсирует этим цветом. Пусто — без подсветки.' },
+  { k: 'tintStrength', l: 'Яркость подсветки', u: U.x, min: 0, max: 2, step: 0.05, def: 0.5, d: '0 — без подсветки.' },
+  { k: 'tintPulse', l: 'Пульс подсветки', u: 'Гц', min: 0, max: 10, step: 0.1, def: 3, d: '0 — ровное свечение.' },
+];
+function validateStatusEffects(d) {
+  const w = []; const fx = d?.effects || {};
+  if (!fx.stun) w.push('Нет эффекта «stun» — им оглушается враг после парирования; игра возьмёт встроенный.');
+  else if (fx.stun.kind !== 'Stun') w.push('Эффект «stun» должен быть вида «Оглушение» (Stun).');
+  for (const [id, e] of Object.entries(fx)) {
+    if (!STATUS_KINDS.some(k => k[0] === e.kind)) w.push(`${id}: вид «${e.kind}» не известен игре — конфиг не загрузится.`);
+    if (num(e.duration, 1) < 0) w.push(`${id}: длительность не может быть отрицательной.`);
+    if ((e.kind === 'DamageTaken' || e.kind === 'DamageDealt') && !(num(e.value, 1) > 0)) w.push(`${id}: сила должна быть больше 0.`);
+    if (num(e.maxStacks, 1) < 1) w.push(`${id}: предел стаков — не меньше 1.`);
+    if (e.tint && !/^#[0-9a-f]{6}$/i.test(e.tint)) w.push(`${id}: цвет подсветки — в виде #RRGGBB.`);
+  }
+  (d?.onParry || []).forEach((a, i) => { if (!fx[a.effect]) w.push(`При парировании, строка ${i + 1}: эффекта «${a.effect}» нет — конфиг не загрузится.`); });
+  return w;
+}
+function renderStatusEffects(main, f) {
+  f.data.effects = f.data.effects || {}; f.data.onParry = f.data.onParry || [];
+  const fx = f.data.effects;
+  const bar = el('<div style="margin:-4px 0 14px;display:flex;gap:8px"><button>+ Новый эффект</button></div>'); main.append(bar);
+  collapseBar(bar, 'StatusEffects:', () => Object.keys(f.data.effects));
+  $('button', bar).onclick = () => {
+    const id = prompt('Id эффекта (латиница, например poison):'); if (!id) return;
+    if (fx[id]) return toast('Такой id уже есть.');
+    fx[id] = Object.fromEntries(STATUS_FIELDS.map(x => [x.k, x.def])); fx[id].name = id; renderPage();
+  };
+
+  const parry = sectionCard('При парировании', 'кроме оглушения', true);
+  parry.fields.append(el('<div class="desc" style="margin:4px 0 8px">Накладывается в момент, когда оружие врага встретило щит (блок, удар щитом, выстрел дробовика). Сам парирующий удар бонусом не пользуется. Длительность 0 — своя длительность эффекта.</div>'));
+  const bAdd = el('<button class="small">+ эффект</button>'); parry.right.append(bAdd);
+  bAdd.onclick = () => { f.data.onParry.push({ effect: Object.keys(fx).find(k => k !== 'stun') || 'stun', duration: 0 }); renderPage(); };
+  f.data.onParry.forEach((a, i) => {
+    const box = el(`<div class="combo"><div class="chead">Эффект ${i + 1}<span class="right"></span></div><div class="fields"></div></div>`);
+    const rm = el('<button class="icon danger" title="Удалить">✕</button>'); $('.right', box).append(rm);
+    rm.onclick = () => { f.data.onParry.splice(i, 1); renderPage(); };
+    const fl = $('.fields', box);
+    fl.append(fieldRow(f, ['onParry', i, 'effect'], { l: 'Эффект', t: 'enum', opts: Object.keys(fx).map(k => [k, `${fx[k].name || k} (${k})`]), d: '' }));
+    fl.append(fieldRow(f, ['onParry', i, 'duration'], { l: 'Длительность', u: U.s, min: 0, max: 10, step: 0.05, def: 0, d: '0 — как у эффекта.' }));
+    parry.fields.append(box);
+  });
+  addViz(parry.viz, vizParryStatus, () => ({ d: f.data }));
+  main.append(parry.root);
+
+  for (const id of Object.keys(fx)) {
+    const e = fx[id];
+    const card = sectionCard('', '', false);
+    const h3 = $('h3', card.root);
+    h3.innerHTML = `<span class="swatch" style="width:16px;height:16px;background:${esc(e.tint || '#c9ccd2')}"></span>${esc(e.name || id)} <span class="tag">${esc(id)}</span><span class="right"></span>`;
+    const right = $('.right', h3);
+    const bDup = el('<button class="small">Копия</button>'), bDel = el('<button class="small danger">Удалить</button>');
+    right.append(bDup, bDel);
+    bDup.onclick = () => { let nid = id + '_copy'; while (fx[nid]) nid += '_'; f.data.effects = insertAfter(fx, id, nid, clone(e)); renderPage(); };
+    bDel.onclick = () => {
+      if (id === 'stun') return toast('«stun» нужен для парирования — его нельзя удалить.');
+      if (!confirm(`Удалить эффект «${e.name || id}»?`)) return;
+      delete fx[id]; f.data.onParry = f.data.onParry.filter(a => a.effect !== id); renderPage();
+    };
+    makeCollapsible(card.root, 'StatusEffects:' + id);
+    for (const fd of STATUS_FIELDS) card.fields.append(fieldRow(f, ['effects', id, fd.k], fd, () => { if (fd.k === 'name' || fd.k === 'tint') renderPage(); }));
+    for (const q of collectUnknown(e, STATUS_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, ['effects', id, ...q]));
+    main.append(card.root);
+  }
+}
+/* Шкала после парирования: оглушение (parriedDuration каждого врага) и эффекты из onParry. */
+function vizParryStatus({ d }) {
+  const fx = d.effects || {};
+  const enemies = Object.entries(S.files.Enemies?.data || {});
+  const stun = enemies.length ? Math.max(...enemies.map(([, e]) => num(e.parriedDuration, 1))) : num(fx.stun?.duration, 1);
+  const rows = [{ name: 'Оглушение', t: stun, color: '#9EA0A6', sub: enemies.length ? enemies.map(([id, e]) => `${e.name || id}: ${r2(num(e.parriedDuration, 1))} с`).join(', ') : 'parriedDuration врага' }];
+  for (const a of d.onParry || []) {
+    const e = fx[a.effect]; if (!e) continue;
+    const t = num(a.duration, 0) > 0 ? num(a.duration) : num(e.duration, 1);
+    const mult = e.kind === 'DamageTaken' ? ` · урон ×${r2(num(e.value, 1))}` : e.kind === 'DamageDealt' ? ` · его урон ×${r2(num(e.value, 1))}` : '';
+    rows.push({ name: e.name || a.effect, t, color: e.tint || '#c9ccd2', sub: `${r2(t)} с${mult}` });
+  }
+  const maxT = Math.max(1, ...rows.map(r => r.t || 0)) * 1.1;
+  const W = 330, L = 110, rowH = 34;
+  const H = rows.length * rowH + 30;
+  const x = t => L + (W - L - 10) * (t / maxT);
+  let svg = '';
+  const step = niceStep(maxT / 5);
+  for (let t = 0; t <= maxT; t += step) svg += `<line x1="${x(t)}" y1="6" x2="${x(t)}" y2="${H - 20}" stroke="${C.grid}"/><text x="${x(t)}" y="${H - 6}" font-size="10" text-anchor="middle" fill="${C.text}">${r2(t, 1)} с</text>`;
+  rows.forEach((r, i) => {
+    const y = 8 + i * rowH;
+    svg += `<text x="4" y="${y + 13}" font-size="12" fill="${C.dark}">${esc(r.name)}</text>`;
+    svg += `<rect x="${x(0)}" y="${y}" width="${Math.max(2, x(r.t || maxT) - x(0))}" height="16" rx="4" fill="${esc(r.color)}" opacity="${r.t ? 0.85 : 0.35}"/>`;
+    svg += `<text x="${x(0) + 4}" y="${y + 28}" font-size="10" fill="${C.text}">${esc(r.sub)}</text>`;
+  });
+  return `<h4>После парирования</h4>${svgWrap(W, H, svg)}<div style="font-size:12px;color:var(--muted);margin-top:6px">Ноль на шкале — оружие врага встретило щит. Уязвимость, которая длится дольше оглушения, оставляет окно для добивания.</div>`;
 }
 
 /* ---------- Movement ---------- */

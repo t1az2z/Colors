@@ -1,5 +1,6 @@
 using System;
 using ColorsAction.Configs;
+using ColorsAction.Status;
 
 namespace ColorsAction.Combat
 {
@@ -17,8 +18,10 @@ namespace ColorsAction.Combat
         Recovery,
         /// <summary>Отшатнулся от удара.</summary>
         Staggered,
-        /// <summary>Атаку парировали: оружие отскочило, враг стоит с опущенным оружием.</summary>
+        /// <summary>Атаку парировали: оружие отскочило, враг стоит с опущенным оружием (пока действует оглушение).</summary>
         Parried,
+        /// <summary>Оглушён статус-эффектом вне парирования: стоит, не атакует, пока действует оглушение.</summary>
+        Stunned,
         Dead
     }
 
@@ -66,6 +69,9 @@ namespace ColorsAction.Combat
         public EnemyState State { get; private set; } = EnemyState.Idle;
         public float StateTime { get; private set; }
         public EnemyAttackConfig Attack { get; private set; }
+
+        /// <summary>Статус-эффекты врага (оглушение, уязвимость…). Тикают в <see cref="Tick"/>.</summary>
+        public StatusEffects Status { get; }
 
         /// <summary>Прогресс текущей фазы атаки 0..1 (замах, удар, фиксация, возврат).</summary>
         public float PhaseProgress
@@ -127,7 +133,8 @@ namespace ColorsAction.Combat
         /// <summary>Смена состояния (для анимаций и звуков).</summary>
         public event Action<EnemyState> StateChanged;
 
-        public EnemyBrain(int id, EnemyConfig config, CombatDirector director, int seed)
+        /// <param name="statusConfig">StatusEffects.json; null — встроенные значения (<see cref="StatusEffectsConfig.CreateDefault"/>).</param>
+        public EnemyBrain(int id, EnemyConfig config, CombatDirector director, int seed, StatusEffectsConfig statusConfig = null)
         {
             Id = id;
             Config = config ?? throw new ArgumentNullException(nameof(config));
@@ -135,6 +142,7 @@ namespace ColorsAction.Combat
             random = new Random(seed);
             Health = new Health(config.MaxHealth);
             Health.Died += OnDied;
+            Status = new StatusEffects(statusConfig, new HealthStatusTarget(Health));
         }
 
         /// <param name="distance">Расстояние до игрока по горизонтали, м.</param>
@@ -144,6 +152,11 @@ namespace ColorsAction.Combat
             StateTime += deltaTime;
             if (cooldown > 0f)
                 cooldown = Math.Max(0f, cooldown - deltaTime);
+            if (State != EnemyState.Dead)
+                Status.Tick(deltaTime);
+            // Оглушение вне парирования (эффект наложили со стороны): атака срывается, враг стоит.
+            if (Status.IsStunned && State != EnemyState.Dead && State != EnemyState.Parried && State != EnemyState.Stunned)
+                EnterStun();
 
             switch (State)
             {
@@ -237,7 +250,9 @@ namespace ColorsAction.Combat
                     return new EnemyIntent(0f, false);
 
                 case EnemyState.Parried:
-                    if (StateTime >= Config.ParriedDuration)
+                case EnemyState.Stunned:
+                    // Длится, пока действует оглушение (после парирования — EnemyConfig.ParriedDuration).
+                    if (!Status.IsStunned)
                         SetState(EnemyState.Chase);
                     return new EnemyIntent(0f, false);
             }
@@ -251,8 +266,8 @@ namespace ColorsAction.Combat
         /// </summary>
         public bool OnDamaged()
         {
-            // Парированный враг стоит открытым: урон проходит, но оглушение не сбивается.
-            if (State == EnemyState.Dead || State == EnemyState.Parried)
+            // Парированный (оглушённый) враг стоит открытым: урон проходит, но оглушение не сбивается.
+            if (State == EnemyState.Dead || State == EnemyState.Parried || State == EnemyState.Stunned)
                 return false;
             if (State == EnemyState.Windup)
             {
@@ -274,7 +289,8 @@ namespace ColorsAction.Combat
 
         /// <summary>
         /// Игрок поставил блок в окно парирования текущей атаки. Атака срывается, право атаки отдаётся следующему,
-        /// враг на <see cref="EnemyConfig.ParriedDuration"/> встаёт с опущенным оружием.
+        /// враг оглушён (<see cref="StatusEffectsConfig.StunId"/>) на <see cref="EnemyConfig.ParriedDuration"/> и стоит
+        /// с опущенным оружием. Остальные эффекты парирования — <see cref="ApplyParryEffects"/> (в момент удара о щит).
         /// </summary>
         /// <returns>true — атака парирована (было окно парирования).</returns>
         public bool TryParry(float widen = 0f)
@@ -299,8 +315,31 @@ namespace ColorsAction.Combat
             director.Leave(Id);
             Attack = null;
             cooldown = Config.AttackCooldown;
+            Status.Apply(StatusEffectsConfig.StunId, Math.Max(0.0001f, Config.ParriedDuration));
             SetState(EnemyState.Parried);
             return true;
+        }
+
+        /// <summary>
+        /// Эффекты парирования кроме оглушения (<see cref="StatusEffectsConfig.OnParry"/>, по умолчанию — уязвимость).
+        /// Вызывается, когда оружие врага встретило щит: сам парирующий удар их бонусом не пользуется.
+        /// </summary>
+        public void ApplyParryEffects()
+        {
+            if (State == EnemyState.Dead)
+                return;
+            foreach (var application in Status.Config.OnParry)
+                Status.Apply(application);
+        }
+
+        private void EnterStun()
+        {
+            director.Release(Id);
+            director.Leave(Id);
+            if (Attack != null)
+                cooldown = Math.Max(cooldown, Config.AttackCooldown * 0.5f);
+            Attack = null;
+            SetState(EnemyState.Stunned);
         }
 
         /// <summary>Последняя парированная атака (для анимации отскока оружия).</summary>
@@ -366,6 +405,7 @@ namespace ColorsAction.Combat
 
         private void OnDied()
         {
+            Status.Clear();
             director.Release(Id);
             director.Leave(Id);
             Attack = null;

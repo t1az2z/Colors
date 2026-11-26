@@ -3,6 +3,7 @@ using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
 using ColorsAction.Progression;
+using ColorsAction.Status;
 using GameCore.Config;
 using GameCore.Events;
 using GameCore.UI;
@@ -85,6 +86,12 @@ namespace ColorsAction
         /// <summary>Здоровье игрока и неуязвимость после попадания.</summary>
         public PlayerVitals Vitals { get; }
 
+        /// <summary>Статус-эффекты игрока (оглушение, уязвимость, усиление…). Тикает TickScheduler, смерть снимает всё.</summary>
+        public StatusEffects PlayerStatus { get; }
+
+        /// <summary>Конфиг статус-эффектов (StatusEffects.json; нет файла — встроенные значения).</summary>
+        public StatusEffectsConfig StatusConfig { get; }
+
         /// <summary>Опыт: копится с осколков побеждённых врагов.</summary>
         public ReactiveProperty<int> Experience { get; } = new ReactiveProperty<int>();
 
@@ -133,6 +140,12 @@ namespace ColorsAction
             var player = configs.Load<PlayerConfig>(ConfigKeys.Player);
             Stamina = new Stamina(player.Stamina);
             Vitals = new PlayerVitals(player.Health.Max, player.Health.HitInvulnerability);
+            StatusConfig = configs.TryLoad<StatusEffectsConfig>(StatusEffectsConfig.Key, out var status)
+                ? status
+                : StatusEffectsConfig.CreateDefault();
+            PlayerStatus = new StatusEffects(StatusConfig, new HealthStatusTarget(Vitals.Health));
+            Vitals.Status = PlayerStatus;
+            Vitals.Health.Died += PlayerStatus.Clear;
             ControlScheme = new ReactiveProperty<CameraScheme>(configs.Load<CameraConfig>(ConfigKeys.Camera).Scheme);
             foreach (var pair in configs.Load<GameConfig>(ConfigKeys.Game).DebugWeaponUpgrades)
                 Upgrades.Set(pair.Key, pair.Value);

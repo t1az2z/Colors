@@ -575,7 +575,7 @@ namespace ColorsAction.Unity
                     continue;
                 }
 
-                var result = WithCharge(rules.Calculate(weapon, step, target.ColorId));
+                var result = StatusDamage.Scale(session.PlayerStatus, target, WithCharge(rules.Calculate(weapon, step, target.ColorId)));
                 target.ReceiveHit(new HitInfo
                 {
                     Damage = result.Damage,

@@ -239,7 +239,8 @@ namespace ColorsAction.Unity
                         ParryCount++;
                 }
 
-                var result = rules.Apply(config.BashDamage * multiplier, shield.Color, target.ColorId);
+                var result = StatusDamage.Scale(session.PlayerStatus, target,
+                    rules.Apply(config.BashDamage * multiplier, shield.Color, target.ColorId));
                 var damage = result.Damage;
                 var direction = toCenter.sqrMagnitude > 0.0001f ? toCenter.normalized : forward;
                 target.ReceiveHit(new HitInfo

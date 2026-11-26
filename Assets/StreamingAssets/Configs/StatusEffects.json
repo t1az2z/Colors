@@ -1,0 +1,39 @@
+{
+  "effects": {
+    "stun": {
+      "name": "Оглушение",
+      "kind": "Stun",
+      "duration": 1,
+      "stacking": "Refresh",
+      "maxStacks": 1,
+      "tint": "",
+      "tintStrength": 0,
+      "tintPulse": 0
+    },
+    "vulnerable": {
+      "name": "Уязвимость",
+      "kind": "DamageTaken",
+      "duration": 2.5,
+      "value": 1.5,
+      "stacking": "Refresh",
+      "maxStacks": 1,
+      "tint": "#FFD36B",
+      "tintStrength": 0.6,
+      "tintPulse": 4
+    },
+    "empowered": {
+      "name": "Усиление",
+      "kind": "DamageDealt",
+      "duration": 5,
+      "value": 1.25,
+      "stacking": "Refresh",
+      "maxStacks": 1,
+      "tint": "#FF6A3D",
+      "tintStrength": 0.4,
+      "tintPulse": 2
+    }
+  },
+  "onParry": [
+    { "effect": "vulnerable", "duration": 0 }
+  ]
+}
