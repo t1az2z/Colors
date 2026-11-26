@@ -327,6 +327,29 @@ namespace ColorsAction.Configs
         public ChargeConfig Charge { get; set; }
     }
 
+    /// <summary>
+    /// Лечилка: <see cref="Charges"/> использований, каждое восстанавливает <see cref="HealFraction"/> максимального
+    /// здоровья. Заряды восполняются отдыхом у костра (и возрождением у него).
+    /// </summary>
+    [Preserve]
+    public sealed class HealConfig
+    {
+        /// <summary>Сколько использований между отдыхами у костра.</summary>
+        public int Charges { get; set; } = 2;
+
+        /// <summary>Доля максимального здоровья за одно использование (0.25 — четверть).</summary>
+        public float HealFraction { get; set; } = 0.25f;
+
+        /// <summary>Пауза после использования, секунды: повторное нажатие раньше не сработает.</summary>
+        public float Cooldown { get; set; } = 0.6f;
+
+        public void Validate(string id)
+        {
+            if (Charges < 1 || HealFraction <= 0f || Cooldown < 0f)
+                throw new InvalidOperationException($"item '{id}': heal needs charges >= 1, healFraction > 0, cooldown >= 0");
+        }
+    }
+
     public static class AttackStepTiming
     {
         /// <summary>Полная длительность удара с фиксацией позы, секунды.</summary>
@@ -471,6 +494,9 @@ namespace ColorsAction.Configs
         /// <summary>Щит: параметры апгрейдов (дешевле блок, шире окно парирования, удар щитом).</summary>
         public ShieldConfig Shield { get; set; }
 
+        /// <summary>Лечилка (расходуемый предмет в быстром слоте 1–4): заряды и сила лечения. null — не лечит.</summary>
+        public HealConfig Heal { get; set; }
+
         public bool IsWeapon => Kind == ItemKind.OneHanded || Kind == ItemKind.TwoHanded || Kind == ItemKind.Shield;
         public bool IsTwoHanded => Kind == ItemKind.TwoHanded;
         public bool IsRanged => Ranged != null;
@@ -493,6 +519,7 @@ namespace ColorsAction.Configs
             if (Kind == ItemKind.Shield)
                 Shield ??= new ShieldConfig();
             Shield?.Validate(Id);
+            Heal?.Validate(Id);
             if (Kind != ItemKind.Shield && Kind != ItemKind.Consumable && Ranged == null && Combo.Count == 0)
                 throw new InvalidOperationException($"weapon '{Id}' needs at least one combo step");
         }

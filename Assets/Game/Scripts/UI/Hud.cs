@@ -96,6 +96,7 @@ namespace ColorsAction.Unity
                 ShowToast($"{e.Item.Config.Name} в инвентаре  ·  [{input.Label("inventory")}] открыть")));
             subscriptions.Add(events.Subscribe<InventoryFull>(_ => ShowToast("Инвентарь полон")));
             subscriptions.Add(events.Subscribe<DamageDealt>(OnDamage));
+            subscriptions.Add(events.Subscribe<QuickItemUsed>(OnQuickItemUsed));
             subscriptions.Add(session.Vitals.Health.Current.Subscribe(_ => healthShake = 0.35f, false));
             session.Inventory.Changed += RefreshHands;
             RefreshHands();
@@ -232,6 +233,40 @@ namespace ColorsAction.Unity
         }
 
         // ------------------------------------------------------------------ цифры урона
+
+        private PlayerController healTarget;
+
+        /// <summary>Быстрый слот: лечилка — зелёная цифра «+N» над игроком; пустая — подсказка про костёр.</summary>
+        private void OnQuickItemUsed(QuickItemUsed e)
+        {
+            switch (e.Result)
+            {
+                case QuickUseResult.Empty:
+                    ShowToast($"{e.Item.Config.Name}: заряды кончились  ·  отдохните у костра");
+                    return;
+                case QuickUseResult.NotNeeded:
+                    ShowToast("Здоровье и так полное");
+                    return;
+                case QuickUseResult.Healed:
+                    break;
+                default:
+                    return;
+            }
+
+            if (damageNumberPrefab == null || numbersRoot == null)
+                return;
+            if (healTarget == null)
+                healTarget = FindAnyObjectByType<PlayerController>();
+            if (healTarget == null)
+                return;
+            var text = Instantiate(damageNumberPrefab, numbersRoot, false);
+            text.gameObject.SetActive(true);
+            text.text = "+" + Mathf.RoundToInt(e.Healed);
+            text.fontSize = bigDamageFontSize;
+            text.color = new Color(0.45f, 0.95f, 0.5f);
+            text.raycastTarget = false;
+            numbers.Add(new FloatingNumber { Text = text, World = healTarget.transform.position + Vector3.up * 1.1f, Time = 0f });
+        }
 
         private void OnDamage(DamageDealt e)
         {

@@ -11,10 +11,17 @@ namespace ColorsAction.Inventory
         public ItemConfig Config { get; }
         public string Id => Config.Id;
 
+        /// <summary>Оставшиеся заряды расходуемого предмета (лечилки); у остальных 0.</summary>
+        public int Charges { get; set; }
+
+        /// <summary>Сколько зарядов у полного предмета.</summary>
+        public int MaxCharges => Config.Heal?.Charges ?? 0;
+
         public Item(int uid, ItemConfig config)
         {
             Uid = uid;
             Config = config ?? throw new ArgumentNullException(nameof(config));
+            Charges = MaxCharges;
         }
 
         public override string ToString() => $"{Id}#{Uid}";
@@ -120,6 +127,9 @@ namespace ColorsAction.Inventory
                 default: return false;
             }
         }
+
+        /// <summary>Сообщить, что изменилось состояние предмета внутри (заряды): обновить экраны.</summary>
+        public void NotifyItemChanged() => Changed?.Invoke();
 
         public IEnumerable<SlotRef> AllSlots()
         {

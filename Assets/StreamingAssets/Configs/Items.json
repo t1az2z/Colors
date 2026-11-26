@@ -184,5 +184,13 @@
       { "motion": "Punch", "windup": 0.08, "strike": 0.08, "hold": 0.08, "recovery": 0.1, "damageMultiplier": 1, "lunge": 0.1, "range": 1.1, "arc": 80, "knockback": 0.6, "staminaCost": 6 },
       { "motion": "Punch", "windup": 0.08, "strike": 0.08, "hold": 0.08, "recovery": 0.1, "damageMultiplier": 1, "lunge": 0.1, "range": 1.1, "arc": 80, "knockback": 0.6, "staminaCost": 6 }
     ]
+  },
+  "flask": {
+    "name": "Лечилка",
+    "color": "green",
+    "kind": "Consumable",
+    "damage": 0,
+    "prefab": "",
+    "heal": { "charges": 2, "healFraction": 0.25, "cooldown": 0.6 }
   }
 }

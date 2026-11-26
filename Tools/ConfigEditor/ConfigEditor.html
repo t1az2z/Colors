@@ -496,6 +496,11 @@ const PLUNGE_FIELDS = [
   { k: 'fxFrom', l: 'След клинка с', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: '−1 — автоматически.' },
   { k: 'fxTo', l: 'След клинка до', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: '−1 — автоматически.' },
 ];
+const HEAL_FIELDS = [
+  { k: 'charges', l: 'Заряды', t: 'int', u: U.pts, min: 1, max: 10, step: 1, def: 2, d: 'Сколько раз можно вылечиться между отдыхами у костра.' },
+  { k: 'healFraction', l: 'Лечит', u: U.frac, min: 0.05, max: 1, step: 0.05, def: 0.25, d: 'Доля максимального здоровья за одно использование: 0.25 — четверть.' },
+  { k: 'cooldown', l: 'Пауза', u: U.s, min: 0, max: 3, step: 0.05, def: 0.6, d: 'После использования повторное нажатие раньше не сработает.' },
+];
 const defaultsOf = fields => Object.fromEntries(fields.filter(x => x.t !== 'bool').map(x => [x.k, x.def]));
 // Множитель урона заряда через t секунд после пика (как AttackCharge.BonusAt).
 function chargeMultiplierAt(c, t) {
@@ -896,8 +901,18 @@ function renderItems(main, f) {
       if (fd.onlyWeapon && it.ranged) continue; // окно комбо, след и поворот клинка стрелковому не нужны
       card.fields.append(fieldRow(f, [id, fd.k], fd, () => { if (fd.k === 'kind' || fd.k === 'color' || fd.k === 'name') renderPage(); }));
     }
-    const leftovers = collectUnknown(it, [...ITEM_FIELDS.map(x => x.k), 'combo', 'ranged', 'shield', 'charge', 'finisher', 'plunge']);
+    const leftovers = collectUnknown(it, [...ITEM_FIELDS.map(x => x.k), 'combo', 'ranged', 'shield', 'charge', 'finisher', 'plunge', 'heal']);
     for (const p of leftovers) card.fields.append(genericRow(f, [id, ...p]));
+    if (it.kind === 'Consumable') {
+      const hs = el(`<div class="subhead">Лечилка ${it.heal ? '<button class="small danger">убрать</button>' : '<button class="small">+ лечит</button>'}</div>`);
+      card.fields.append(hs);
+      $('button', hs).onclick = () => { if (it.heal) { if (confirm('Предмет перестанет лечить?')) delete it.heal; } else it.heal = defaultsOf(HEAL_FIELDS); renderPage(); };
+      if (it.heal) {
+        card.fields.append(el(`<div class="desc" style="margin:0 0 6px">Кладётся в быстрый слот 1–4 в инвентаре. Заряды восполняются у костра и при возрождении.</div>`));
+        for (const fd of HEAL_FIELDS) card.fields.append(fieldRow(f, [id, 'heal', fd.k], fd));
+        for (const p of collectUnknown(it.heal, HEAL_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'heal', ...p]));
+      }
+    }
     if (isShield) {
       card.fields.append(el(`<div class="subhead">Апгрейды щита (костёр)</div>`));
       for (const fd of SHIELD_FIELDS) card.fields.append(fieldRow(f, [id, 'shield', fd.k], fd));

@@ -112,6 +112,7 @@ namespace ColorsAction.States
         {
             session.Vitals.Revive();
             session.Stamina.Restore();
+            session.RefillConsumables();
             events.Publish(new BonfireRested(session.LastBonfire));
             screen = screens.Open(new BonfireScreenViewModel(shop, session.Inventory, () => fsm.SetState<PlayState>()));
         }

@@ -215,6 +215,8 @@ namespace ColorsAction.UI
                 Configs.ItemKind.Shield => "щит",
                 _ => "предмет"
             };
+            if (c.Heal != null)
+                return $"{c.Name} · лечит {c.Heal.HealFraction * 100f:0}% здоровья · заряды {item.Charges}/{item.MaxCharges} · в слот 1–4";
             return c.Kind == Configs.ItemKind.Shield
                 ? $"{c.Name} · {kind} · блок"
                 : $"{c.Name} · {kind} · урон {c.Damage:0.#}";
