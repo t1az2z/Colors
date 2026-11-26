@@ -33,7 +33,7 @@
 - `Level/` — `LevelBuilder` (уровень из конфига: карта высот или воксельная карта через `VoxelLevelView`, спавн предметов/врагов/подсказок/дверей/костров, невидимые стены, `RespawnEnemies`), `Bonfire` (костёр), `Voxel/` (`VoxelLevelView`, `VoxelMesher`), `HintMarker` (подсказки на полу), `ShortcutDoor`, `CrateStack` (стопка ломаемых ящиков из досок: урон только мечом через `IWeaponGate`, доски отлетают, при разрушении разваливается).
 - `UI/` — `Hud`, `InventoryView`, `SlotView`, `HudItemSlot`, `ItemIcons` (id → спрайт), `BonfireView`/`BonfireCell` (меню костра), `UiFactory`, `UiSprites`. Префабы UI: `Assets/Game/Resources/UI` (Canvas + CanvasScaler 1920×1080), иконки: `Assets/Game/Art/UI/Icons`.
 - `Camera/CameraRig.cs` — Cinemachine-камера.
-- `Editor/` — `LaunchOptionsWindow` (окно «Параметры запуска»: карта, стартовое оружие, опыт, кнопка «Играть»), `LevelImporter` (импорт карт веб-редактора .json/.json.txt в `Configs/VoxelLevels`, меню ColorsAction/Уровни), `PrototypeSceneBuilder` (собирает сцену/префабы из кода), `UiPrefabBuilder` и `BonfireMenuPrefabBuilder` (меню ColorsAction/UI), `PrototypePlaytest` (автопрогон), `PlayModeStepper`, `ModelImportSettings`, `LevelEditor/`.
+- `Editor/` — `LaunchOptionsWindow` (окно «Параметры запуска»: карта, стартовое оружие, опыт, кнопка «Играть»), `LevelImporter` (импорт карт веб-редактора .json/.json.txt в `Configs/VoxelLevels`, меню ColorsAction/Уровни), `PrototypeSceneBuilder` (собирает сцену/префабы из кода), `UiPrefabBuilder` и `BonfireMenuPrefabBuilder` (меню ColorsAction/UI), `PrototypePlaytest` (автопрогон), `CratePlaytest` (автопрогон ящиков на VoxelLevels/Test), `PlayModeStepper`, `ModelImportSettings`, `LevelEditor/`.
 
 ## Данные и ассеты
 

@@ -39,6 +39,7 @@ namespace ColorsAction.Unity
         private BreakableState state;
 
         private Transform body;
+        private Transform debrisRoot;
         private readonly List<Transform> colliders = new List<Transform>();
         private readonly List<Transform> pieces = new List<Transform>();
         private readonly HashSet<Transform> posts = new HashSet<Transform>();
@@ -53,6 +54,7 @@ namespace ColorsAction.Unity
 
         public string Id => id;
         public bool IsBroken => state != null && state.Broken;
+        public float Hp => state != null ? state.Hp : 0f;
 
         public string ColorId => config != null ? config.Color : "blue";
 
@@ -113,6 +115,9 @@ namespace ColorsAction.Unity
             body.SetParent(transform, false);
             var collidersRoot = new GameObject("Colliders").transform;
             collidersRoot.SetParent(transform, false);
+            // Обломки живут под стопкой: их материалы (доски, стойки) — материалы стопки, уничтожаются вместе с ней.
+            debrisRoot = new GameObject("Debris").transform;
+            debrisRoot.SetParent(transform, false);
 
             for (int k = 0; k < crates; k++)
             {
@@ -127,14 +132,16 @@ namespace ColorsAction.Unity
                 crate.SetParent(body, false);
                 crate.SetLocalPositionAndRotation(position, rotation);
                 BuildCrate(crate);
-
-                // Коллайдер отдельно от модели: дрожь от ударов не толкает игрока.
-                var hull = new GameObject($"Crate{k}").transform;
-                hull.SetParent(collidersRoot, false);
-                hull.SetLocalPositionAndRotation(position, rotation);
-                hull.gameObject.AddComponent<BoxCollider>().size = new Vector3(2f, 1f, 1f);
-                colliders.Add(hull);
             }
+
+            // Один ровный коллайдер на всю стопку, отдельно от модели: дрожь от ударов не толкает игрока, а у
+            // повёрнутого верхнего ящика нет уступа на нижнем, с которого стопку можно было бы перелезть.
+            var hull = new GameObject("Hull").transform;
+            hull.SetParent(collidersRoot, false);
+            var box = hull.gameObject.AddComponent<BoxCollider>();
+            box.center = new Vector3(0.5f, crates * 0.5f, 0f);
+            box.size = new Vector3(2f, crates, 1f);
+            colliders.Add(hull);
         }
 
         /// <summary>
@@ -316,13 +323,14 @@ namespace ColorsAction.Unity
             pieces.Clear();
             for (int k = 0; k < crates; k++)
                 Debris.Burst(transform.TransformPoint(new Vector3(0.5f, k + 0.5f, 0f)), plankColor, 6, 0.08f, 4f, 1.4f);
-            Destroy(gameObject, 0.05f);
+            // Стопка (и её материалы) живёт, пока не исчезнут обломки.
+            Destroy(gameObject, config.DebrisLife * 1.25f + 0.5f);
         }
 
         /// <summary>Доска становится обломком: своя физика, разлёт от удара и вверх, исчезает через DebrisLife.</summary>
         private void Launch(Transform piece, Vector3 direction, float force)
         {
-            piece.SetParent(transform.parent, true);
+            piece.SetParent(debrisRoot, true);
             piece.gameObject.layer = Debris.Layer;
             piece.gameObject.AddComponent<BoxCollider>();
             var rb = piece.gameObject.AddComponent<Rigidbody>();
