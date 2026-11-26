@@ -173,6 +173,9 @@ namespace ColorsAction.Unity
             squash.Value = Mathf.Clamp(squash.Value, -0.6f, 0.8f);
             dirSquash.Value = Mathf.Clamp(dirSquash.Value, -0.5f, 0.5f);
 
+            // После перекомпиляции во время игры Unity восстанавливает null-массив сколов как пустой.
+            if (dents != null && dents.Length != rest.Length)
+                dents = null;
             for (int i = 0; i < rest.Length; i++)
                 work[i] = DeformPoint(dents != null ? rest[i] + dents[i] : rest[i]);
             mesh.vertices = work;
