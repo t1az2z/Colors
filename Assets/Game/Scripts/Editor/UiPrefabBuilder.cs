@@ -131,7 +131,7 @@ namespace ColorsAction.Unity.Editor
                 var color = colors.TryGet(config.Color ?? "", out var c) ? Palette.Parse(c.Hex) : Color.gray;
                 var path = $"{IconsFolder}/{FileName(pair.Key)}.png";
                 if (overwrite || !File.Exists(path))
-                    WriteIcon(path, DrawIcon(config.Kind, config.IsTwoHanded, color));
+                    WriteIcon(path, DrawIcon(config.Kind, color));
                 var sprite = ImportIcon(path);
                 if (known.Add(pair.Key))
                 {
@@ -145,7 +145,7 @@ namespace ColorsAction.Unity.Editor
             // Запасная иконка: белая плитка, красится в цвет предмета.
             var fallbackPath = IconsFolder + "/Default.png";
             if (overwrite || !File.Exists(fallbackPath))
-                WriteIcon(fallbackPath, DrawIcon(ItemKind.Consumable, false, Color.white));
+                WriteIcon(fallbackPath, DrawIcon(ItemKind.Consumable, Color.white));
             var fallback = so.FindProperty("fallback");
             if (fallback.objectReferenceValue == null)
                 fallback.objectReferenceValue = ImportIcon(fallbackPath);
@@ -197,7 +197,7 @@ namespace ColorsAction.Unity.Editor
         /// Иконка из прямоугольников в координатах 100×100 с центром в (0, 0), как прежняя SlotView.CreateIcon:
         /// щит — обод, лицевая сторона и умбон; меч (и прочее оружие) — клинок, гарда и рукоять под 45°; иначе плитка.
         /// </summary>
-        private static Texture2D DrawIcon(ItemKind kind, bool twoHanded, Color color)
+        private static Texture2D DrawIcon(ItemKind kind, Color color)
         {
             var boxes = new List<Box>();
             var rotate = 0f;
@@ -208,9 +208,8 @@ namespace ColorsAction.Unity.Editor
                     boxes.Add(new Box(-23, 2 - 29, 23, 2 + 29, color));
                     boxes.Add(new Box(-6, 0, 6, 12, Dark));
                     break;
-                case ItemKind.OneHanded:
-                case ItemKind.TwoHanded:
-                    var blade = twoHanded ? 72f : 58f;
+                case ItemKind.Weapon:
+                    var blade = 58f;
                     boxes.Add(new Box(-6, -8, 6, -8 + blade, color));
                     boxes.Add(new Box(-17, -14, 17, -6, Dark));
                     boxes.Add(new Box(-4, -30, 4, -12, Dark));
@@ -474,23 +473,20 @@ namespace ColorsAction.Unity.Editor
             Title(topLeft, "Персонаж", new Vector2(40, -22));
             Title(topLeft, "Инвентарь", new Vector2(660, -22));
 
-            // Портрет: серый куб с глазами между слотами рук.
-            var portrait = UiFactory.Image(topLeft, "Portrait", new Color(0.62f, 0.63f, 0.65f), new Vector2(0, 1), new Vector2(0, 1), new Vector2(190, -120), new Vector2(200, 200));
-            UiFactory.Image(portrait.transform, "EyeL", new Color(0.08f, 0.08f, 0.1f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-34, 24), new Vector2(20, 34));
-            UiFactory.Image(portrait.transform, "EyeR", new Color(0.08f, 0.08f, 0.1f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(34, 24), new Vector2(20, 34));
+            // 3D-превью персонажа с оружием в руках (RenderTexture создаёт CharacterPreview в игре); справа — крестовина 1–4.
+            var previewRect = UiFactory.Rect(topLeft, "CharacterPreview", new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -70), new Vector2(260, 300));
+            var preview = previewRect.gameObject.AddComponent<RawImage>();
+            preview.color = new Color(0.16f, 0.17f, 0.19f, 1f);
 
             // Слоты создаются в игре из префаба InventorySlot, в контейнер Slots (тот же левый верхний угол панели).
             var slots = UiFactory.Rect(topLeft, "Slots", new Vector2(0, 1), new Vector2(0, 1), Vector2.zero, Vector2.zero);
 
-            var quickTitle = UiFactory.Text(topLeft, "QuickTitle", "Предметы", 22, TextAnchor.LowerLeft, UiFactory.MutedText);
-            quickTitle.rectTransform.anchorMin = quickTitle.rectTransform.anchorMax = new Vector2(0, 1);
-            quickTitle.rectTransform.pivot = new Vector2(0, 0);
-            quickTitle.rectTransform.anchoredPosition = new Vector2(40, -392);
-
-            var stats = UiFactory.Text(topLeft, "Stats", "Уровень 1   ·   Очки навыков 0", 22, TextAnchor.UpperLeft, UiFactory.TextColor);
-            stats.rectTransform.anchorMin = stats.rectTransform.anchorMax = new Vector2(0, 1);
-            stats.rectTransform.pivot = new Vector2(0, 1);
-            stats.rectTransform.anchoredPosition = new Vector2(40, -540);
+            // Оружие в руках и его прокачка — под превью.
+            var weaponCaption = UiFactory.Text(topLeft, "WeaponCaption", "", 22, TextAnchor.UpperLeft, UiFactory.TextColor);
+            weaponCaption.rectTransform.anchorMin = weaponCaption.rectTransform.anchorMax = new Vector2(0, 1);
+            weaponCaption.rectTransform.pivot = new Vector2(0, 1);
+            weaponCaption.rectTransform.sizeDelta = new Vector2(560, 32);
+            weaponCaption.rectTransform.anchoredPosition = new Vector2(40, -382);
 
             var description = UiFactory.Text(topLeft, "Description", "", 24, TextAnchor.UpperLeft, UiFactory.TextColor);
             description.rectTransform.anchorMin = description.rectTransform.anchorMax = new Vector2(0, 1);
@@ -514,6 +510,8 @@ namespace ColorsAction.Unity.Editor
             Set(view, "dragGhost", ghost);
             Set(view, "description", description);
             Set(view, "help", help);
+            Set(view, "previewImage", preview);
+            Set(view, "weaponCaption", weaponCaption);
             return go;
         }
 

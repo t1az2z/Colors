@@ -33,7 +33,8 @@ namespace ColorsAction.Tests
             var configs = Configs();
             var items = configs.LoadTable<ItemConfig>(ConfigKeys.Items);
             var upgrades = configs.LoadTable<WeaponUpgradeConfig>(ConfigKeys.Upgrades);
-            var expected = new Dictionary<string, string> { ["sword"] = "metal", ["shield"] = "rivets", ["shotgun"] = "gears" };
+            var expected = new Dictionary<string, string> { ["sword"] = "metal", ["shotgun"] = "gears" };
+            Assert.That(items.ContainsKey("rivets"), Is.False, "заклёпки убраны: щит — часть синего оружия");
             foreach (var pair in expected)
             {
                 Assert.That(upgrades.Get(pair.Key).Resource, Is.EqualTo(pair.Value));

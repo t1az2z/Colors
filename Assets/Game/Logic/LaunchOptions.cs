@@ -36,7 +36,7 @@ namespace ColorsAction
         /// <summary>Какой уровень грузить.</summary>
         public string LevelKey(GameConfig game) => Enabled && !string.IsNullOrEmpty(Level) ? Level : game.Level;
 
-        /// <summary>Выдаёт стартовое оружие (в инвентарь и в свободные руки), ставит апгрейды и опыт.</summary>
+        /// <summary>Выдаёт стартовое оружие (на колесо; первое — в руки), ставит апгрейды и опыт.</summary>
         public void Apply(GameSession session)
         {
             if (!Enabled || session == null)

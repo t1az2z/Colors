@@ -54,7 +54,7 @@ namespace ColorsAction.Tests
         {
             using var host = CreateHost();
             var table = host.Container.Resolve<ConfigService>().LoadTable<WeaponUpgradeConfig>(ConfigKeys.Upgrades);
-            foreach (var id in new[] { "sword", "shield", "shotgun" })
+            foreach (var id in new[] { "sword", "shotgun" })
             {
                 Assert.That(table.TryGet(id, out var config), Is.True, id);
                 Assert.That(config.Tiers.Count, Is.EqualTo(WeaponUpgrades.MaxTier));
@@ -62,7 +62,8 @@ namespace ColorsAction.Tests
             }
 
             Assert.That(table.Get("sword").Tier(1).Name, Does.Contain("4-я атака"));
-            Assert.That(table.Get("shield").Tier(3).Name, Is.EqualTo("Удар щитом"));
+            Assert.That(table.Get("sword").Tier(2).Name, Does.Contain("удар щитом"), "sword and shield are one weapon");
+            Assert.That(table.TryGet("shield", out _), Is.False, "the shield has no upgrades of its own");
             Assert.That(table.Get("shotgun").Tier(2).Name, Is.EqualTo("Парирование дробовиком"));
         }
 
@@ -129,20 +130,21 @@ namespace ColorsAction.Tests
             using var host = CreateHost();
             host.Start<BootState>();
             var session = host.Container.Resolve<GameSession>();
+            session.PickUp("shotgun");
             session.PickUp("sword");
-            session.PickUp("shield");
+            session.Inventory.SetActive("sword");
             session.Experience.Value = 1000;
-            // Ступени стоят ещё и ресурс оружия (Upgrades.json): меч — металл, щит — заклёпки.
+            // Ступени стоят ещё и ресурс оружия (Upgrades.json): меч — металл, дробовик — шестерёнки.
             var shop = host.Container.Resolve<WeaponUpgradeShop>();
             Assert.That(session.GiveResources(shop.ResourceId("sword"), 10), Is.True);
-            Assert.That(session.GiveResources(shop.ResourceId("shield"), 10), Is.True);
+            Assert.That(session.GiveResources(shop.ResourceId("shotgun"), 10), Is.True);
             // Game.json может включать отладочные апгрейды — начинаем с нуля.
             session.Upgrades.Set("sword", 0);
-            session.Upgrades.Set("shield", 0);
+            session.Upgrades.Set("shotgun", 0);
 
             host.Events.Publish(new BonfireRestRequested("b"));
             var vm = host.Screens.Find<BonfireScreenViewModel>();
-            Assert.That(vm.Rows.Select(r => r.ItemId), Is.EqualTo(new[] { "sword", "shield" }), "hands first: right, then left");
+            Assert.That(vm.Rows.Select(r => r.ItemId), Is.EqualTo(new[] { "sword", "shotgun" }), "weapon in hands first, then the rest of the wheel");
             Assert.That(vm.Cursor.Value, Is.EqualTo(new UpgradeCell(0, 1)));
 
             Assert.That(vm.Confirm(), Is.True);
@@ -159,7 +161,7 @@ namespace ColorsAction.Tests
             vm.Navigate(-1, 0);
             Assert.That(vm.Cursor.Value, Is.EqualTo(new UpgradeCell(1, 1)));
             Assert.That(vm.Select(new UpgradeCell(1, 1)), Is.True, "mouse click buys");
-            Assert.That(session.Upgrades.Has("shield", 1), Is.True);
+            Assert.That(session.Upgrades.Has("shotgun", 1), Is.True);
             Assert.That(session.Experience.Value, Is.LessThan(1000));
         }
 

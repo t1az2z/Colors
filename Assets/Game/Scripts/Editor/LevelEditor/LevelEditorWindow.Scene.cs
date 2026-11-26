@@ -361,7 +361,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         {
             switch (a)
             {
-                case InteractionAction.ShieldSlide: return new Color(0.69f, 0.49f, 1f);
+                case InteractionAction.ShieldSlide: return new Color(0.18f, 0.42f, 1f); // синий «меч и щит»
                 case InteractionAction.Lift: return new Color(0.9f, 0.9f, 0.9f);
                 case InteractionAction.GrappleAnchor: return new Color(0.09f, 0.71f, 0.66f);
                 case InteractionAction.FlailRing: return new Color(1f, 0.54f, 0.12f);

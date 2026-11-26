@@ -1,21 +1,28 @@
 using System;
 using System.Collections.Generic;
 using ColorsAction.Inventory;
+using ColorsAction.Progression;
 using GameCore.UI;
 
 namespace ColorsAction.UI
 {
     /// <summary>
-    /// Модель экрана инвентаря (TAB / View): сетка, руки, быстрые слоты, курсор для геймпада,
-    /// перетаскивание мышью и зелёная подсветка слотов, куда можно надеть выбранный предмет.
-    /// <para>Раскладка для навигации (столбец, ряд): правая рука (0,1), левая (3,1), быстрые слоты (0..3, 3),
-    /// сетка — столбцы 5.., ряды 0... Вью рисует то же расположение.</para>
+    /// Модель экрана инвентаря (I / Select, GDD v0.3, раздел 9): только предметы — сетка и быстрые слоты 1–4 крестовиной,
+    /// как в HUD, — и 3D-превью персонажа с оружием в руках. Оружие здесь не меняется: оно на колесе (TAB / Y).
+    /// Курсор для геймпада, перетаскивание мышью, зелёная подсветка слотов 1–4 для расходника.
+    /// <para>Раскладка для навигации (столбец, ряд): крестовина под превью — слот 1 (1,3) вверху, 2 (2,4) справа,
+    /// 3 (1,5) внизу, 4 (0,4) слева (как D-pad ↑ → ↓ ←); сетка — столбцы <see cref="GridColumnOffset"/>.., ряды 0...
+    /// Вью рисует то же расположение.</para>
     /// </summary>
     public sealed class InventoryScreenViewModel : ViewModel, IExclusiveScreen
     {
-        public const int GridColumnOffset = 5;
+        public const int GridColumnOffset = 4;
+
+        /// <summary>Клетки крестовины (столбец, ряд) для слотов 1–4: ↑ → ↓ ←.</summary>
+        public static readonly (int col, int row)[] CrossLayout = { (1, 3), (2, 4), (1, 5), (0, 4) };
 
         private readonly PlayerInventory inventory;
+        private readonly WeaponUpgrades upgrades;
         private readonly Dictionary<SlotRef, (int col, int row)> layout = new Dictionary<SlotRef, (int, int)>();
 
         public PlayerInventory Inventory => inventory;
@@ -23,7 +30,7 @@ namespace ColorsAction.UI
         /// <summary>Слот под курсором геймпада (и последний слот, на который навели мышь).</summary>
         public ReactiveProperty<SlotRef> Cursor { get; }
 
-        /// <summary>Слот, из которого предмет "взят" (перетаскивание мышью или выбор быстрого слота на геймпаде).</summary>
+        /// <summary>Слот, из которого предмет "взят" (перетаскивание мышью или выбор A на геймпаде).</summary>
         public ReactiveProperty<SlotRef?> Held { get; } = new ReactiveProperty<SlotRef?>();
 
         /// <summary>Слоты, подсвеченные зелёным.</summary>
@@ -35,18 +42,19 @@ namespace ColorsAction.UI
 
         public ReactiveProperty<string> Description { get; } = new ReactiveProperty<string>(string.Empty);
 
+        /// <summary>Подпись под превью: оружие в руках и его уровень прокачки.</summary>
+        public ReactiveProperty<string> WeaponCaption { get; } = new ReactiveProperty<string>(string.Empty);
+
         public ReactiveCommand Close { get; }
 
-        public InventoryScreenViewModel(PlayerInventory inventory, Action close)
+        public InventoryScreenViewModel(PlayerInventory inventory, Action close, WeaponUpgrades upgrades = null)
         {
             this.inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
+            this.upgrades = upgrades;
             Close = Own(new ReactiveCommand(close));
 
-            // Персонаж смотрит на игрока, поэтому его правая рука — слева, левая — справа.
-            layout[SlotRef.Of(Hand.Right)] = (0, 1);
-            layout[SlotRef.Of(Hand.Left)] = (3, 1);
             for (int i = 0; i < inventory.QuickCount; i++)
-                layout[SlotRef.Quick(i)] = (i, 3);
+                layout[SlotRef.Quick(i)] = i < CrossLayout.Length ? CrossLayout[i] : (i - CrossLayout.Length, 6);
             for (int i = 0; i < inventory.GridSize; i++)
                 layout[SlotRef.Grid(i)] = (GridColumnOffset + i % inventory.Columns, i / inventory.Columns);
 
@@ -104,8 +112,8 @@ namespace ColorsAction.UI
         }
 
         /// <summary>
-        /// Кнопка A: оружие из сетки надевается автоматически, из руки снимается;
-        /// расходник сначала "берётся", затем A на быстром слоте кладёт его туда.
+        /// Кнопка A: предмет под курсором "берётся", следующее A кладёт его в выбранный слот
+        /// (расходник — в слот 1–4 крестовины, или обратно в сетку).
         /// </summary>
         public void Confirm()
         {
@@ -119,24 +127,8 @@ namespace ColorsAction.UI
                 return;
             }
 
-            var item = inventory.Get(slot);
-            if (item == null)
-                return;
-
-            if (slot.Kind == SlotKind.Hand)
-            {
-                inventory.Unequip(slot.Hand);
-                return;
-            }
-
-            if (item.Config.IsWeapon)
-            {
-                inventory.AutoEquip(item);
-                Cursor.Value = inventory.Find(item) ?? slot;
-                return;
-            }
-
-            Held.Value = slot;
+            if (inventory.Get(slot) != null)
+                Held.Value = slot;
         }
 
         /// <summary>Кнопка B / Esc: отменить взятие или закрыть экран.</summary>
@@ -181,12 +173,30 @@ namespace ColorsAction.UI
             return moved;
         }
 
-        /// <summary>Двойной щелчок или ПКМ по предмету: то же, что A на геймпаде.</summary>
-        public void QuickUse(SlotRef slot)
+        /// <summary>
+        /// Двойной щелчок или ПКМ по предмету: расходник из сетки — в первый свободный слот 1–4 (или в слот 1),
+        /// из слота 1–4 — обратно в сетку.
+        /// </summary>
+        public bool QuickUse(SlotRef slot)
         {
             Cursor.Value = slot;
             Held.Value = null;
-            Confirm();
+            var item = inventory.Get(slot);
+            if (item == null)
+                return false;
+            if (slot.Kind == SlotKind.Quick)
+            {
+                var free = inventory.FreeGridSlot();
+                return free >= 0 && inventory.Move(slot, SlotRef.Grid(free));
+            }
+
+            var targets = inventory.EquipTargets(item);
+            if (targets.Count == 0)
+                return false;
+            foreach (var t in targets)
+                if (inventory.Get(t) == null)
+                    return inventory.Move(slot, t);
+            return inventory.Move(slot, targets[0]);
         }
 
         // ------------------------------------------------------------------
@@ -203,25 +213,26 @@ namespace ColorsAction.UI
             var item = inventory.Get(focus);
             Highlights.Value = item != null ? (IReadOnlyList<SlotRef>)inventory.EquipTargets(item) : Array.Empty<SlotRef>();
             Description.Value = item == null ? string.Empty : Describe(item);
+            WeaponCaption.Value = DescribeWeapon(inventory.Active);
+        }
+
+        private string DescribeWeapon(Item weapon)
+        {
+            if (weapon == null)
+                return "Без оружия";
+            var c = weapon.Config;
+            var level = upgrades != null ? upgrades.Level(c.Id) : 0;
+            return $"{c.Name ?? c.Id}  ·  прокачка {level}/{WeaponUpgrades.MaxTier}";
         }
 
         private static string Describe(Item item)
         {
             var c = item.Config;
-            var kind = c.Kind switch
-            {
-                Configs.ItemKind.OneHanded => "одноручное",
-                Configs.ItemKind.TwoHanded => "двуручное",
-                Configs.ItemKind.Shield => "щит",
-                _ => "предмет"
-            };
             if (c.IsResource)
                 return $"{c.Name} · ресурс для прокачки оружия у костра · {item.Count} шт.";
             if (c.Heal != null)
                 return $"{c.Name} · лечит {c.Heal.HealFraction * 100f:0}% здоровья · заряды {item.Charges}/{item.MaxCharges} · в слот 1–4";
-            return c.Kind == Configs.ItemKind.Shield
-                ? $"{c.Name} · {kind} · блок"
-                : $"{c.Name} · {kind} · урон {c.Damage:0.#}";
+            return c.Name ?? c.Id;
         }
 
         protected override void OnDispose()

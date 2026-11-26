@@ -21,7 +21,7 @@ namespace ColorsAction.Unity.Editor
 
         private LaunchOptions options;
         private List<string> levels = new List<string>();
-        private readonly List<(string id, string name, bool twoHanded)> weapons = new List<(string, string, bool)>();
+        private readonly List<(string id, string name)> weapons = new List<(string, string)>();
         private string defaultLevel;
         private Vector2 scroll;
 
@@ -51,8 +51,9 @@ namespace ColorsAction.Unity.Editor
             {
                 var configs = new ConfigService(new FileConfigSource(LevelImporter.ConfigsRoot), new NewtonsoftConfigSerializer());
                 defaultLevel = configs.Load<GameConfig>(ConfigKeys.Game).Level;
-                foreach (var item in configs.LoadTable<ItemConfig>(ConfigKeys.Items).Values.Where(i => i.IsWeapon))
-                    weapons.Add((item.Id, string.IsNullOrEmpty(item.Name) ? item.Id : item.Name, item.IsTwoHanded));
+                // Щит — вторая рука меча (offhand), отдельно на колесо не выдаётся.
+                foreach (var item in configs.LoadTable<ItemConfig>(ConfigKeys.Items).Values.Where(i => i.Kind == ItemKind.Weapon))
+                    weapons.Add((item.Id, string.IsNullOrEmpty(item.Name) ? item.Id : item.Name));
             }
             catch (System.Exception e)
             {
@@ -186,8 +187,8 @@ namespace ColorsAction.Unity.Editor
                 GUI.changed = true;
             }
 
-            EditorGUILayout.HelpBox("Оружие кладётся в инвентарь и надевается в свободную руку по порядку списка; " +
-                                    "остальное остаётся в инвентаре. Апгрейд заменяет debugWeaponUpgrades из Game.json.",
+            EditorGUILayout.HelpBox("Всё оружие встаёт на колесо (TAB / Y), первое по списку — сразу в руках. " +
+                                    "Апгрейд заменяет debugWeaponUpgrades из Game.json.",
                 MessageType.None);
         }
 

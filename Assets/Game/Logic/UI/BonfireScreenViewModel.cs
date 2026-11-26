@@ -191,11 +191,10 @@ namespace ColorsAction.UI
                 rows.Add(new BonfireWeaponRow(item.Id, item.Config.Name ?? item.Id, item.Config.Color));
             }
 
-            // Сначала то, что в руках, потом остальное по порядку слотов.
-            Add(inventory.Right);
-            Add(inventory.Left);
-            foreach (var slot in inventory.AllSlots())
-                Add(inventory.Get(slot));
+            // Сначала оружие в руках, потом остальное найденное (колесо) по порядку подбора.
+            Add(inventory.Active);
+            foreach (var weapon in inventory.Weapons)
+                Add(weapon);
         }
 
         private int FirstOpenTier(int row)

@@ -8546,15 +8546,6 @@
       "count": 2
     },
     {
-      "id": "chest_2",
-      "kind": "Chest",
-      "cell": "13,0,8",
-      "yaw": 290,
-      "height": 2,
-      "item": "rivets",
-      "count": 1
-    },
-    {
       "id": "chest_3",
       "kind": "Chest",
       "cell": "14,0,9",
@@ -8568,7 +8559,7 @@
     {
       "id": "shieldslide_1",
       "cell": "7,4,44",
-      "requiredItem": "shield",
+      "requiredItem": "sword",
       "targetPoint": "shieldslide_2"
     },
     {

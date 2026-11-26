@@ -128,7 +128,7 @@ namespace ColorsAction.Unity.Editor
             var chain = bridge.Chain;
             Check(chain != null && !chain.Broken && chain.Lockable, "chain is intact and lockable");
             Check(Mathf.Approximately(bridge.LeafAngle, bridge.Config.RaisedAngle), $"far leaf is raised: {bridge.LeafAngle:F0}°");
-            Check(session.Inventory.Right?.Id == "shotgun", "shotgun in hand (launch options)");
+            Check(session.Inventory.Active?.Id == "shotgun", "shotgun in hands (launch options)");
             report.AppendLine($"  info fps ~{1f / Mathf.Max(0.0001f, Time.smoothDeltaTime):F0}, chain length {chain?.Length:F2}");
 
             // 1. Пешком не пройти: впереди пропасть и поднятая створка (шарнир на x=8).

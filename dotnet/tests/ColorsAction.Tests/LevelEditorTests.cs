@@ -124,7 +124,7 @@ namespace ColorsAction.Tests
             Assert.That(b, Is.EqualTo(new Block(BlockShape.SteepSlope, 3, "lilac")));
             Assert.That(loaded.Floors.Count, Is.EqualTo(2));
             Assert.That(loaded.FindObject("b1").Barrier, Is.EqualTo(BarrierKind.Grate));
-            Assert.That(loaded.FindPoint("s1").Condition.RequiredItem, Is.EqualTo("shield"));
+            Assert.That(loaded.FindPoint("s1").Condition.RequiredItem, Is.EqualTo("sword"));
         }
 
         [Test]
@@ -212,7 +212,7 @@ namespace ColorsAction.Tests
             var path = new List<PathStep>();
 
             Assert.That(finder.TryFind(start, goal, Player(), ctx, path), Is.False, "no shield");
-            ctx.Items.Add("shield");
+            ctx.Items.Add("sword");
             Assert.That(finder.TryFind(start, goal, Player(), ctx, path), Is.True);
             Assert.That(path.Last().Move, Is.EqualTo(NavMove.Special));
             Assert.That(finder.TryFind(start, goal, Walker(), ctx, path), Is.False, "walker has no specials");

@@ -241,37 +241,26 @@ namespace ColorsAction.Unity.Editor
             input.ScriptPress(GameAction.Interact);
             yield return 30;
             var inv = session.Inventory;
-            Check(inv.Right?.Id == "sword" && inv.Left?.Id == "shield",
-                $"picked up and auto-equipped: right={inv.Right?.Id} left={inv.Left?.Id}");
+            Check(inv.Active?.Id == "sword" && !inv.HasWeapon("shield"),
+                $"picked up: sword in hands, shield comes with it: active={inv.Active?.Id} wheel={inv.Weapons.Count}");
 
-            // 8. Инвентарь: TAB, надеть оружие с геймпада (A), закрыть.
+            // 8. Инвентарь (I / Select): только предметы и превью персонажа, оружие здесь не меняется.
             input.ScriptPress(GameAction.Inventory);
             yield return 5;
-            Check(fsm.Current is InventoryState, "TAB opens inventory");
+            Check(fsm.Current is InventoryState, "I opens inventory");
             Check(!session.PlayerControl.Value, "player control is off while inventory is open");
             var screen = ((InventoryState)fsm.Current).Screen;
-            // Снять оба (A на руке), чтобы проверить экипировку из сетки.
-            screen.Cursor.Value = SlotRef.Of(Hand.Right);
-            input.ScriptPress(GameAction.Submit);
-            yield return 3;
-            screen.Cursor.Value = SlotRef.Of(Hand.Left);
-            input.ScriptPress(GameAction.Submit);
-            yield return 3;
-            Check(inv.Right == null && inv.Left == null, "A on a hand slot unequips into the grid");
-            screen.Cursor.Value = inv.Find(FindItem(inv, "sword")).Value;
-            Check(!screen.IsHighlighted(SlotRef.Of(Hand.Left)) && screen.IsHighlighted(SlotRef.Of(Hand.Right)),
-                "sword under cursor highlights only the right hand");
-            Check(!inv.Move(screen.Cursor.Value, SlotRef.Of(Hand.Left)), "sword can't be put into the left hand");
-            input.ScriptPress(GameAction.Submit);
-            yield return 3;
-            screen.Cursor.Value = inv.Find(FindItem(inv, "shield")).Value;
-            input.ScriptPress(GameAction.Submit);
-            yield return 3;
-            Check(inv.Right?.Id == "sword" && inv.Left?.Id == "shield",
-                $"equipped: right={inv.Right?.Id} left={inv.Left?.Id}");
+            Check(screen.WeaponCaption.Value.Contains(inv.Active.Config.Name), $"preview caption shows the weapon: {screen.WeaponCaption.Value}");
+            var view = Object.FindAnyObjectByType<InventoryView>();
+            Check(view != null && view.Preview != null, "character preview is built");
+            var yaw0 = view != null && view.Preview != null ? view.Preview.Yaw : 0f;
+            input.ScriptedAim = new Vector2(1f, 0f);
+            yield return 10;
+            input.ScriptedAim = null;
+            Check(view != null && view.Preview != null && Mathf.Abs(Mathf.DeltaAngle(yaw0, view.Preview.Yaw)) > 1f, "right stick turns the preview");
             input.ScriptPress(GameAction.Inventory);
             yield return 5;
-            Check(fsm.Current is PlayState && session.PlayerControl.Value, "TAB closes inventory");
+            Check(fsm.Current is PlayState && session.PlayerControl.Value, "I closes inventory");
 
             // 9. Удары по манекену: серия, урон, наклон, вспышка.
             var dummy = Object.FindAnyObjectByType<TrainingDummy>();

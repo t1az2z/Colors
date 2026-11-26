@@ -39,7 +39,7 @@ namespace ColorsAction.Tests
         {
             var item = new ItemConfig
             {
-                Id = "sword", Kind = ItemKind.OneHanded,
+                Id = "sword", Kind = ItemKind.Weapon,
                 Combo = { new AttackStepConfig { ActiveFrom = 0.6f, ActiveTo = 0.4f } }
             };
             item.OnConfigLoaded();
@@ -52,7 +52,7 @@ namespace ColorsAction.Tests
         {
             var item = new ItemConfig
             {
-                Id = "sword", Kind = ItemKind.OneHanded,
+                Id = "sword", Kind = ItemKind.Weapon,
                 Combo = { new AttackStepConfig { Windup = 0.3f, Strike = 0.1f, Recovery = 0.1f, Hold = 0.2f } }
             };
             item.OnConfigLoaded();

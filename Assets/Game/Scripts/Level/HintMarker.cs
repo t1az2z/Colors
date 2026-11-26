@@ -81,7 +81,13 @@ namespace ColorsAction.Unity
                 case "roll": verb = "отскок"; break;
                 case "interact": verb = "взять"; break;
                 case "inventory": verb = "инвентарь"; break;
+                case "wheel": verb = "колесо оружия"; break;
                 case "attack": verb = "удар"; break;
+                case "block": verb = "блок"; break;
+                case "parry": verb = "парирование"; break;
+                case "items": verb = "предметы"; break;
+                case "run": verb = "бег"; break;
+                case "lockOn": verb = "фиксация"; break;
                 default: verb = string.Empty; break;
             }
 

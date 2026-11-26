@@ -46,7 +46,7 @@ namespace ColorsAction.States
         }
     }
 
-    /// <summary>Игрок управляет персонажем. TAB открывает инвентарь, F / X у костра — меню костра.</summary>
+    /// <summary>Игрок управляет персонажем. I / Select открывает инвентарь, F / X у костра — меню костра.</summary>
     public sealed class PlayState : State
     {
         private readonly GameSession session;
@@ -149,7 +149,7 @@ namespace ColorsAction.States
 
         public override void Enter()
         {
-            screen = screens.Open(new InventoryScreenViewModel(session.Inventory, () => fsm.SetState<PlayState>()));
+            screen = screens.Open(new InventoryScreenViewModel(session.Inventory, () => fsm.SetState<PlayState>(), session.Upgrades));
             subscription = events.Subscribe<InventoryToggleRequested>(() => fsm.SetState<PlayState>());
         }
 

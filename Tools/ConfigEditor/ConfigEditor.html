@@ -324,9 +324,26 @@ const SCHEMA = {
   Combat: {
     title: 'Бой', desc: 'Общие правила боя.',
     sections: [
-      { title: 'Правила', viz: vizCombat, fields: [
-        { k: 'sameColorMultiplier', l: 'Бонус цвета', d: 'Множитель урона по врагу того же цвета, что и оружие.', u: U.x, min: 1, max: 4, step: 0.05 },
-        { k: 'unarmedItem', l: 'Пустая рука', t: 'itemRef', d: 'Каким предметом бьёт пустая рука. Пусто (по умолчанию) — без оружия атаки нет.' },
+      { title: 'Круг цветов и урон', viz: vizCombat, known: ['colorWheel', 'colorDistanceMultipliers'], fields: [
+        { k: 'colorDistanceMultipliers.0', l: 'Свой цвет (0)', d: 'Множитель урона, когда цвет оружия совпадает с цветом врага: такой враг почти не получает урона.', u: U.x, min: 0, max: 3, step: 0.05, def: 0.4 },
+        { k: 'colorDistanceMultipliers.1', l: 'Сосед на круге (1)', d: 'Цвет врага — соседний сектор круга.', u: U.x, min: 0, max: 3, step: 0.05, def: 0.9 },
+        { k: 'colorDistanceMultipliers.2', l: 'Через один (2)', d: 'Между цветами оружия и врага один сектор.', u: U.x, min: 0, max: 3, step: 0.05, def: 1.2 },
+        { k: 'colorDistanceMultipliers.3', l: 'Напротив (3)', d: 'Цвет-антипод: самый сильный урон, цифра с «!».', u: U.x, min: 0, max: 4, step: 0.05, def: 1.6 },
+        { k: 'colorWheel.0', l: 'Сектор 1 (сверху)', t: 'colorRef', def: 'yellow', d: 'Круг Иттена по часовой стрелке. Порядок задаёт и расстояние между цветами, и сектора колеса оружия.' },
+        { k: 'colorWheel.1', l: 'Сектор 2', t: 'colorRef', def: 'orange', d: '' },
+        { k: 'colorWheel.2', l: 'Сектор 3', t: 'colorRef', def: 'red', d: '' },
+        { k: 'colorWheel.3', l: 'Сектор 4', t: 'colorRef', def: 'lilac', d: '' },
+        { k: 'colorWheel.4', l: 'Сектор 5', t: 'colorRef', def: 'blue', d: '' },
+        { k: 'colorWheel.5', l: 'Сектор 6', t: 'colorRef', def: 'green', d: '' },
+      ] },
+      { title: 'Колесо оружия (TAB / Y)', fields: [
+        { k: 'weaponWheel.timeScale', l: 'Замедление времени', d: 'Скорость времени, пока колесо открыто: 0.15 — почти стоп-кадр, 1 — без замедления. Время не останавливается совсем.', u: U.x, min: 0.02, max: 1, step: 0.01, def: 0.15 },
+        { k: 'weaponWheel.switchCooldown', l: 'Кулдаун смены', d: 'Через сколько секунд реального времени после смены оружия колесо снова даст сменить его.', u: U.s, min: 0, max: 5, step: 0.05, def: 0.6 },
+        { k: 'weaponWheel.deadZone', l: 'Мёртвая зона', d: 'Доля радиуса колеса (мышь) или отклонения стика, внутри которой сектор не выбирается.', u: U.frac, min: 0, max: 0.9, step: 0.05, def: 0.25 },
+        { k: 'weaponWheel.openTime', l: 'Раскрытие', d: 'Как быстро колесо появляется и прячется (реальное время).', u: U.s, min: 0, max: 0.5, step: 0.01, def: 0.08 },
+      ] },
+      { title: 'Правила', fields: [
+        { k: 'unarmedItem', l: 'Без оружия', t: 'itemRef', d: 'Каким предметом бьёт персонаж без оружия. Пусто (по умолчанию) — без оружия атаки нет.' },
         { k: 'hitStop', l: 'Хит-стоп', d: 'Короткая остановка времени при попадании (0 — выключено).', u: U.s, min: 0, max: 0.3, step: 0.005 },
         { k: 'hitShake', l: 'Тряска камеры', d: 'Сила толчка камеры при попадании (0 — выключено).', u: U.bl, min: 0, max: 1, step: 0.01 },
         { k: 'heldWeaponGlow', l: 'Свечение оружия', d: 'Доля эмиссии цвета оружия в руках, чтобы оно читалось издалека.', u: U.frac, min: 0, max: 2, step: 0.05 },
@@ -478,15 +495,15 @@ const SCHEMA = {
   },
 
   Inventory: {
-    title: 'Инвентарь', desc: 'Размер сетки инвентаря и число быстрых слотов предметов (клавиши 1–4).',
+    title: 'Инвентарь', desc: 'Экран инвентаря (I / Select): сетка предметов и ресурсов, крестовина расходников 1–4 (клавиши 1–4 / D-pad) и 3D-превью персонажа. Оружия в инвентаре нет — оно на колесе (TAB / Y).',
     sections: [
       { title: 'Размер', viz: vizInventory, fields: [
         { k: 'columns', l: 'Колонки', t: 'int', d: '', u: 'шт.', min: 1, max: 10, step: 1 },
         { k: 'rows', l: 'Строки', t: 'int', d: '', u: 'шт.', min: 1, max: 10, step: 1 },
-        { k: 'quickSlots', l: 'Быстрые слоты', t: 'int', d: 'Предметы на клавишах 1, 2, 3…', u: 'шт.', min: 0, max: 9, step: 1 },
+        { k: 'quickSlots', l: 'Быстрые слоты', t: 'int', d: 'Расходники на клавишах 1–4 и D-pad ↑ → ↓ ←. Крестовина рассчитана на 4.', u: 'шт.', min: 0, max: 4, step: 1 },
       ] },
       { title: 'Подбор', fields: [
-        { k: 'autoEquipOnPickup', l: 'Автоэкипировка', t: 'bool', def: true, d: 'Подобранное оружие сразу надевается, если его рука свободна; иначе ложится в сетку.' },
+        { k: 'autoEquipOnPickup', l: 'Сразу в руки', t: 'bool', def: true, d: 'Подобранное оружие сразу берётся в руки, если в руках ничего нет. В любом случае оно встаёт на колесо в сектор своего цвета, в сетку не ложится.' },
       ] },
     ],
   },
@@ -506,10 +523,10 @@ const SCHEMA = {
 /* Поля, используемые в «словарных» конфигах */
 const ITEM_FIELDS = [
   { k: 'name', l: 'Название', t: 'text', d: 'Как предмет называется в игре.' },
-  { k: 'color', l: 'Цвет', t: 'colorRef', d: 'Даёт бонус урона по врагам того же цвета и открывает проходы этого цвета.' },
-  { k: 'kind', l: 'Тип', t: 'enum', opts: [['OneHanded', 'Одноручное'], ['TwoHanded', 'Двуручное (занимает обе руки)'], ['Shield', 'Щит (блок на ПКМ/LT)'], ['Consumable', 'Расходник'], ['Resource', 'Ресурс (прокачка оружия, в сундуках)']], d: '' },
+  { k: 'color', l: 'Цвет', t: 'colorRef', d: 'Сектор колеса оружия. Урон по врагу зависит от расстояния между цветами на круге (Бой → Круг цветов); оружие открывает проходы своего цвета.' },
+  { k: 'kind', l: 'Тип', t: 'enum', opts: [['Weapon', 'Оружие (колесо: атака ЛКМ/RT, парирование ПКМ/LT)'], ['Shield', 'Щит (вторая рука оружия)'], ['Consumable', 'Расходник (слоты 1–4)'], ['Resource', 'Ресурс (прокачка оружия, в сундуках)']], d: 'Рук и двуручности нет: каждое оружие — один сектор колеса.' },
   { k: 'maxStack', l: 'Стопка', t: 'int', u: 'шт.', min: 1, max: 999, step: 1, def: 99, d: 'Сколько штук помещается в одну клетку инвентаря.', onlyResource: true },
-  { k: 'hand', l: 'Рука', t: 'enum', def: 'Any', opts: [['Any', 'Любая'], ['Right', 'Только правая (ЛКМ/RT)'], ['Left', 'Только левая (ПКМ/LT)']], d: 'В какой слот руки можно надеть.', noResource: true },
+  { k: 'offhand', l: 'Вторая рука', t: 'itemRef', d: 'Предмет, который оружие держит во второй руке (меч — щит: одно синее оружие «меч и щит»). Отдельно не подбирается; его апгрейды — апгрейды этого оружия.', onlyWeapon: true },
   { k: 'damage', l: 'Базовый урон', d: 'Урон удара = базовый урон × множитель удара серии.', u: U.pts, min: 0, max: 200, step: 0.5, noResource: true },
   { k: 'prefab', l: 'Префаб', t: 'text', d: 'Путь в Resources, например Items/Sword. Пусто — без модели.' },
   { k: 'comboWindow', l: 'Доп. окно комбо', d: 'Дополнительное время после возврата в стойку, когда нажатие ещё продолжает серию. 0 — серию продолжает только нажатие во время фиксации финальной позы.', u: U.s, min: 0, max: 1.5, step: 0.01, def: 0, onlyWeapon: true },
@@ -564,9 +581,12 @@ const RANGED_FIELDS = [
   { k: 'chargedShot.recoilMultiplier', l: 'Сильнее отдача', u: U.x, min: 0, max: 4, step: 0.1, def: 1.6, d: '' },
 ];
 const SHIELD_FIELDS = [
-  { k: 'blockCostMultiplier', l: 'Апгрейд 1: цена блока', u: U.x, min: 0, max: 1, step: 0.05, def: 0.6, d: 'Множитель выносливости на подъём щита и принятый удар.' },
-  { k: 'parryWindowBonus', l: 'Апгрейд 2: шире окно парирования', u: U.frac, min: 0, max: 2, step: 0.05, def: 0.5, d: 'Окно длиннее на эту долю, поровну в обе стороны: 0.5 — по четверти длины раньше и позже.' },
-  { k: 'bashMaxGap', l: 'Апгрейд 3: пауза для удара щитом', u: U.s, min: 0.05, max: 0.6, step: 0.01, def: 0.25, d: 'Отпустить блок и нажать снова не позже чем через столько — удар щитом.' },
+  { k: 'blockCostUpgrade', l: 'Ступень: дешёвый блок', t: 'int', u: 'ур.', min: 0, max: 3, step: 1, def: 1, d: 'На какой ступени прокачки оружия-владельца (меча) блок дешевле; 0 — никогда.' },
+  { k: 'parryWidenUpgrade', l: 'Ступень: широкое парирование', t: 'int', u: 'ур.', min: 0, max: 3, step: 1, def: 2, d: 'На какой ступени окно парирования шире; 0 — никогда.' },
+  { k: 'bashUpgrade', l: 'Ступень: удар щитом', t: 'int', u: 'ур.', min: 0, max: 3, step: 1, def: 3, d: 'На какой ступени открывается удар щитом; 0 — никогда.' },
+  { k: 'blockCostMultiplier', l: 'Цена блока', u: U.x, min: 0, max: 1, step: 0.05, def: 0.6, d: 'Множитель выносливости на подъём щита и принятый удар (с открытой ступенью).' },
+  { k: 'parryWindowBonus', l: 'Шире окно парирования', u: U.frac, min: 0, max: 2, step: 0.05, def: 0.5, d: 'Окно длиннее на эту долю, поровну в обе стороны: 0.5 — по четверти длины раньше и позже.' },
+  { k: 'bashMaxGap', l: 'Пауза для удара щитом', u: U.s, min: 0.05, max: 0.6, step: 0.01, def: 0.25, d: 'Отпустить блок и нажать снова не позже чем через столько — удар щитом.' },
   { k: 'bashStaminaCost', l: 'Удар щитом: выносливость', u: U.pts, min: 0, max: 100, step: 1, def: 12, d: '' },
   { k: 'bashDamage', l: 'Удар щитом: урон', u: U.pts, min: 0, max: 100, step: 0.5, def: 8, d: '' },
   { k: 'bashKnockback', l: 'Удар щитом: отбрасывание', u: U.x, min: 0, max: 8, step: 0.1, def: 2.5, d: '' },
@@ -828,7 +848,7 @@ function renderPage() {
 }
 
 const PAGE_DESC = {
-  Upgrades: 'Апгрейды оружия у костра: по 3 ступени на оружие. Цена ступени — опыт (деньги прокачки) и ресурс оружия из инвентаря (металл, заклёпки, шестерёнки).',
+  Upgrades: 'Апгрейды оружия у костра: по 3 ступени на оружие. Цена ступени — опыт (деньги прокачки) и ресурс оружия из инвентаря (металл — синий «меч и щит», шестерёнки — дробовик). Щит своих апгрейдов не имеет: его ступени задаются у щита в Items.json и берутся у меча.',
   Items: 'Оружие и предметы. Ключ (id) используется в коде, инвентаре и Combat.unarmedItem. У оружия — серия ударов (комбо): каждое нажатие атаки в окне комбо запускает следующий удар.',
   Colors: 'Палитра: id цвета → название и HEX. Цвета оружия, врагов и стен ссылаются на эти id.',
   Enemies: 'Типы врагов: внешний вид, поведение (агро, погоня, очередь атак) и одиночные атаки с долгим читаемым замахом. Id типа используется в уровнях при расстановке врагов.',
@@ -974,7 +994,10 @@ function genericRow(f, path) {
 function validateItems(d) {
   const w = [];
   for (const [id, it] of Object.entries(d || {})) {
-    const weapon = it.kind === 'OneHanded' || it.kind === 'TwoHanded';
+    const weapon = it.kind === 'Weapon';
+    if (it.kind === 'OneHanded' || it.kind === 'TwoHanded') w.push(`${id}: тип «${it.kind}» устарел — рук больше нет, поставьте «Оружие» (Weapon).`);
+    if (it.hand) w.push(`${id}: поле «hand» больше не используется (рук нет) — его можно удалить.`);
+    if (it.offhand && !itemsData()[it.offhand]) w.push(`${id}: вторая рука «${it.offhand}» — нет в Items.json.`);
     if (weapon && !it.ranged && !(it.combo?.length)) w.push(`${id}: у оружия должна быть хотя бы одна атака в серии или стрельба.`);
     if (!it.ranged && !it.charge && (it.combo || []).some(st => st.chargeable)) w.push(`${id}: удары отмечены «Заряжается», но у оружия нет раздела «Заряд ударов» — заряда не будет.`);
     if (it.finisher && num(it.finisher.delayMax, 0.6) < num(it.finisher.delayMin, 0.05)) w.push(`${id}: окно добивающего — «до» должно быть не меньше «с».`);
@@ -1011,7 +1034,7 @@ function renderItems(main, f) {
   $('#addItem', bar).onclick = () => {
     const id = prompt('Id нового предмета (латиница, например spear):'); if (!id) return;
     if (f.data[id]) { toast('Такой id уже есть.'); return; }
-    f.data[id] = { name: id, color: 'none', kind: 'OneHanded', hand: 'Any', damage: 10, prefab: '', comboWindow: 0.35, combo: [{ motion: 'SlashRight', windup: 0.18, strike: 0.08, hold: 0.22, recovery: 0.14, damageMultiplier: 1, lunge: 0.25, range: 1.3, arc: 150, knockback: 1, staminaCost: 12 }] };
+    f.data[id] = { name: id, color: 'none', kind: 'Weapon', damage: 10, prefab: '', comboWindow: 0.35, combo: [{ motion: 'SlashRight', windup: 0.18, strike: 0.08, hold: 0.22, recovery: 0.14, damageMultiplier: 1, lunge: 0.25, range: 1.3, arc: 150, knockback: 1, staminaCost: 12 }] };
     renderPage();
   };
   for (const id of Object.keys(f.data)) {
@@ -1051,7 +1074,7 @@ function renderItems(main, f) {
       }
     }
     if (isShield) {
-      card.fields.append(el(`<div class="subhead">Апгрейды щита (костёр)</div>`));
+      card.fields.append(el(`<div class="subhead">Щит: блок, парирование, удар щитом (ступени — у оружия-владельца)</div>`));
       for (const fd of SHIELD_FIELDS) card.fields.append(fieldRow(f, [id, 'shield', fd.k], fd));
       for (const p of collectUnknown(it.shield, SHIELD_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'shield', ...p]));
     }
@@ -1695,14 +1718,27 @@ function vizCamera({ d }) {
 
 function itemDamage(it, step, combat) { return num(it.damage) * num(step.damageMultiplier, 1); }
 function vizCombat({ d }) {
-  const m = num(d.sameColorMultiplier, 1.5);
-  const rows = Object.entries(itemsData()).filter(([, it]) => it.combo?.length).map(([id, it]) => {
-    const hits = it.combo.map(s => itemDamage(it, s));
-    const total = hits.reduce((a, b) => a + b, 0);
-    return `<tr><td><span class="swatch" style="background:${esc(colorHex(it.color))}"></span> ${esc(it.name || id)}</td><td>${hits.map(h => r2(h, 1)).join(' / ')}</td><td>${r2(total, 1)}</td><td><b>${r2(total * m, 1)}</b></td></tr>`;
+  // Множитель урона по расстоянию на круге цветов: 0 — свой цвет, 3 — напротив.
+  const wheel = Array.isArray(d.colorWheel) && d.colorWheel.length ? d.colorWheel : ['yellow', 'orange', 'red', 'lilac', 'blue', 'green'];
+  const mults = Array.isArray(d.colorDistanceMultipliers) && d.colorDistanceMultipliers.length ? d.colorDistanceMultipliers.map(x => num(x, 1)) : [0.4, 0.9, 1.2, 1.6];
+  const distance = (a, b) => { const i = wheel.indexOf(a), j = wheel.indexOf(b); if (i < 0 || j < 0) return -1; const k = Math.abs(i - j); return Math.min(k, wheel.length - k); };
+  const mult = (a, b) => { const k = distance(a, b); return k < 0 ? 1 : mults[Math.min(k, mults.length - 1)]; };
+  // Круг: секторы цветов, жёлтый сверху, по часовой.
+  const R = 70, cx = 90, cy = 90; let g = '';
+  wheel.forEach((c, i) => {
+    const a0 = (i - 0.5) / wheel.length * 2 * Math.PI - Math.PI / 2, a1 = (i + 0.5) / wheel.length * 2 * Math.PI - Math.PI / 2;
+    const p = (a, r) => `${r2(cx + Math.cos(a) * r, 1)},${r2(cy + Math.sin(a) * r, 1)}`;
+    g += `<path d="M${p(a0, 28)} L${p(a0, R)} A${R},${R} 0 0 1 ${p(a1, R)} L${p(a1, 28)} A28,28 0 0 0 ${p(a0, 28)} Z" fill="${esc(colorHex(c))}" stroke="#fff" stroke-width="2"/>`;
+  });
+  const weapons = Object.entries(itemsData()).filter(([, it]) => it.kind === 'Weapon' && it.color && it.color !== 'none');
+  const head = wheel.map(c => `<th><span class="swatch" style="background:${esc(colorHex(c))}"></span></th>`).join('');
+  const rows = weapons.map(([id, it]) => {
+    const base = it.combo?.length ? it.combo.reduce((a, st) => a + itemDamage(it, st), 0) : num(it.damage) * num(it.ranged?.pellets, 1);
+    return `<tr><td><span class="swatch" style="background:${esc(colorHex(it.color))}"></span> ${esc(it.name || id)}</td>${wheel.map(c => { const m = mult(it.color, c); const v = r2(base * m, 1); return `<td>${m >= Math.max(...mults) ? `<b>${v}!</b>` : m < 1 ? `<span style="color:var(--muted)">${v}</span>` : v}</td>`; }).join('')}</tr>`;
   }).join('');
   const hs = num(d.hitStop);
-  return `<h4>Урон серии: обычный враг / враг того же цвета</h4><table class="dmg"><tr><th>Оружие</th><th>Удары</th><th>Серия</th><th>Тот же цвет ×${r2(m)}</th></tr>${rows || '<tr><td colspan="4">Нет оружия с комбо</td></tr>'}</table>`
+  return `<h4>Круг цветов: множители по расстоянию</h4><div style="display:flex;gap:16px;align-items:center">${svgWrap(180, 180, g)}<div>${facts(mults.map((m, k) => [['свой цвет', 'сосед', 'через один', 'напротив'][k] || `шаг ${k}`, `×${r2(m)}`]))}</div></div>`
+    + `<h4>Урон серии (выстрела) по врагам каждого цвета</h4><table class="dmg"><tr><th>Оружие</th>${head}</tr>${rows || `<tr><td colspan="${wheel.length + 1}">Нет цветного оружия</td></tr>`}</table>`
     + facts([['Хит-стоп', hs ? `${r2(hs * 1000, 0)} мс ≈ ${r2(hs * 60, 1)} кадра при 60 FPS` : 'выключен'], ['Тряска', num(d.hitShake) ? r2(num(d.hitShake)) : 'выключена']])
     + `<h4>Свечение оружия</h4><div style="display:flex;gap:10px">${Object.values(itemsData()).filter(it => it.color && it.color !== 'none').map(it => { const g = num(d.heldWeaponGlow); return `<div style="text-align:center;font-size:11px;color:var(--muted)"><div style="width:34px;height:34px;border-radius:6px;background:${esc(colorHex(it.color))};box-shadow:0 0 ${r2(g * 30, 0)}px ${r2(g * 10, 0)}px ${esc(colorHex(it.color))}55;margin:6px auto"></div>${esc(it.name)}</div>`; }).join('')}</div>`;
 }
@@ -1719,21 +1755,23 @@ function vizDummy({ d }) {
 }
 
 function vizInventory({ d }) {
-  const cols = clamp(Math.round(num(d.columns, 5)), 1, 12), rows = clamp(Math.round(num(d.rows, 5)), 1, 12), q = clamp(Math.round(num(d.quickSlots, 4)), 0, 12);
+  const cols = clamp(Math.round(num(d.columns, 5)), 1, 12), rows = clamp(Math.round(num(d.rows, 5)), 1, 12), q = clamp(Math.round(num(d.quickSlots, 4)), 0, 4);
   const cs = 38, gap = 5, W = 560;
-  const gw = cols * (cs + gap);
   let g = '';
-  // окно персонажа: 2 слота рук
-  g += `<rect x="10" y="10" width="${cs}" height="${cs}" rx="5" fill="#fff" stroke="${C.green}" stroke-width="2"/>` + T(10 + cs / 2, 10 + cs + 13, 'левая', { anchor: 'middle', size: 10 });
-  g += `<rect x="${10 + cs + 24}" y="${10 + cs * 0.1}" width="${cs * 0.8}" height="${cs * 0.8}" fill="#b3b6bd" stroke="#7d818a"/>`;
-  g += `<rect x="${10 + cs * 2 + 34}" y="10" width="${cs}" height="${cs}" rx="5" fill="#fff" stroke="${C.grid2}" stroke-width="1.5"/>` + T(10 + cs * 2.5 + 34, 10 + cs + 13, 'правая', { anchor: 'middle', size: 10 });
-  const gx = 190;
+  // Слева: 3D-превью персонажа с оружием в руках (крутится правым стиком / мышью).
+  g += `<rect x="10" y="10" width="110" height="130" rx="6" fill="#2a2c31"/><rect x="45" y="58" width="40" height="40" fill="#a3a5aa"/><rect x="88" y="40" width="5" height="52" fill="${C.blue}" transform="rotate(-20 90 66)"/>`
+    + T(65, 156, 'превью ⟲', { anchor: 'middle', size: 10 });
+  // Крестовина 1–4: ↑ → ↓ ←, как в HUD и на D-pad.
+  const ccx = 190, ccy = 75, step = cs + 8;
+  [[0, -1], [1, 0], [0, 1], [-1, 0]].slice(0, q).forEach(([dx, dy], i) => {
+    const x = ccx + dx * step - cs / 2, y = ccy + dy * step - cs / 2;
+    g += `<rect x="${x}" y="${y}" width="${cs}" height="${cs}" rx="5" fill="#f5f6f8" stroke="${C.green}" stroke-width="1.5"/>` + T(x + 5, y + 13, String(i + 1), { size: 11, fill: C.dark });
+  });
+  const gx = 270;
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) g += `<rect x="${gx + c * (cs + gap)}" y="${10 + r * (cs + gap)}" width="${cs}" height="${cs}" rx="5" fill="#fff" stroke="${C.grid2}"/>`;
-  const qy = 10 + rows * (cs + gap) + 10;
-  for (let i = 0; i < q; i++) g += `<rect x="${gx + i * (cs + gap)}" y="${qy}" width="${cs}" height="${cs}" rx="5" fill="#f5f6f8" stroke="${C.dark}" stroke-opacity=".4"/>` + T(gx + i * (cs + gap) + 5, qy + 13, String(i + 1), { size: 11, fill: C.dark });
-  const H = qy + (q ? cs : 0) + 12;
-  return `<h4>Окно инвентаря (слева — руки, зелёным — куда можно надеть)</h4>` + svgWrap(Math.max(W, gx + gw + 10), H, g)
-    + facts([['Ячеек', String(cols * rows)], ['Быстрых слотов', String(q)]]);
+  const H = Math.max(170, 10 + rows * (cs + gap) + 10);
+  return `<h4>Экран инвентаря: превью, крестовина 1–4 (зелёным — куда ставится расходник), сетка</h4>` + svgWrap(Math.max(W, gx + cols * (cs + gap) + 10), H, g)
+    + facts([['Ячеек', String(cols * rows)], ['Слотов крестовины', String(q)], ['Оружие', 'на колесе (TAB / Y), в инвентаре не меняется']]);
 }
 
 // Фазы удара оружия в секундах: замах, удар, фиксация (окно комбо), возврат. Старые поля — как запасной вариант.

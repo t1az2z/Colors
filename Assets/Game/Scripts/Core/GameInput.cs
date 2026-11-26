@@ -19,15 +19,21 @@ namespace ColorsAction.Unity
         CameraLeft,
         CameraRight,
         SwitchScheme,
-        LockOn
+        LockOn,
+
+        /// <summary>Колесо оружия: TAB / Y (удержание открывает колесо и замедляет время).</summary>
+        Wheel
     }
 
     /// <summary>
     /// Весь ввод игры по GDD: клавиатура+мышь и геймпад. Привязки описаны здесь, в одном месте.
-    /// <para>Геймплей: WASD/левый стик — ходьба, LShift/L3 — бег, Пробел/A — прыжок, Alt/B — перекат,
-    /// ЛКМ/RT — правая рука, ПКМ/LT — левая рука, F/X — взаимодействие, TAB/Y — инвентарь,
-    /// 1–4/D-pad — предметы, СКМ/R3 — фиксация на цели, мышь/правый стик — вращение камеры (FreeOrbit), Q/E и LB/RB — поворот камеры на 90° (FixedAngles), колесо — зум.</para>
-    /// <para>Интерфейс: стрелки/D-pad/левый стик — навигация, Enter/A — выбрать, Esc/B — назад.</para>
+    /// <para>Геймплей (GDD v0.3, раздел 4): WASD/левый стик — ходьба, LShift/L3 — бег, Пробел/A — прыжок, Alt/B — перекат,
+    /// ЛКМ/RT — атака активным оружием, ПКМ/LT — блок и парирование этим оружием, TAB/Y — колесо оружия,
+    /// F/X — взаимодействие, I/Select — инвентарь, 1–4/D-pad ↑ → ↓ ← — предметы крестовины, СКМ/R3 — фиксация на цели,
+    /// мышь/правый стик — вращение камеры (схема А), Q/E и LB/RB — поворот камеры на 90° (схема Б), колесо мыши — зум,
+    /// F1 — переключить схему камеры А/Б (только для прототипа).</para>
+    /// <para>Интерфейс: стрелки/D-pad/левый стик — навигация, Enter/A — выбрать, Esc/B — назад, правый стик — вращать
+    /// персонажа в превью инвентаря (<see cref="PreviewStick"/>).</para>
     /// </summary>
     [DefaultExecutionOrder(-1100)]
     public sealed class GameInput : MonoBehaviour
@@ -42,7 +48,12 @@ namespace ColorsAction.Unity
         public InputAction Primary { get; private set; }
         public InputAction Secondary { get; private set; }
         public InputAction Interact { get; private set; }
+
+        /// <summary>Инвентарь: I / Select (View).</summary>
         public InputAction Inventory { get; private set; }
+
+        /// <summary>Колесо оружия: TAB / Y.</summary>
+        public InputAction Wheel { get; private set; }
         public InputAction CameraStick { get; private set; }
         public InputAction CameraLeft { get; private set; }
         public InputAction CameraRight { get; private set; }
@@ -50,7 +61,7 @@ namespace ColorsAction.Unity
         /// <summary>Фиксация на цели: средняя кнопка мыши / R3.</summary>
         public InputAction LockOn { get; private set; }
 
-        /// <summary>Переключение схемы управления А/Б для сравнения в прототипе: F1 / Select (View).</summary>
+        /// <summary>Переключение схемы управления А/Б для сравнения в прототипе: F1 (Select теперь — инвентарь).</summary>
         public InputAction SwitchScheme { get; private set; }
         public InputAction Zoom { get; private set; }
         public InputAction[] QuickItems { get; private set; }
@@ -115,6 +126,7 @@ namespace ColorsAction.Unity
                 case GameAction.CameraRight: return CameraRight;
                 case GameAction.SwitchScheme: return SwitchScheme;
                 case GameAction.LockOn: return LockOn;
+                case GameAction.Wheel: return Wheel;
                 default: return Cancel;
             }
         }
@@ -157,6 +169,11 @@ namespace ColorsAction.Unity
         public Vector2 NavigateVector => Navigate.ReadValue<Vector2>() + (ScriptedNavigate ?? Vector2.zero);
 
         public Vector2? ScriptedNavigate { get; set; }
+
+        /// <summary>Правый стик в интерфейсе (вращение персонажа в превью инвентаря).</summary>
+        public Vector2 PreviewStick => PreviewRotate.ReadValue<Vector2>() + (ScriptedAim ?? Vector2.zero);
+
+        private InputAction PreviewRotate { get; set; }
 
         private void Awake()
         {
@@ -208,7 +225,10 @@ namespace ColorsAction.Unity
 
             SwitchScheme = player.AddAction("SwitchScheme", InputActionType.Button);
             SwitchScheme.AddBinding("<Keyboard>/f1");
-            SwitchScheme.AddBinding("<Gamepad>/select");
+
+            Wheel = player.AddAction("Wheel", InputActionType.Button);
+            Wheel.AddBinding("<Keyboard>/tab");
+            Wheel.AddBinding("<Gamepad>/buttonNorth");
 
             Zoom = player.AddAction("Zoom", InputActionType.Value, expectedControlLayout: "Vector2");
             Zoom.AddBinding("<Mouse>/scroll");
@@ -224,8 +244,11 @@ namespace ColorsAction.Unity
 
             ui = new InputActionMap("UI");
             Inventory = ui.AddAction("Inventory", InputActionType.Button);
-            Inventory.AddBinding("<Keyboard>/tab");
-            Inventory.AddBinding("<Gamepad>/buttonNorth");
+            Inventory.AddBinding("<Keyboard>/i");
+            Inventory.AddBinding("<Gamepad>/select");
+
+            PreviewRotate = ui.AddAction("PreviewRotate", InputActionType.Value, expectedControlLayout: "Vector2");
+            PreviewRotate.AddBinding("<Gamepad>/rightStick");
 
             Navigate = ui.AddAction("Navigate", InputActionType.Value, expectedControlLayout: "Vector2");
             Navigate.AddCompositeBinding("2DVector")
@@ -293,12 +316,16 @@ namespace ColorsAction.Unity
                 case "interact": return UsingGamepad ? "X" : "F";
                 case "jump": return UsingGamepad ? "A" : "Пробел";
                 case "roll": return UsingGamepad ? "B" : "Alt";
-                case "inventory": return UsingGamepad ? "Y" : "TAB";
+                case "inventory": return UsingGamepad ? "Select" : "I";
+                case "wheel": return UsingGamepad ? "Y" : "TAB";
                 case "attack": return UsingGamepad ? "RT" : "ЛКМ";
-                case "secondary": return UsingGamepad ? "LT" : "ПКМ";
+                case "secondary":
+                case "block":
+                case "parry": return UsingGamepad ? "LT" : "ПКМ";
+                case "items": return UsingGamepad ? "D-pad" : "1–4";
                 case "run": return UsingGamepad ? "L3" : "Shift";
                 case "cameraTurn": return UsingGamepad ? "LB / RB" : "Q / E";
-                case "switchScheme": return UsingGamepad ? "Select" : "F1";
+                case "switchScheme": return "F1";
                 case "lockOn": return UsingGamepad ? "R3" : "СКМ";
                 default: return action;
             }

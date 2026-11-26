@@ -46,7 +46,7 @@ namespace ColorsAction
         }
     }
 
-    /// <summary>Запрос открыть/закрыть инвентарь (TAB / View).</summary>
+    /// <summary>Запрос открыть/закрыть инвентарь (I / Select).</summary>
     public sealed class InventoryToggleRequested
     {
     }
@@ -149,22 +149,26 @@ namespace ColorsAction
         public bool PickUp(string itemId)
         {
             var item = items.Create(itemId);
+            // То же оружие второй раз: на колесе оно уже есть, подбор просто убирает его с земли.
+            if (item.Config.IsWeapon && Inventory.HasWeapon(itemId))
+                return true;
             if (!Inventory.TryAdd(item))
             {
                 events.Publish(new InventoryFull(itemId));
                 return false;
             }
 
-            // Автоэкипировка (Inventory.json): оружие встаёт в свою руку, если она свободна.
+            // Автоэкипировка (Inventory.json): новое оружие берётся в руки, если в руках ничего нет.
             if (inventoryConfig.AutoEquipOnPickup)
-                EquipIfHandFree(item);
+                EquipIfHandsEmpty(item);
 
             events.Publish(new ItemPickedUp(item));
             return true;
         }
 
         /// <summary>
-        /// Выдать предмет без подбора (стартовое снаряжение): в инвентарь и, если <paramref name="equip"/>, в свободную руку.
+        /// Выдать предмет без подбора (стартовое снаряжение): в инвентарь (оружие — на колесо) и, если <paramref name="equip"/>,
+        /// в руки, когда они пусты.
         /// Неизвестный id или полный инвентарь — false, событий не публикует.
         /// </summary>
         public bool GiveItem(string itemId, bool equip)
@@ -175,7 +179,7 @@ namespace ColorsAction
             if (!Inventory.TryAdd(item))
                 return false;
             if (equip)
-                EquipIfHandFree(item);
+                EquipIfHandsEmpty(item);
             return true;
         }
 
@@ -225,16 +229,10 @@ namespace ColorsAction
         /// <summary>Отдых у костра (и возрождение у него): заряды лечилок восполнены.</summary>
         public void RefillConsumables() => HealItems.Refill(Inventory);
 
-        private void EquipIfHandFree(Item item)
+        private void EquipIfHandsEmpty(Item item)
         {
-            if (!item.Config.IsWeapon)
-                return;
-            var hand = Inventory.ChooseHand(item);
-            var free = item.Config.IsTwoHanded
-                ? Inventory.Left == null && Inventory.Right == null
-                : Inventory.InHand(hand) == null;
-            if (free)
-                Inventory.Equip(item, hand);
+            if (item.Config.IsWeapon && Inventory.Active == null)
+                Inventory.SetActive(item);
         }
     }
 }

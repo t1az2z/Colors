@@ -63,7 +63,7 @@ namespace ColorsAction.Tests
         [Test]
         public void NonHealingItem_DoesNothing()
         {
-            var sword = new Item(2, new ItemConfig { Id = "sword", Kind = ItemKind.OneHanded });
+            var sword = new Item(2, new ItemConfig { Id = "sword", Kind = ItemKind.Weapon });
             Assert.That(sword.Charges, Is.Zero);
             Assert.That(HealItems.TryUse(sword, new Health(10f), out _), Is.EqualTo(QuickUseResult.Nothing));
         }

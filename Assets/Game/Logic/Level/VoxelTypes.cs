@@ -351,7 +351,7 @@ namespace ColorsAction.Level
             switch (action)
             {
                 case InteractionAction.ShieldSlide:
-                    p.Condition.RequiredItem = "shield";
+                    p.Condition.RequiredItem = "sword"; // синий «меч и щит»
                     break;
                 case InteractionAction.GrappleAnchor:
                     p.Condition.RequiredItem = "hook";

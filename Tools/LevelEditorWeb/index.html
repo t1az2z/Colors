@@ -139,19 +139,21 @@
 const $ = s => document.querySelector(s);
 // ============================================================================ данные игры (запасные, если конфиги не загрузились)
 
+// 6 цветов круга Иттена по часовой стрелке от жёлтого (Combat.json, colorWheel): цвета оружия, врагов и барьеров.
+let WHEEL = ['yellow', 'orange', 'red', 'lilac', 'blue', 'green'];
 let PALETTE = {
-  blue:   { name: 'Синий',        hex: '#2F6BFF' },
-  lilac:  { name: 'Сиреневый',    hex: '#B07CFF' },
-  red:    { name: 'Красный',      hex: '#E8413C' },
   yellow: { name: 'Жёлтый',       hex: '#F5C518' },
-  green:  { name: 'Зелёный',      hex: '#3DBE5A' },
   orange: { name: 'Оранжевый',    hex: '#FF8A1F' },
-  teal:   { name: 'Сине-зелёный', hex: '#18B5A8' },
+  red:    { name: 'Красный',      hex: '#E8413C' },
+  lilac:  { name: 'Сиреневый',    hex: '#B07CFF' },
+  blue:   { name: 'Синий',        hex: '#2F6BFF' },
+  green:  { name: 'Зелёный',      hex: '#3DBE5A' },
 };
-let ITEMS = ['sword', 'shield', 'shotgun'];
-let ITEM_NAMES = { sword: 'Меч', shield: 'Щит', shotgun: 'Дробовик' };
+// Оружие на постаментах (Items.json, kind Weapon). Щит — часть синего «меча и щита», отдельно не лежит.
+let ITEMS = ['sword', 'shotgun'];
+let ITEM_NAMES = { sword: 'Меч и щит', shotgun: 'Дробовик' };
 // Ресурсы для прокачки (Items.json, kind Resource): лежат в сундуках. id → название и цвет.
-let RESOURCE_INFO = { metal: { name: 'Металл', color: 'blue' }, rivets: { name: 'Заклёпки', color: 'lilac' }, gears: { name: 'Шестерёнки', color: 'red' } };
+let RESOURCE_INFO = { metal: { name: 'Металл', color: 'blue' }, gears: { name: 'Шестерёнки', color: 'red' } };
 let RESOURCES = Object.keys(RESOURCE_INFO);
 function resourceName(id) { return RESOURCE_INFO[id]?.name || id || '—'; }
 function resourceHex(id) { return PALETTE[RESOURCE_INFO[id]?.color]?.hex || OBJECT_KINDS.Chest.col; }
@@ -160,7 +162,8 @@ function chestLabel(o) { return o.item ? `${resourceName(o.item)} ×${o.count ||
 // Типы врагов из Enemies.json: id → имя и цвет. Манекен — отдельный тип прототипа.
 let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, dummy: { name: 'Манекен', color: null } };
 let ENEMIES = Object.keys(ENEMY_INFO);
-const HINTS = ['interact', 'jump', 'roll', 'inventory', 'attack', 'block', 'run'];
+// Действия для подсказок на полу (GameInput.Label в Unity): кнопка подставляется под устройство ввода.
+const HINTS = ['interact', 'jump', 'roll', 'attack', 'block', 'wheel', 'inventory', 'items', 'run', 'lockOn'];
 const WORLD_COLOR = '#e4e5e9';
 
 const SHAPES = {
@@ -198,7 +201,7 @@ const DOOR_SIDES = [[0, '↑ +Z'], [90, '→ +X'], [180, '↓ −Z'], [270, '←
 function doorSide(yaw) { return (((Math.round((yaw || 0) / 90) % 4) + 4) % 4) * 90; }
 const BARRIERS = { Wall: 'Стена', Crate: 'Ящик', Membrane: 'Мембрана', Grate: 'Решётка' };
 const ACTIONS = {
-  ShieldSlide:     { name: 'Спуск на щите',  link: true },
+  ShieldSlide:     { name: 'Спуск на щите (синее)', link: true },
   Lift:            { name: 'Лифт',           link: true },
   GrappleAnchor:   { name: 'Якорь крюка',    link: true },
   FlailRing:       { name: 'Кольцо кистеня', link: true },
@@ -207,7 +210,7 @@ const ACTIONS = {
   FloorTransition: { name: 'Переход этажа',  link: true },
 };
 const ACTION_DEFAULTS = {
-  ShieldSlide: { requiredItem: 'shield' }, GrappleAnchor: { requiredItem: 'hook' }, FlailRing: { requiredItem: 'flail' },
+  ShieldSlide: { requiredItem: 'sword' }, GrappleAnchor: { requiredItem: 'hook' }, FlailRing: { requiredItem: 'flail' },
   Lift: { twoWay: true }, FloorTransition: { twoWay: true }, ShortcutDoor: { twoWay: true },
 };
 
@@ -569,10 +572,15 @@ let siteLevels = [];
 async function loadSiteData() {
   const tryJson = async u => { try { const r = await fetch(u, { cache: 'no-cache' }); return r.ok ? await r.json() : null; } catch (e) { return null; } };
   const colors = await tryJson('configs/Colors.json');
-  if (colors) { const p = {}; for (const [k, v] of Object.entries(colors)) if (k !== 'none') p[k] = v; PALETTE = p; }
+  const combat = await tryJson('configs/Combat.json');
+  if (Array.isArray(combat?.colorWheel) && combat.colorWheel.length) WHEEL = combat.colorWheel;
+  // Только цвета круга, в его порядке: прочие (none и старые) в палитру не попадают.
+  if (colors) { const p = {}; for (const k of WHEEL) if (colors[k]) p[k] = colors[k]; if (Object.keys(p).length) PALETTE = p; }
   const items = await tryJson('configs/Items.json');
   if (items) {
-    ITEMS = Object.keys(items).filter(k => items[k]?.kind !== 'Resource');
+    // На постамент — только оружие; щит, который носится вместе с оружием (offhand), отдельно не ставится.
+    const offhands = new Set(Object.values(items).map(v => v?.offhand).filter(Boolean));
+    ITEMS = Object.keys(items).filter(k => (items[k]?.kind === 'Weapon' || items[k]?.kind === 'OneHanded' || items[k]?.kind === 'TwoHanded') && !offhands.has(k));
     for (const [k, v] of Object.entries(items)) if (v && v.name) ITEM_NAMES[k] = v.name;
     const res = {};
     for (const [k, v] of Object.entries(items)) if (v?.kind === 'Resource') res[k] = { name: v.name || k, color: v.color || null };
@@ -762,12 +770,14 @@ function objectPanel() {
   if (st.objKind === 'Barrier') out.push(H3('Цвет барьера'), colorChips(st.objColor, v => st.objColor = v, false),
     row('Вид', selectInput(st.barrier, Object.entries(BARRIERS), v => st.barrier = v)),
     row('Высота, кубов', stepper(st.barrierHeight, v => st.barrierHeight = v, 1, 12)));
-  if (st.objKind === 'WeaponPedestal') out.push(row('Оружие', itemSelect(st.objItem, v => st.objItem = v)));
+  if (st.objKind === 'WeaponPedestal') out.push(
+    desc('Оружие на постаменте: игрок берёт его (F / X), оно сразу встаёт на колесо в сектор своего цвета. Проходы его цвета открываются только им.'),
+    row('Оружие', itemSelect(st.objItem, v => st.objItem = v)));
+  if (st.objKind === 'Hint') out.push(desc('Подсказка на полу: значок кнопки действия под устройство игрока (клавиатура или геймпад). Действие выбирается у поставленной подсказки.'));
   if (st.objKind === 'ShortcutDoor') out.push(
     desc('Дверь открывается только со стороны стрелки и дальше остаётся открытой. Ставьте её в проём стены.'),
     row('Открывается со стороны', chips(DOOR_SIDES, st.doorYaw, v => { st.doorYaw = v; renderPanel(); })),
     row('Высота, кубов', stepper(st.doorHeight, v => st.doorHeight = v, 1, 12)));
-  if (st.objKind === 'WeaponPedestal') out.push(row('Оружие', textInput(st.objItem, v => st.objItem = v, ITEMS)));
   if (st.objKind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(st.objEnemy, v => { st.objEnemy = v; renderPanel(); }));
   if (st.objKind === 'CrateStack') out.push(
     desc('Стопка деревянных ящиков 2×1: закрывает проход, разбивается только мечом. Две в высоту не перепрыгнуть. Тап — первая клетка, вторая — по стрелке.'),
@@ -777,7 +787,7 @@ function objectPanel() {
     desc('Разводной мост 4×2: ближняя створка опущена, дальняя поднята у дальнего края на двух красных цепях и не пускает дальше (2 куба в высоту). Выстрел из дробовика рвёт цепи — створка падает и открывает проход навсегда. Рамы и шестерни стоят по бокам, чуть за краями моста. Тап — ближняя клетка, мост тянется по стрелке на 4 клетки, вторая клетка ширины — слева по ходу. Под дальнюю створку (клетки 3–4) обычно оставляют пропасть.'),
     row('Мост тянется', chips(BRIDGE_DIRS, st.bridgeYaw, v => { st.bridgeYaw = v; renderPanel(); requestRender(); })));
   if (st.objKind === 'Chest') out.push(
-    desc('Сундук в одной клетке: игрок открывает его (E / X), ресурс вылетает и летит к нему. На значке сундука подписано, что внутри.'),
+    desc('Сундук в одной клетке: игрок открывает его (F / X), ресурс вылетает и летит к нему. На значке сундука подписано, что внутри.'),
     H3('Ресурс'), resourceList(st.objResource, v => { st.objResource = v; renderPanel(); }),
     row('Количество', stepper(st.chestCount, v => st.chestCount = v, 1, 99)));
   if (o) {
@@ -815,9 +825,6 @@ function objectPanel() {
       row('Количество', stepper(o.count || 1, v => edit(() => o.count = v), 1, 99)));
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack' && o.kind !== 'DrawBridge')
       out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
-
-    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'ShortcutDoor')
-      out.push(row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
     out.push(h('div', { class: 'chips', style: 'margin-top:8px' },
       h('button', { class: 'danger', on: { click: () => { touchMarkup(); removeObject(o.id); sel.obj = null; commit(); renderPanel(); } } }, 'Удалить объект'),
       h('button', { on: { click: () => { sel.obj = null; renderPanel(); requestRender(); } } }, 'Снять выбор')));
@@ -877,8 +884,6 @@ function pointPanel() {
     out.push(row('Действие', selectInput(p.action, Object.entries(ACTIONS).map(([k, v]) => [k, v.name]), v => edit(() => p.action = v))));
     out.push(row('Клетка', h('span', {}, cellStr(p.cell))));
     out.push(row('Нужен предмет', itemSelect(p.requiredItem, v => edit(() => p.requiredItem = v), true, ['hook', 'flail'])));
-    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
-    out.push(row('Нужен предмет', textInput(p.requiredItem, v => edit(() => p.requiredItem = v), [...ITEMS, 'hook', 'flail'])));
     out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'ShortcutDoor' || o.kind === 'CrateStack' || o.kind === 'DrawBridge').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Точка B', selectInput(p.targetPoint, [[null, '—'], ...L.points.filter(x => x !== p).map(x => [x.id, x.id])], v => edit(() => p.targetPoint = v))));
     out.push(row('Объект-цель', selectInput(p.targetObject, [[null, '—'], ...L.objects.map(o => [o.id, o.id])], v => edit(() => p.targetObject = v))));

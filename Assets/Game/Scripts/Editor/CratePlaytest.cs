@@ -126,7 +126,7 @@ namespace ColorsAction.Unity.Editor
                 yield break;
             var colliders = crate.GetComponentsInChildren<BoxCollider>();
             Check(colliders.Length == 1 && colliders[0].size.y >= 2f, $"one flat collider over the whole stack: {colliders.Length}");
-            Check(session.Inventory.Right?.Id == "sword", "sword in the right hand (launch options)");
+            Check(session.Inventory.Active?.Id == "sword", "sword in hands (launch options)");
             var hp = crate.Hp;
             report.AppendLine($"  info fps ~{1f / Mathf.Max(0.0001f, Time.smoothDeltaTime):F0}, crate hp {hp}");
 

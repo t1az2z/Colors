@@ -10,10 +10,12 @@ using UnityEngine.UI;
 namespace ColorsAction.Unity
 {
     /// <summary>
-    /// Вью экрана инвентаря (GDD, раздел 9): окно персонажа со слотами левой и правой руки и быстрыми слотами 1–4,
-    /// сетка 5×5. Мышь: перетаскивание, ПКМ/двойной щелчок — надеть/снять. Геймпад: D-pad/стик — выбор, A — надеть/снять, B — закрыть.
-    /// Слоты, куда можно надеть выбранный предмет, подсвечены зелёным. Вся логика — в <see cref="InventoryScreenViewModel"/>.
+    /// Вью экрана инвентаря (GDD v0.3, раздел 9): слева — 3D-превью персонажа с оружием в руках (правый стик или
+    /// перетаскивание мышью крутят его) и крестовина предметов 1–4, как в HUD (↑ → ↓ ←); справа — сетка предметов.
+    /// Оружие здесь не меняется — только колесом. Мышь: перетаскивание, ПКМ/двойной щелчок — в слот 1–4 и обратно.
+    /// Геймпад: D-pad/левый стик — выбор, A — взять/положить, B — закрыть. Вся логика — в <see cref="InventoryScreenViewModel"/>.
     /// Вёрстка — префаб Resources/UI/InventoryScreen (свой Canvas + CanvasScaler 1920×1080), слоты — из префаба InventorySlot.
+    /// Превью и подпись оружия, если их нет в префабе (старый префаб с портретом), создаются здесь же.
     /// </summary>
     public sealed class InventoryView : MonoBehaviour
     {
@@ -26,19 +28,26 @@ namespace ColorsAction.Unity
         [SerializeField] private Image dragGhost;
         [SerializeField] private Text description;
         [SerializeField] private Text help;
+        [Tooltip("Картинка 3D-превью персонажа (пусто — создаётся в previewPosition).")]
+        [SerializeField] private RawImage previewImage;
+        [Tooltip("Подпись под превью: оружие в руках и уровень прокачки (пусто — создаётся).")]
+        [SerializeField] private Text weaponCaption;
 
-        [Header("Раскладка слотов")]
+        [Header("Раскладка")]
         [SerializeField] private float slotSize = 100f;
         [SerializeField] private float gap = 12f;
-        [Tooltip("Правая рука персонажа — слева от портрета (как в зеркале).")]
-        [SerializeField] private Vector2 rightHandPosition = new Vector2(40, -170);
-        [SerializeField] private Vector2 leftHandPosition = new Vector2(440, -170);
-        [SerializeField] private Vector2 quickOrigin = new Vector2(40, -400);
+        [SerializeField] private Vector2 previewPosition = new Vector2(40, -70);
+        [SerializeField] private Vector2 previewSize = new Vector2(260, 300);
+        [Tooltip("Центр крестовины предметов 1–4.")]
+        [SerializeField] private Vector2 crossCenter = new Vector2(470, -220);
+        [SerializeField] private float crossSlotSize = 88f;
+        [SerializeField] private float crossGap = 28f;
         [SerializeField] private Vector2 gridOrigin = new Vector2(660, -70);
 
         private InventoryScreenViewModel vm;
         private GameInput input;
         private Palette palette;
+        private CharacterPreview preview;
         private readonly Dictionary<SlotRef, SlotView> slots = new Dictionary<SlotRef, SlotView>();
         private bool dragging;
         private Vector2 navHeld;
@@ -53,6 +62,9 @@ namespace ColorsAction.Unity
             return view.gameObject;
         }
 
+        /// <summary>Превью персонажа (для автотестов).</summary>
+        public CharacterPreview Preview => preview;
+
         private void Bind(InventoryScreenViewModel model, IResolver resolver)
         {
             vm = model;
@@ -64,30 +76,33 @@ namespace ColorsAction.Unity
                 dragGhost.gameObject.SetActive(false);
             }
 
+            BuildCharacterPanel();
+
             foreach (var slot in vm.Slots)
             {
                 Vector2 pos;
+                float size;
                 string caption = null;
-                switch (slot.Kind)
+                if (slot.Kind == SlotKind.Quick)
                 {
-                    case SlotKind.Hand:
-                        // Как в зеркале: правая рука персонажа — слева от портрета, левая — справа.
-                        pos = slot.Hand == Hand.Right ? rightHandPosition : leftHandPosition;
-                        caption = slot.Hand == Hand.Left ? "Левая рука" : "Правая рука";
-                        break;
-                    case SlotKind.Quick:
-                        pos = quickOrigin + new Vector2(slot.Index * (slotSize + gap), 0f);
-                        caption = (slot.Index + 1).ToString();
-                        break;
-                    default:
-                        var (col, row) = vm.PositionOf(slot);
-                        col -= InventoryScreenViewModel.GridColumnOffset;
-                        pos = gridOrigin + new Vector2(col * (slotSize + gap), -row * (slotSize + gap));
-                        break;
+                    var (col, row) = vm.PositionOf(slot);
+                    // Клетки крестовины вокруг её центра — клетки (1, 4) раскладки модели.
+                    var step = crossSlotSize + crossGap;
+                    var center = crossCenter + new Vector2((col - 1) * step, -(row - 4) * step);
+                    pos = center + new Vector2(-crossSlotSize * 0.5f, crossSlotSize * 0.5f);
+                    size = crossSlotSize;
+                    caption = (slot.Index + 1).ToString();
+                }
+                else
+                {
+                    var (col, row) = vm.PositionOf(slot);
+                    col -= InventoryScreenViewModel.GridColumnOffset;
+                    pos = gridOrigin + new Vector2(col * (slotSize + gap), -row * (slotSize + gap));
+                    size = slotSize;
                 }
 
                 var view = Instantiate(slotPrefab, slotsRoot, false);
-                view.Init(slot, pos, slotSize, caption, this);
+                view.Init(slot, pos, size, caption, this);
                 slots.Add(slot, view);
             }
 
@@ -96,6 +111,42 @@ namespace ColorsAction.Unity
             vm.Cursor.Subscribe(_ => RefreshAll()).DisposeWith(gameObject);
             vm.Held.Subscribe(_ => RefreshAll()).DisposeWith(gameObject);
             vm.Description.Subscribe(t => description.text = t).DisposeWith(gameObject);
+            vm.WeaponCaption.Subscribe(t => weaponCaption.text = t).DisposeWith(gameObject);
+        }
+
+        /// <summary>Превью и подпись оружия; от старого префаба прячутся портрет, слоты рук и строка статов.</summary>
+        private void BuildCharacterPanel()
+        {
+            var content = slotsRoot != null ? slotsRoot.parent : transform;
+            foreach (var legacy in new[] { "Portrait", "QuickTitle" })
+            {
+                var t = content.Find(legacy);
+                if (t != null)
+                    t.gameObject.SetActive(false);
+            }
+
+            if (previewImage == null)
+            {
+                var rect = UiFactory.Rect(content, "CharacterPreview", new Vector2(0, 1), new Vector2(0, 1), previewPosition, previewSize);
+                previewImage = rect.gameObject.AddComponent<RawImage>();
+                rect.SetSiblingIndex(slotsRoot != null ? slotsRoot.GetSiblingIndex() : 0);
+            }
+
+            if (weaponCaption == null)
+            {
+                // Строка статов старого префаба («Уровень 1 · Очки навыков 0») становится подписью оружия.
+                var stats = content.Find("Stats");
+                weaponCaption = stats != null ? stats.GetComponent<Text>() : null;
+                if (weaponCaption == null)
+                    weaponCaption = UiFactory.Text(content, "WeaponCaption", string.Empty, 22, TextAnchor.UpperLeft, UiFactory.TextColor);
+                var r = weaponCaption.rectTransform;
+                r.anchorMin = r.anchorMax = new Vector2(0, 1);
+                r.pivot = new Vector2(0, 1);
+                r.sizeDelta = new Vector2(560, 32);
+                r.anchoredPosition = previewPosition + new Vector2(0, -previewSize.y - 12);
+            }
+
+            preview = CharacterPreview.Attach(previewImage);
         }
 
         private void RefreshAll()
@@ -103,9 +154,7 @@ namespace ColorsAction.Unity
             foreach (var pair in slots)
             {
                 var item = vm.ItemAt(pair.Key);
-                // Двуручное оружие показываем в правой руке, левая — "занята".
-                var shadow = pair.Key == SlotRef.Of(Hand.Left) && item != null && item.Config.IsTwoHanded;
-                pair.Value.SetItem(item, item != null ? palette.Get(item.Config.Color) : Color.clear, shadow, icons);
+                pair.Value.SetItem(item, item != null ? palette.Get(item.Config.Color) : Color.clear, false, icons);
                 pair.Value.SetState(vm.IsHighlighted(pair.Key), vm.Cursor.Value == pair.Key && input.UsingGamepad,
                     vm.Held.Value.HasValue && vm.Held.Value.Value == pair.Key);
             }
@@ -117,8 +166,11 @@ namespace ColorsAction.Unity
                 return;
 
             help.text = input.UsingGamepad
-                ? "D-pad — выбор   ·   A — надеть / снять   ·   B — закрыть"
-                : "Перетащите оружие в руку   ·   ПКМ — надеть / снять   ·   TAB — закрыть";
+                ? "D-pad — выбор   ·   A — взять / положить   ·   правый стик — повернуть   ·   B — закрыть"
+                : "Перетащите расходник в слот 1–4   ·   ПКМ — в слот / обратно   ·   тяните персонажа мышью   ·   I — закрыть";
+
+            if (preview != null)
+                preview.Rotate(input.PreviewStick.x, Time.unscaledDeltaTime);
 
             var nav = input.NavigateVector;
             var dir = new Vector2(Mathf.Abs(nav.x) > 0.5f ? Mathf.Sign(nav.x) : 0f, Mathf.Abs(nav.y) > 0.5f ? Mathf.Sign(nav.y) : 0f);
@@ -189,7 +241,11 @@ namespace ColorsAction.Unity
             RefreshAll();
         }
 
-        internal void OnQuickUse(SlotRef slot) => vm.QuickUse(slot);
+        internal void OnQuickUse(SlotRef slot)
+        {
+            vm.QuickUse(slot);
+            RefreshAll();
+        }
 
         private void MoveGhost(PointerEventData e)
         {

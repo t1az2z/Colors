@@ -29,7 +29,6 @@ namespace ColorsAction.Tests
                 Weapons = new List<StartWeapon>
                 {
                     new StartWeapon { Item = "sword", Upgrade = 2 },
-                    new StartWeapon { Item = "shield", Upgrade = 1 },
                     new StartWeapon { Item = "shotgun", Upgrade = 9 }
                 },
                 Experience = 777
@@ -39,10 +38,9 @@ namespace ColorsAction.Tests
             Assert.That(host.States.Current, Is.InstanceOf<PlayState>());
 
             var session = host.Container.Resolve<GameSession>();
-            Assert.That(session.Inventory.Right?.Id, Is.EqualTo("sword"));
-            Assert.That(session.Inventory.Left?.Id, Is.EqualTo("shield"));
+            Assert.That(session.Inventory.Active?.Id, Is.EqualTo("sword"), "the first start weapon is in hands");
+            Assert.That(session.Inventory.HasWeapon("shotgun"), Is.True, "the rest wait on the wheel");
             Assert.That(session.Upgrades.Level("sword"), Is.EqualTo(2));
-            Assert.That(session.Upgrades.Level("shield"), Is.EqualTo(1));
             Assert.That(session.Upgrades.Level("shotgun"), Is.EqualTo(3), "уровень обрезается до максимума");
             Assert.That(session.Experience.Value, Is.EqualTo(777));
         }
@@ -59,8 +57,8 @@ namespace ColorsAction.Tests
             host.Start<BootState>();
 
             var session = host.Container.Resolve<GameSession>();
-            Assert.That(session.Inventory.Right, Is.Null, "кулаков нет в Items.json — руки пустые");
-            Assert.That(session.Inventory.Left, Is.Null);
+            Assert.That(session.Inventory.Active, Is.Null, "кулаков нет в Items.json — без оружия");
+            Assert.That(session.Inventory.Weapons, Is.Empty);
             Assert.That(session.Upgrades.Level("fists"), Is.EqualTo(0));
 
             var configs = new ConfigService(new FileConfigSource(TestPaths.ConfigsRoot()), new NewtonsoftConfigSerializer());
