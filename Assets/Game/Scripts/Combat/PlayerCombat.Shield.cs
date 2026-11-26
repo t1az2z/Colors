@@ -236,7 +236,8 @@ namespace ColorsAction.Unity
             if (bashHand == null || bashHand.Item?.Shield == null)
                 return Vector3.zero;
             var config = bashHand.Item.Shield;
-            var t = Mathf.Clamp01(bashTime / Mathf.Max(0.01f, config.BashWindup + config.BashStrike));
+            // Рывок — только в фазе удара, на замахе щит подтягивается на месте.
+            var t = Mathf.Clamp01((bashTime - config.BashWindup) / Mathf.Max(0.01f, config.BashStrike));
             var target = config.BashLunge * EaseOut(t);
             var delta = target - bashLungeDone;
             bashLungeDone = target;

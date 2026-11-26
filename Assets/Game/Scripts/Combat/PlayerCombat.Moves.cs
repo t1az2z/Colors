@@ -26,6 +26,9 @@ namespace ColorsAction.Unity
         private PlungeConfig plungeStepSource;
         private AttackStepConfig plungeStep;
 
+        // Подскок удара ждёт начала удара (конец замаха и заряда): см. UpdateAttack.
+        private bool leapPending;
+
         /// <summary>Идёт заряд удара (атака стоит на конце замаха).</summary>
         public bool Charging => attacking != null && charge.Active;
 
@@ -62,16 +65,19 @@ namespace ColorsAction.Unity
             charge.Reset();
             plunge.Reset();
             specialStep = false;
-            if (next.Hop > 0f)
-                controller.Leap(next.Hop, controller.Forward * next.Lunge);
+            // Подскок (отскок добивающего) — не сразу, а в момент удара.
+            leapPending = next.Hop > 0f;
         }
 
-        /// <summary>Удар с подскоком: выпад отдаётся полётом (<see cref="PlayerController.Leap"/>), а не рывком по кадрам.</summary>
+        /// <summary>
+        /// Удар с подскоком: выпад отдаётся полётом (<see cref="PlayerController.Leap"/>) в начале удара, а не рывком по кадрам.
+        /// </summary>
         private bool LeapStep => step != null && step.Hop > 0f;
 
         /// <summary>Отмена удара (перекат, смена оружия, урон): заряд, добивающий и удар в прыжке сбрасываются.</summary>
         private void ResetMoves()
         {
+            leapPending = false;
             charge.Reset();
             plunge.Reset();
             finisher.Reset();
