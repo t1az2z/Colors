@@ -96,6 +96,17 @@
   .combo .chead .right { margin-left: auto; display: flex; gap: 4px; }
   .combo .fields { padding: 0 10px 4px; }
   .combo .row { grid-template-columns: 1fr 120px 150px 22px; padding: 4px 0; }
+  /* Двойной слайдер окна эффекта удара: полоса фаз удара и две ручки (начало и конец). */
+  .dual { position: relative; height: 22px; }
+  .dual .bar { position: absolute; left: 0; right: 0; top: 7px; height: 8px; border-radius: 4px; overflow: hidden; }
+  .dual .bar svg { display: block; width: 100%; height: 8px; }
+  .dual input[type=range] { position: absolute; left: 0; top: 0; width: 100%; margin: 0; height: 22px; background: none; pointer-events: none; -webkit-appearance: none; appearance: none; }
+  .dual input[type=range]::-webkit-slider-runnable-track { background: none; }
+  .dual input[type=range]::-moz-range-track { background: none; }
+  .dual input[type=range]::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 12px; height: 18px; border-radius: 4px; background: #fff; border: 2px solid var(--accent); cursor: ew-resize; }
+  .dual input[type=range]::-moz-range-thumb { pointer-events: auto; width: 10px; height: 16px; border-radius: 4px; background: #fff; border: 2px solid var(--accent); cursor: ew-resize; }
+  .row .ctl.pair input[type=number] { width: 58px; }
+  .row.default .dual input[type=range]::-webkit-slider-thumb { border-style: dashed; }
   .add { margin: 6px 0; }
   .tag { font-size: 11px; color: var(--muted); border: 1px solid var(--line2); border-radius: 10px; padding: 0 7px; font-weight: 400; }
   .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 4px; }
@@ -503,8 +514,6 @@ const STEP_FIELDS = [
   { k: 'chargeable', l: 'Заряжается', t: 'bool', def: false, d: 'Удержание кнопки атаки держит удар на конце замаха и копит заряд (параметры — в разделе «Заряд ударов» оружия).' },
   { k: 'upgrade', l: 'Нужен апгрейд', t: 'int', u: '', min: 0, max: 3, step: 1, def: 0, d: 'Удар доступен только с этим апгрейдом оружия (0 — всегда). Закрытые удары серия пропускает.' },
   { k: 'hop', l: 'Подскок', u: U.bl, min: 0, max: 2, step: 0.05, def: 0, d: 'Прыжок в начале удара, блоки высоты. Выпад тогда отдаётся полётом: куб пролетает его по дуге, попадания инерцию не гасят. С отрицательным выпадом — отскок назад.' },
-  { k: 'fxFrom', l: 'След клинка с', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: 'Начало окна следа клинка, доля всего удара. −1 — автоматически.' },
-  { k: 'fxTo', l: 'След клинка до', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: 'Конец окна следа клинка, доля всего удара. −1 — автоматически.' },
 ];
 const CHARGE_FIELDS = [
   { k: 'upgrade', l: 'Нужен апгрейд', t: 'int', u: '', min: 0, max: 3, step: 1, def: 0, d: 'Заряд открывается этим апгрейдом оружия (0 — всегда).' },
@@ -534,8 +543,6 @@ const PLUNGE_FIELDS = [
   { k: 'staminaCost', l: 'Выносливость', u: U.pts, min: 0, max: 100, step: 1, def: 18, d: '' },
   { k: 'landHold', l: 'Поза после приземления', u: U.s, min: 0, max: 1, step: 0.01, def: 0.25, d: '' },
   { k: 'recovery', l: 'Возврат', u: U.s, min: 0, max: 1, step: 0.01, def: 0.2, d: '' },
-  { k: 'fxFrom', l: 'След клинка с', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: '−1 — автоматически.' },
-  { k: 'fxTo', l: 'След клинка до', u: U.frac, min: -1, max: 1, step: 0.01, def: -1, d: '−1 — автоматически.' },
 ];
 const HEAL_FIELDS = [
   { k: 'charges', l: 'Заряды', t: 'int', u: U.pts, min: 1, max: 10, step: 1, def: 2, d: 'Сколько раз можно вылечиться между отдыхами у костра.' },
@@ -993,7 +1000,8 @@ function renderItems(main, f) {
         rm.onclick = () => { it.combo.splice(i, 1); renderPage(); };
         const fl = $('.fields', box);
         for (const fd of STEP_FIELDS) fl.append(fieldRow(f, [id, 'combo', i, fd.k], fd, fd.k === 'chargeable' ? () => renderPage() : undefined));
-        for (const p of collectUnknown(step, STEP_FIELDS.map(x => x.k).concat(['duration', 'activeFrom', 'activeTo', 'hitFrom', 'hitTo']))) fl.append(genericRow(f, [id, 'combo', i, ...p]));
+        fl.append(fxRangeRow(f, [id, 'combo', i]));
+        for (const p of collectUnknown(step, STEP_FIELDS.map(x => x.k).concat(['duration', 'activeFrom', 'activeTo', 'hitFrom', 'hitTo', 'fxFrom', 'fxTo']))) fl.append(genericRow(f, [id, 'combo', i, ...p]));
         card.fields.append(box);
       });
 
@@ -1026,7 +1034,8 @@ function renderItems(main, f) {
         const fl = $('.fields', box);
         it.finisher.step = it.finisher.step || {};
         for (const fd of STEP_FIELDS) fl.append(fieldRow(f, [id, 'finisher', 'step', fd.k], fd));
-        for (const p of collectUnknown(it.finisher.step, STEP_FIELDS.map(x => x.k).concat(['hitFrom', 'hitTo']))) fl.append(genericRow(f, [id, 'finisher', 'step', ...p]));
+        fl.append(fxRangeRow(f, [id, 'finisher', 'step']));
+        for (const p of collectUnknown(it.finisher.step, STEP_FIELDS.map(x => x.k).concat(['hitFrom', 'hitTo', 'fxFrom', 'fxTo']))) fl.append(genericRow(f, [id, 'finisher', 'step', ...p]));
         card.fields.append(box);
         for (const p of collectUnknown(it.finisher, [...FINISHER_FIELDS.map(x => x.k), 'step'])) card.fields.append(genericRow(f, [id, 'finisher', ...p]));
       }
@@ -1037,7 +1046,8 @@ function renderItems(main, f) {
       $('button', pls).onclick = () => { if (it.plunge) { if (confirm('Убрать удар в прыжке?')) delete it.plunge; } else it.plunge = defaultsOf(PLUNGE_FIELDS); renderPage(); };
       if (it.plunge) {
         for (const fd of PLUNGE_FIELDS) card.fields.append(fieldRow(f, [id, 'plunge', fd.k], fd));
-        for (const p of collectUnknown(it.plunge, PLUNGE_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'plunge', ...p]));
+        card.fields.append(fxRangeRow(f, [id, 'plunge'], plungePhases));
+        for (const p of collectUnknown(it.plunge, PLUNGE_FIELDS.map(x => x.k).concat(['fxFrom', 'fxTo']))) card.fields.append(genericRow(f, [id, 'plunge', ...p]));
       }
     }
     addViz(card.viz, vizItem, () => ({ id, it: f.data[id] }));
@@ -1604,6 +1614,58 @@ function comboStepPhases(st) {
   if (st.windup !== undefined || st.strike !== undefined) return { w: num(st.windup, 0.18), s: num(st.strike, 0.08), h: num(st.hold, 0.22), r: num(st.recovery, 0.14) };
   let d = num(st.duration, 0.38), af = num(st.activeFrom, 0.3), at = num(st.activeTo, 0.65); if (af > at) [af, at] = [at, af];
   return { w: d * af, s: d * (at - af), h: num(st.hold, 0.22), r: d * (1 - at) };
+}
+function fxWindow(st, phasesOf) {
+  const p = phasesOf(st), d = p.w + p.s + p.r, T = Math.max(0.001, p.w + p.s + p.h + p.r);
+  const from = num(st.fxFrom, -1), to = num(st.fxTo, -1);
+  if (from >= 0 && to >= 0) return { from: clamp(from, 0, 1), to: clamp(Math.max(from, to), 0, 1), auto: false };
+  return { from: Math.max(0, p.w - 0.1 * d) / T, to: Math.min(T, p.w + p.s + p.h + 0.12 * d) / T, auto: true };
+}
+const plungePhases = pl => ({ w: num(pl.hang, 0.1), s: 0.1, h: num(pl.landHold, 0.25), r: num(pl.recovery, 0.2) });
+// Двойной слайдер: две ручки поверх полосы фаз удара (замах · удар · фиксация · возврат).
+function fxRangeRow(f, path, phasesOf = comboStepPhases) {
+  const obj = () => getPath(f.data, path) || {};
+  const origF = getPath(f.orig, [...path, 'fxFrom']), origT = getPath(f.orig, [...path, 'fxTo']);
+  const row = el(`<div class="row"><div class="lbl"><span class="name">Эффект удара</span><span class="key">fxFrom…fxTo</span><div class="desc">Когда виден след клинка: доли всего удара. Полоса — замах, удар, фиксация, возврат; оранжевым — окно эффекта, ручки обрезают начало и конец. Не задано — автоматически.</div></div>`
+    + `<div class="dual"><div class="bar"></div><input type="range" min="0" max="1" step="0.01"><input type="range" min="0" max="1" step="0.01"></div>`
+    + `<div class="ctl pair"><input type="number" min="0" max="1" step="0.01"><span class="unit">–</span><input type="number" min="0" max="1" step="0.01"></div></div>`);
+  const [ra, rb] = row.querySelectorAll('.dual input'), [na, nb] = row.querySelectorAll('.ctl input'), bar = $('.bar', row);
+  const show = () => {
+    const w = fxWindow(obj(), phasesOf);
+    ra.value = w.from; rb.value = w.to; na.value = r2(w.from); nb.value = r2(w.to);
+    row.classList.toggle('default', w.auto);
+    row.classList.toggle('changed', JSON.stringify([obj().fxFrom, obj().fxTo]) !== JSON.stringify([origF, origT]));
+  };
+  const commit = (a, b, moved) => {
+    a = clamp(+a, 0, 1); b = clamp(+b, 0, 1);
+    if (a > b) { if (moved === 'a') b = a; else a = b; }
+    const st = obj(); st.fxFrom = roundTo(a, 0.01); st.fxTo = roundTo(b, 0.01);
+    show(); refresh();
+  };
+  ra.oninput = () => commit(ra.value, rb.value, 'a');
+  rb.oninput = () => commit(ra.value, rb.value, 'b');
+  na.oninput = () => { if (na.value !== '' && Number.isFinite(+na.value)) commit(na.value, nb.value, 'a'); };
+  nb.oninput = () => { if (nb.value !== '' && Number.isFinite(+nb.value)) commit(na.value, nb.value, 'b'); };
+  // Полоса фаз и выбранное окно; пока окно автоматическое, ручки едут вслед за таймингами удара.
+  addViz(bar, st => {
+    if (!st) return '';
+    const p = phasesOf(st), T = Math.max(0.001, p.w + p.s + p.h + p.r), w = fxWindow(st, phasesOf);
+    if (w.auto) show();
+    let x = 0, g = '';
+    for (const [len, fill, op] of [[p.w, C.grid2, 1], [p.s, C.blue, 0.75], [p.h, C.blue, 0.35], [p.r, C.grid2, 1]]) { g += `<rect x="${x / T * 100}" y="0" width="${len / T * 100}" height="8" fill="${fill}" fill-opacity="${op}"/>`; x += len; }
+    g += `<rect x="${w.from * 100}" y="2" width="${Math.max(0.5, (w.to - w.from) * 100)}" height="4" fill="${C.orange}"/>`;
+    return `<svg viewBox="0 0 100 8" preserveAspectRatio="none">${g}</svg>`;
+  }, obj);
+  const reset = el('<button class="reset" title="Вернуть сохранённое значение (без значения — автоматически)">↺</button>');
+  reset.onclick = () => {
+    const st = obj();
+    if (origF === undefined) delete st.fxFrom; else st.fxFrom = origF;
+    if (origT === undefined) delete st.fxTo; else st.fxTo = origT;
+    show(); refresh();
+  };
+  row.append(reset);
+  show();
+  return row;
 }
 // Полное время удара: замах + удар + фиксация + возврат.
 const comboStepTime = st => { const p = comboStepPhases(st); return p.w + p.s + p.h + p.r; };
