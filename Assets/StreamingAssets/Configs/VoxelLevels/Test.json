@@ -8529,6 +8529,12 @@
       "cell": "7,0,7",
       "yaw": 45.0,
       "height": 2
+    },
+    {
+      "id": "cratestack_1",
+      "kind": "CrateStack",
+      "cell": "30,0,5",
+      "height": 2
     }
   ],
   "points": [
