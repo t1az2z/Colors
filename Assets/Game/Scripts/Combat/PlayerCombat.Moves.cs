@@ -140,7 +140,7 @@ namespace ColorsAction.Unity
                     ChargeCount++;
                     glow?.Flash();
                     if (flash > 0f)
-                        ParryFlash.Spawn(BladeTip(attacking), 0.55f * flash);
+                        ChargeFlashFx(BladeTip(attacking), attacking.Item.Color, 0.6f * flash);
                     controller.Deformer.Impulse(-1.6f);
                     return true;
                 case ChargeEvent.Released:
@@ -153,7 +153,7 @@ namespace ColorsAction.Unity
                             PerfectChargeCount++;
                             glow?.Flash();
                             if (flash > 0f)
-                                ParryFlash.Spawn(BladeTip(attacking), 0.4f * flash);
+                                ChargeFlashFx(BladeTip(attacking), attacking.Item.Color, 0.45f * flash);
                         }
                     }
 
@@ -166,6 +166,10 @@ namespace ColorsAction.Unity
             controller.Deformer.Impulse(Random.Range(-1f, 1f) * 0.35f * level);
             return true;
         }
+
+        /// <summary>Вспышка на пике заряда (Particle System): цвет оружия, высветленный, чтобы светился на белом мире.</summary>
+        private void ChargeFlashFx(Vector3 position, string colorId, float size) =>
+            ParticleFx.Play(ParticleFx.ChargeFlash, position, Color.Lerp(palette.Get(colorId), Color.white, 0.35f), size);
 
         /// <summary>Остриё оружия в мире (для вспышки заряда).</summary>
         private Vector3 BladeTip(HandState hand)
@@ -259,7 +263,8 @@ namespace ColorsAction.Unity
             var config = plunge.Config;
             var weapon = attacking.Item;
             var color = palette.Get(weapon.Color);
-            var origin = transform.position;
+            // Удар приходится туда, куда опускается клинок: на землю под концом оружия, а не под куб.
+            var origin = PlungePoint(attacking);
             var center = origin + Vector3.up * playerConfig.ColliderHeight * 0.5f;
             var count = Physics.OverlapSphereNonAlloc(center, config.Radius + 0.5f, overlap, ~(1 << gameObject.layer),
                 QueryTriggerInteraction.Collide);
@@ -302,12 +307,40 @@ namespace ColorsAction.Unity
             // Удар о землю: куб сплющивается, волна по земле, толчок камеры вниз, фриз-кадры при попадании.
             controller.Deformer.SetSquash(-0.45f, -3f);
             controller.Deformer.Impulse(-1.5f);
-            ShockRingFx.Spawn(origin, config.Radius, color);
-            ParryFlash.Spawn(origin + controller.Forward * 0.7f + Vector3.up * 0.2f, 0.7f);
+            ParticleFx.Play(ParticleFx.GroundSlam, origin, Quaternion.LookRotation(controller.Forward),
+                Color.Lerp(color, Color.white, 0.3f), config.Radius);
             if (impulse != null && combatConfig.HitShake > 0f)
                 impulse.GenerateImpulseWithVelocity((Vector3.down + controller.Forward * 0.3f) * (combatConfig.HitShake * 2f));
             if (hits > 0 && combatConfig.HitStop > 0f)
                 StartHitStop(combatConfig.HitStop * Mathf.Max(1f, config.Knockback * 0.6f));
+        }
+
+        /// <summary>
+        /// Точка удара в прыжке: земля под концом опущенного клинка перед кубом. Если впереди стена — у стены;
+        /// если под концом клинка нет земли (край обрыва) — под кубом.
+        /// </summary>
+        private Vector3 PlungePoint(HandState hand)
+        {
+            var origin = transform.position;
+            var forward = controller.Forward;
+            forward.y = 0f;
+            if (forward.sqrMagnitude < 0.0001f)
+                return origin;
+            forward.Normalize();
+            var reach = 0.5f;
+            var filter = hand.Visual != null ? hand.Visual.GetComponentInChildren<MeshFilter>() : null;
+            if (filter != null && filter.sharedMesh != null)
+                reach += filter.sharedMesh.bounds.max.y * filter.transform.lossyScale.y * 0.85f;
+
+            var mask = ~((1 << gameObject.layer) | (1 << Debris.Layer));
+            var chest = origin + Vector3.up * playerConfig.ColliderHeight * 0.5f;
+            if (Physics.Raycast(chest, forward, out var wall, reach, mask, QueryTriggerInteraction.Ignore))
+                reach = Mathf.Max(0f, wall.distance - 0.1f);
+            var above = chest + forward * reach;
+            return Physics.Raycast(above, Vector3.down, out var ground, playerConfig.ColliderHeight * 0.5f + 1.5f, mask,
+                QueryTriggerInteraction.Ignore)
+                ? ground.point
+                : origin;
         }
     }
 }

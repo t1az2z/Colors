@@ -118,7 +118,7 @@ namespace ColorsAction.Unity
                 case ChargeEvent.Charged:
                     glow?.Flash();
                     if (flash > 0f)
-                        ParryFlash.Spawn(MuzzleWorld(hand, controller.Forward), 0.45f * flash);
+                        ChargeFlashFx(MuzzleWorld(hand, controller.Forward), hand.Item.Color, 0.5f * flash);
                     controller.Deformer.Impulse(-1.4f);
                     return;
                 case ChargeEvent.Released:
@@ -129,7 +129,7 @@ namespace ColorsAction.Unity
                     {
                         shot = shot.Charged(config.ChargedShot, gunCharge.DamageMultiplier, gunCharge.KnockbackMultiplier);
                         if (gunCharge.Perfect && flash > 0f)
-                            ParryFlash.Spawn(MuzzleWorld(hand, controller.Forward), 0.35f * flash);
+                            ChargeFlashFx(MuzzleWorld(hand, controller.Forward), hand.Item.Color, 0.4f * flash);
                     }
                     gunCharge.Reset();
                     gunChargeHand = null;

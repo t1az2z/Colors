@@ -1,43 +1,34 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace ColorsAction.Unity
 {
     /// <summary>
-    /// След за клинком: лента между рукоятью и остриём, которая живёт <see cref="Lifetime"/> секунд и тает.
+    /// След за клинком на Particle System (префаб Resources/Fx/SwordTrail): вдоль клинка между рукоятью и остриём
+    /// испускаются мягкие частицы, которые живут доли секунды и тают; с острия срываются кубики-искры.
     /// Между кадрами точки досэмплируются по дуге вокруг центра персонажа, поэтому быстрый взмах даёт гладкий полукруг.
     /// Время игровое: во время фриз-кадров след замирает вместе с ударом.
     /// </summary>
     [DefaultExecutionOrder(200)]
     public sealed class WeaponTrail : MonoBehaviour
     {
-        private const string MaterialPath = "Materials/WeaponTrail";
-        private const int MaxSamples = 96;
-
-        private struct Sample
-        {
-            public Vector3 Base;
-            public Vector3 Tip;
-            public float Time;
-        }
-
-        private readonly List<Sample> samples = new List<Sample>();
-        private readonly List<Vector3> verts = new List<Vector3>();
-        private readonly List<Color> colors = new List<Color>();
-        private readonly List<Vector2> uvs = new List<Vector2>();
-        private readonly List<int> tris = new List<int>();
+        /// <summary>Частиц поперёк клинка на один шаг дуги.</summary>
+        private const int PointsAlongBlade = 6;
+        /// <summary>Доля шагов дуги, на которых с острия срывается искра.</summary>
+        private const float SparkChance = 0.18f;
 
         private Transform blade;
         private Transform pivot;
         private Vector3 baseLocal;
         private Vector3 tipLocal;
         private Color color;
-        private Mesh mesh;
         private GameObject view;
+        private ParticleSystem band;
+        private ParticleSystem sparks;
         private bool hasLast;
         private Vector3 lastBase;
         private Vector3 lastTip;
 
+        /// <summary>Время жизни частиц следа, секунды.</summary>
         public float Lifetime { get; set; } = 0.2f;
 
         /// <summary>След не дальше этого расстояния от центра куба (дальность эффекта), метры. 0 — без ограничения.</summary>
@@ -63,28 +54,27 @@ namespace ColorsAction.Unity
 
         private void Awake()
         {
-            mesh = new Mesh { name = "WeaponTrail" };
-            mesh.MarkDynamic();
-            view = new GameObject("WeaponTrail");
-            view.AddComponent<MeshFilter>().sharedMesh = mesh;
-            var r = view.AddComponent<MeshRenderer>();
-            r.sharedMaterial = Resources.Load<Material>(MaterialPath);
-            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            r.receiveShadows = false;
+            view = ParticleFx.Instantiate(ParticleFx.SwordTrail);
+            if (view == null)
+                return;
+            view.name = "WeaponTrail";
+            view.layer = Debris.Layer;
+            band = view.GetComponent<ParticleSystem>();
+            var child = view.transform.Find("Sparks");
+            sparks = child != null ? child.GetComponent<ParticleSystem>() : null;
+            if (band != null)
+                band.Play(true);
         }
 
         private void OnDestroy()
         {
             if (view != null)
                 Destroy(view);
-            if (mesh != null)
-                Destroy(mesh);
         }
 
         private void LateUpdate()
         {
-            var now = Time.time;
-            if (Emitting && blade != null)
+            if (Emitting && blade != null && band != null)
             {
                 var b = blade.TransformPoint(baseLocal);
                 var t = blade.TransformPoint(tipLocal);
@@ -100,10 +90,9 @@ namespace ColorsAction.Unity
                         t = Vector3.Lerp(t, b, cut);
                     }
                 }
+
                 if (hasLast)
-                    AddArc(lastBase, lastTip, b, t, now);
-                else
-                    Add(b, t, now);
+                    EmitArc(lastBase, lastTip, b, t);
                 lastBase = b;
                 lastTip = t;
                 hasLast = true;
@@ -112,25 +101,47 @@ namespace ColorsAction.Unity
             {
                 hasLast = false;
             }
-
-            while (samples.Count > 0 && now - samples[0].Time > Lifetime)
-                samples.RemoveAt(0);
-            while (samples.Count > MaxSamples)
-                samples.RemoveAt(0);
-            Rebuild(now);
         }
 
-        /// <summary>Досэмплировать путь от прошлого кадра до текущего по дуге вокруг центра персонажа.</summary>
-        private void AddArc(Vector3 b0, Vector3 t0, Vector3 b1, Vector3 t1, float now)
+        /// <summary>Испустить частицы по дуге от прошлого кадра до текущего вокруг центра персонажа.</summary>
+        private void EmitArc(Vector3 b0, Vector3 t0, Vector3 b1, Vector3 t1)
         {
             var center = pivot != null ? pivot.position : (b0 + b1) * 0.5f;
             var angle = Vector3.Angle(t0 - center, t1 - center);
-            var steps = Mathf.Clamp(Mathf.CeilToInt(angle / 6f), 1, 12);
-            var prevTime = samples.Count > 0 ? samples[samples.Count - 1].Time : now;
+            // Почти неподвижный клинок (фиксация позы) не оставляет следа.
+            if (angle < 0.5f && (t1 - t0).sqrMagnitude < 0.0004f)
+                return;
+            var steps = Mathf.Clamp(Mathf.CeilToInt(angle / 4f), 1, 16);
+            var emit = new ParticleSystem.EmitParams { startColor = color, startLifetime = Lifetime, applyShapeToPosition = false };
             for (int i = 1; i <= steps; i++)
             {
                 var k = i / (float)steps;
-                Add(SlerpAround(center, b0, b1, k), SlerpAround(center, t0, t1, k), Mathf.Lerp(prevTime, now, k));
+                var b = SlerpAround(center, b0, b1, k);
+                var t = SlerpAround(center, t0, t1, k);
+                var length = Vector3.Distance(b, t);
+                for (int j = 0; j < PointsAlongBlade; j++)
+                {
+                    // От рукояти к острию: у острия частицы крупнее и плотнее, к рукояти след растворяется.
+                    var along = (j + 0.5f) / PointsAlongBlade;
+                    emit.position = Vector3.Lerp(b, t, along);
+                    emit.startSize = length / PointsAlongBlade * (2.2f + 1.6f * along);
+                    var c = color;
+                    c.a *= Mathf.SmoothStep(0.15f, 1f, along);
+                    emit.startColor = c;
+                    band.Emit(emit, 1);
+                }
+
+                if (sparks != null && Random.value < SparkChance)
+                {
+                    var spark = new ParticleSystem.EmitParams
+                    {
+                        position = t,
+                        velocity = (t - center).normalized * Random.Range(0.5f, 1.5f) + Random.insideUnitSphere * 0.8f,
+                        startColor = Color.Lerp(color, Color.white, 0.4f),
+                        applyShapeToPosition = false
+                    };
+                    sparks.Emit(spark, 1);
+                }
             }
         }
 
@@ -140,44 +151,6 @@ namespace ColorsAction.Unity
             var db = b - center;
             var dir = Vector3.Slerp(da.normalized, db.normalized, k);
             return center + dir * Mathf.Lerp(da.magnitude, db.magnitude, k);
-        }
-
-        private void Add(Vector3 b, Vector3 t, float time) => samples.Add(new Sample { Base = b, Tip = t, Time = time });
-
-        private void Rebuild(float now)
-        {
-            mesh.Clear();
-            if (samples.Count < 2)
-                return;
-            verts.Clear();
-            colors.Clear();
-            uvs.Clear();
-            tris.Clear();
-            for (int i = 0; i < samples.Count; i++)
-            {
-                var s = samples[i];
-                var life = 1f - Mathf.Clamp01((now - s.Time) / Lifetime);
-                var c = color;
-                c.a *= Mathf.Sqrt(life);
-                verts.Add(s.Base);
-                verts.Add(s.Tip);
-                colors.Add(c);
-                colors.Add(c);
-                var u = i / (float)(samples.Count - 1);
-                uvs.Add(new Vector2(u, 0f));
-                uvs.Add(new Vector2(u, 1f));
-                if (i == 0)
-                    continue;
-                var v = i * 2;
-                tris.Add(v - 2); tris.Add(v - 1); tris.Add(v + 1);
-                tris.Add(v - 2); tris.Add(v + 1); tris.Add(v);
-            }
-
-            mesh.SetVertices(verts);
-            mesh.SetColors(colors);
-            mesh.SetUVs(0, uvs);
-            mesh.SetTriangles(tris, 0);
-            mesh.RecalculateBounds();
         }
     }
 }
