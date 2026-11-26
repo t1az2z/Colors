@@ -175,6 +175,7 @@ namespace ColorsAction.Unity
         private Renderer bodyRenderer;
         private MaterialPropertyBlock blinkBlock;
         private Color bodyColor;
+        private Color bodyEmission;
         private float blinkApplied;
 
         /// <summary>
@@ -195,6 +196,10 @@ namespace ColorsAction.Unity
                     return;
                 var material = bodyRenderer.sharedMaterial;
                 bodyColor = material != null && material.HasProperty(BaseColorId) ? material.GetColor(BaseColorId) : Color.gray;
+                // Своё свечение материала (если включено) — вспышка добавляется к нему, а не затирает.
+                bodyEmission = material != null && material.IsKeywordEnabled("_EMISSION") && material.HasProperty(EmissionColorId)
+                    ? material.GetColor(EmissionColorId)
+                    : Color.black;
                 GlowMaterials.EnsureEmission(bodyRenderer);
                 blinkBlock = new MaterialPropertyBlock();
             }
@@ -204,7 +209,7 @@ namespace ColorsAction.Unity
             blinkApplied = amount;
             bodyRenderer.GetPropertyBlock(blinkBlock, 0);
             blinkBlock.SetColor(BaseColorId, Color.Lerp(bodyColor, Color.white, amount));
-            blinkBlock.SetColor(EmissionColorId, Color.white * (amount * glow));
+            blinkBlock.SetColor(EmissionColorId, bodyEmission + Color.white * (amount * glow));
             bodyRenderer.SetPropertyBlock(blinkBlock, 0);
         }
 

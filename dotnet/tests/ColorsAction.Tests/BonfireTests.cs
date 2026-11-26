@@ -132,6 +132,10 @@ namespace ColorsAction.Tests
             session.PickUp("sword");
             session.PickUp("shield");
             session.Experience.Value = 1000;
+            // Ступени стоят ещё и ресурс оружия (Upgrades.json): меч — металл, щит — заклёпки.
+            var shop = host.Container.Resolve<WeaponUpgradeShop>();
+            Assert.That(session.GiveResources(shop.ResourceId("sword"), 10), Is.True);
+            Assert.That(session.GiveResources(shop.ResourceId("shield"), 10), Is.True);
             // Game.json может включать отладочные апгрейды — начинаем с нуля.
             session.Upgrades.Set("sword", 0);
             session.Upgrades.Set("shield", 0);

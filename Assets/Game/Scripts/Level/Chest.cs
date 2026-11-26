@@ -204,8 +204,17 @@ namespace ColorsAction.Unity
             if (granted || !opened)
                 return;
             granted = true;
-            if (HasItem && session != null)
-                session.GiveResources(itemId, count);
+            if (!HasItem || session == null || session.GiveResources(itemId, count))
+                return;
+
+            // Пока кусочки летели, инвентарь заполнился (другой сундук, подобранный предмет): ресурс не пропадает —
+            // сундук снова закрыт и его можно открыть позже («Инвентарь полон» уже показан).
+            opened = false;
+            granted = false;
+            openTime = -1f;
+            session.OpenedChests.Remove(id);
+            if (lid != null)
+                lid.localRotation = Quaternion.identity;
         }
 
         // ------------------------------------------------------------------ модель

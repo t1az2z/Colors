@@ -45,6 +45,11 @@ namespace ColorsAction.Unity
             Apply();
         }
 
+        private static Color OwnEmission(Material material) =>
+            material != null && material.IsKeywordEnabled("_EMISSION") && material.HasProperty(EmissionColorId)
+                ? material.GetColor(EmissionColorId)
+                : Color.black;
+
         private Renderer[] Renderers()
         {
             if (renderers == null || renderers.Length == 0)
@@ -69,7 +74,8 @@ namespace ColorsAction.Unity
                     var material = materials[index];
                     var baseColor = tinted ? color
                         : material != null && material.HasProperty(BaseColorId) ? material.GetColor(BaseColorId) : Color.white;
-                    var glow = tinted ? color * emission : Color.black;
+                    // Нетонированные материалы сохраняют своё свечение (если оно включено в материале).
+                    var glow = tinted ? color * emission : OwnEmission(material);
                     r.GetPropertyBlock(block, index);
                     block.SetColor(BaseColorId, Color.Lerp(baseColor, Color.white, blink));
                     block.SetColor(EmissionColorId, glow + flash);
