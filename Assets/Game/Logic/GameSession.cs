@@ -85,6 +85,9 @@ namespace ColorsAction
         /// </summary>
         public HashSet<string> CompletedHints { get; } = new HashSet<string>();
 
+        /// <summary>Id разбитых стопок ящиков: как открытые срезки, больше не появляются (позже уйдёт в сохранение).</summary>
+        public HashSet<string> BrokenCrates { get; } = new HashSet<string>();
+
         /// <summary>Id костра, у которого игрок отдыхал последним (точка возрождения), null — ещё нигде.</summary>
         public string LastBonfire { get; set; }
 

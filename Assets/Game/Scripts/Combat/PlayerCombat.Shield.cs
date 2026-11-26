@@ -194,6 +194,8 @@ namespace ColorsAction.Unity
                     continue;
 
                 bashHits.Add(target);
+                if (HitGate.Deflects(target, shield.Id, toCenter.sqrMagnitude > 0.0001f ? toCenter.normalized : forward, color))
+                    continue;
                 var multiplier = 1f;
                 if (target is EnemyController enemy && enemy.Brain.IsInParryWindow(widen))
                 {
@@ -213,9 +215,11 @@ namespace ColorsAction.Unity
                     WeaponColor = color,
                     Direction = direction,
                     Point = target.HitPoint,
-                    Knockback = config.BashKnockback * multiplier
+                    Knockback = config.BashKnockback * multiplier,
+                    WeaponId = shield.Id
                 });
-                events.Publish(new DamageDealt(target.HitPoint, damage, bonus, color));
+                if (HitGate.ShowsDamage(target))
+                    events.Publish(new DamageDealt(target.HitPoint, damage, bonus, color));
                 hits++;
                 strongest = Mathf.Max(strongest, multiplier);
             }

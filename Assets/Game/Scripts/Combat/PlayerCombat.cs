@@ -555,18 +555,28 @@ namespace ColorsAction.Unity
 
                 hitThisSwing.Add(target);
                 var weapon = attacking.Item;
-                var result = WithCharge(rules.Calculate(weapon, step, target.ColorId));
                 var color = palette.Get(weapon.Color);
+                var direction = to.sqrMagnitude > 0.0001f ? to.normalized : forward;
+                // Не тем оружием (ящики — только мечом): цель лишь вздрагивает, без урона и фриз-кадров.
+                if (HitGate.Deflects(target, weapon.Id, direction, color))
+                {
+                    controller.Deformer.Impulse(-0.6f);
+                    continue;
+                }
+
+                var result = WithCharge(rules.Calculate(weapon, step, target.ColorId));
                 target.ReceiveHit(new HitInfo
                 {
                     Damage = result.Damage,
                     ColorBonus = result.ColorBonus,
                     WeaponColor = color,
-                    Direction = to.sqrMagnitude > 0.0001f ? to.normalized : forward,
+                    Direction = direction,
                     Point = target.HitPoint,
-                    Knockback = step.Knockback * ChargeKnockback
+                    Knockback = step.Knockback * ChargeKnockback,
+                    WeaponId = weapon.Id
                 });
-                events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.ColorBonus, color));
+                if (HitGate.ShowsDamage(target))
+                    events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.ColorBonus, color));
                 // Импакт: толчок камеры по направлению удара и фриз-кадры, у финального удара сильнее.
                 var weight = Mathf.Max(1f, step.Knockback);
                 if (impulse != null && combatConfig.HitShake > 0f)

@@ -245,6 +245,15 @@ namespace ColorsAction.Level
                 });
             }
 
+            foreach (var c in config.Crates)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = string.IsNullOrEmpty(c.Id) ? level.NewObjectId(LevelObjectKind.CrateStack) : c.Id,
+                    Kind = LevelObjectKind.CrateStack, Cell = StandCell(c.X, c.Z), Yaw = c.Yaw, Height = Math.Max(1, c.Height)
+                });
+            }
+
             return level;
         }
     }

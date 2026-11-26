@@ -18,6 +18,7 @@ namespace ColorsAction.Configs
         public const string Inventory = "Inventory";
         public const string Enemies = "Enemies";
         public const string Upgrades = "Upgrades";
+        public const string Crates = "Crates";
     }
 
     /// <summary>Configs/Game.json — что загружать при старте.</summary>

@@ -15,8 +15,8 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Строит уровень из карты высот (<see cref="LevelConfig"/>): столбики кубов 1×1, объединённые в меши по чанкам 16×16
-    /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены, подсказки на полу, двери-срезки
-    /// и костры, обносит карту невидимыми стенами. Отдых у костра (и смерть игрока) возрождает врагов.
+    /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены, подсказки на полу, двери-срезки,
+    /// костры и стопки ящиков, обносит карту невидимыми стенами. Отдых у костра (и смерть игрока) возрождает врагов.
     /// Воксельный уровень из веб-редактора (ключ "VoxelLevels/…") строится через <see cref="VoxelLevelView"/>, его объекты
     /// переводит <see cref="VoxelPlayLayout"/>. Какой уровень грузить — Game.json или окно «Параметры запуска».
     /// В редакторе показывает превью уровня (не сохраняется в сцену).
@@ -370,6 +370,18 @@ namespace ColorsAction.Unity
             }
 
             SpawnHints(config, pickups, doors);
+
+            // Стопки ломаемых ящиков: закрывают проход, пока их не разобьют мечом (Configs/Crates.json).
+            foreach (var c in config.Crates)
+            {
+                if (session != null && session.BrokenCrates.Contains(c.Id))
+                    continue;
+                var go = new GameObject($"Crates_{c.Id}");
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(PointPosition(c), Quaternion.Euler(0, CrateStackShape.SnapYaw(c.Yaw), 0));
+                go.AddComponent<CrateStack>().Init(c.Id, c.Height, worldMaterial);
+                bootstrap.Inject(go);
+            }
 
             // Костры: отдых, возрождение врагов, точка возрождения, апгрейды оружия.
             foreach (var b in config.Bonfires)

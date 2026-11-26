@@ -140,7 +140,7 @@
    Описания параметров — в SCHEMA ниже. Неописанные ключи показываются как есть.
    ===================================================================== */
 
-const FILE_ORDER = ['Player', 'Camera', 'Items', 'Enemies', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Movement', 'Game'];
+const FILE_ORDER = ['Player', 'Camera', 'Items', 'Enemies', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Movement', 'Game'];
 const S = { dir: null, files: {}, current: null, levels: [], mode: 'none' };
 
 /* ---------- утилиты ---------- */
@@ -339,6 +339,39 @@ const SCHEMA = {
       ] },
     ],
     validate(d) { return d.color && S.files.Colors && !S.files.Colors.data[d.color] ? [`Цвета «${d.color}» нет в Colors.json.`] : []; },
+  },
+
+  Crates: {
+    title: 'Ящики', desc: 'Стопка ломаемых ящиков 2×1×2: закрывает проход, ломается только оружием из списка breakableBy (id из Items.json, по умолчанию меч).',
+    sections: [
+      { title: 'Прочность', fields: [
+        { k: 'hp', l: 'Здоровье стопки', d: 'Меч бьёт на 5, по своему цвету ×1.5: 20 — это 3 обычных удара.', u: U.pts, min: 1, max: 200, step: 1 },
+        { k: 'color', l: 'Цвет ящиков', t: 'colorRef', d: 'Оружие того же цвета бьёт с бонусом; им же красятся доски.' },
+        { k: 'tint', l: 'Цвет досок (hex)', t: 'text', d: 'Например #B07A45 — дерево. Пусто — цвет ящиков из палитры.' },
+        { k: 'showDamageNumbers', l: 'Цифры урона', t: 'bool', d: 'Показывать цифры урона над ящиками.' },
+      ] },
+      { title: 'Вид', fields: [
+        { k: 'plankShade', l: 'Яркость досок', d: '1 — как цвет из палитры, больше — светлее.', u: U.x, min: 0, max: 2, step: 0.05 },
+        { k: 'frameShade', l: 'Яркость стоек', d: 'Угловые стойки темнее досок.', u: U.x, min: 0, max: 2, step: 0.05 },
+        { k: 'topTwist', l: 'Поворот верхнего ящика', d: 'Каждый следующий ящик повёрнут в другую сторону.', u: U.deg, min: 0, max: 20, step: 0.5 },
+        { k: 'topOffset', l: 'Сдвиг верхнего ящика', d: '', u: U.bl, min: 0, max: 0.2, step: 0.01 },
+      ] },
+      { title: 'Удары и разрушение', fields: [
+        { k: 'shakeAmount', l: 'Дрожь от удара', d: '', u: U.bl, min: 0, max: 0.3, step: 0.005 },
+        { k: 'shakeTime', l: 'Время дрожи', d: '', u: U.s, min: 0, max: 1, step: 0.01 },
+        { k: 'deflectShake', l: 'Дрожь от чужого оружия', d: 'Доля дрожи, когда бьют оружием, которое ящики не ломает.', u: U.x, min: 0, max: 1, step: 0.05 },
+        { k: 'flashTime', l: 'Вспышка при попадании', d: '', u: U.s, min: 0, max: 0.5, step: 0.01 },
+        { k: 'chipsPerHit', l: 'Щепок за удар', t: 'int', d: '', min: 0, max: 20, step: 1 },
+        { k: 'breakForce', l: 'Сила разлёта досок', d: '', u: U.bls, min: 0, max: 12, step: 0.1 },
+        { k: 'debrisLife', l: 'Время жизни обломков', d: '', u: U.s, min: 0.2, max: 8, step: 0.1 },
+      ] },
+    ],
+    validate(d) {
+      const w = [];
+      if (d.color && S.files.Colors && !S.files.Colors.data[d.color]) w.push(`Цвета «${d.color}» нет в Colors.json.`);
+      for (const id of d.breakableBy || []) if (S.files.Items && !itemsData()[id]) w.push(`Оружия «${id}» нет в Items.json.`);
+      return w;
+    },
   },
 
   Inventory: {

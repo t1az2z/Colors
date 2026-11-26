@@ -6,7 +6,7 @@ namespace ColorsAction.Level
 {
     /// <summary>
     /// Воксельный уровень (формат веб-редактора, Configs/VoxelLevels) для игры: объекты переводятся в списки
-    /// <see cref="LevelConfig"/> (точка появления, оружие, враги, манекены, подсказки, двери, костры) с высотой опоры
+    /// <see cref="LevelConfig"/> (точка появления, оружие, враги, манекены, подсказки, двери, костры, ящики) с высотой опоры
     /// <see cref="LevelPoint.Y"/>. Геометрию строит сам воксельный уровень. Барьеры и NPC игра пока не умеет — пропускаются.
     /// </summary>
     public static class VoxelPlayLayout
@@ -48,6 +48,9 @@ namespace ColorsAction.Level
                         break;
                     case LevelObjectKind.Bonfire:
                         config.Bonfires.Add(Point(new LevelBonfire { Id = o.Id }, o, y));
+                        break;
+                    case LevelObjectKind.CrateStack:
+                        config.Crates.Add(Point(new LevelCrate { Id = o.Id, Height = Math.Max(1, o.Height) }, o, y));
                         break;
                     default:
                         skipped?.Add($"{o.Id}: {o.Kind} пока не поддерживается в игре");
