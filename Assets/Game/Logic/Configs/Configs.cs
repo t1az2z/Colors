@@ -136,6 +136,9 @@ namespace ColorsAction.Configs
         /// <summary>Сила мигания: насколько куб высветляется на пике вспышки (0 — не мигает, 1 — полностью белый).</summary>
         public float BlinkStrength { get; set; } = 0.6f;
 
+        /// <summary>Яркость свечения (emission) на пике вспышки при силе 1; больше 1 — заметнее bloom.</summary>
+        public float BlinkGlow { get; set; } = 2f;
+
         /// <summary>Максимум здоровья после <paramref name="levels"/> уровней прокачки здоровья.</summary>
         public float MaxAt(int levels) => Max + MaxPerLevel * Math.Max(0, levels);
 
@@ -157,8 +160,8 @@ namespace ColorsAction.Configs
         {
             if (Max <= 0f)
                 throw new InvalidOperationException("health.max must be positive");
-            if (MaxPerLevel < 0f || HitInvulnerability < 0f || BlinkRate < 0f)
-                throw new InvalidOperationException("health.maxPerLevel, hitInvulnerability and blinkRate must not be negative");
+            if (MaxPerLevel < 0f || HitInvulnerability < 0f || BlinkRate < 0f || BlinkGlow < 0f)
+                throw new InvalidOperationException("health.maxPerLevel, hitInvulnerability and blinkRate, blinkGlow must not be negative");
             if (BlinkStrength < 0f || BlinkStrength > 1f)
                 throw new InvalidOperationException("health.blinkStrength must be within 0..1");
         }

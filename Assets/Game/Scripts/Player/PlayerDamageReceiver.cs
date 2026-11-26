@@ -164,22 +164,23 @@ namespace ColorsAction.Unity
                 UpdateQuickItems();
 
             SetVisible(!Dead);
-            // Мигание во время неуязвимости после урона: материал тела пульсирует к белому.
+            // Мигание во время неуязвимости после урона: тело пульсирует белым свечением.
             var invulnerable = session.Vitals.Invulnerable && !Dead;
             ApplyBlink(invulnerable ? config.Health.BlinkAmount(Time.time) : 0f);
         }
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
-
-        /// <summary>Цвет пика вспышки: чуть ярче белого, чтобы серый куб заметно светлел и под тенью.</summary>
-        private static readonly Color BlinkColor = new Color(1.6f, 1.6f, 1.6f, 1f);
+        private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
         private Renderer bodyRenderer;
         private MaterialPropertyBlock blinkBlock;
         private Color bodyColor;
         private float blinkApplied;
 
-        /// <summary>Подсветка тела (подматериал 0, глаза не трогаем) через MaterialPropertyBlock.</summary>
+        /// <summary>
+        /// Белое свечение тела (подматериал 0, глаза и оружие не трогаем): цвет тянется к белому, emission даёт bloom.
+        /// Материалу тела нужен включённый _EMISSION — берём его копию только для этого игрока.
+        /// </summary>
         private void ApplyBlink(float amount)
         {
             if (bodyRenderer == null)
@@ -189,6 +190,17 @@ namespace ColorsAction.Unity
                     return;
                 var material = bodyRenderer.sharedMaterial;
                 bodyColor = material != null && material.HasProperty(BaseColorId) ? material.GetColor(BaseColorId) : Color.gray;
+                if (material != null && !material.IsKeywordEnabled("_EMISSION"))
+                {
+                    var glowing = new Material(material) { name = material.name + " (Blink)" };
+                    glowing.EnableKeyword("_EMISSION");
+                    glowing.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
+                    glowing.SetColor(EmissionColorId, Color.black);
+                    var shared = bodyRenderer.sharedMaterials;
+                    shared[0] = glowing;
+                    bodyRenderer.sharedMaterials = shared;
+                }
+
                 blinkBlock = new MaterialPropertyBlock();
             }
 
@@ -196,7 +208,8 @@ namespace ColorsAction.Unity
                 return;
             blinkApplied = amount;
             bodyRenderer.GetPropertyBlock(blinkBlock, 0);
-            blinkBlock.SetColor(BaseColorId, Color.LerpUnclamped(bodyColor, BlinkColor, amount));
+            blinkBlock.SetColor(BaseColorId, Color.Lerp(bodyColor, Color.white, amount));
+            blinkBlock.SetColor(EmissionColorId, Color.white * (amount * config.Health.BlinkGlow));
             bodyRenderer.SetPropertyBlock(blinkBlock, 0);
         }
 
