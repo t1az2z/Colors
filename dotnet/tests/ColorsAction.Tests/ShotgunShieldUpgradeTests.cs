@@ -219,6 +219,12 @@ namespace ColorsAction.Tests
             Assert.That(shield.Shield.ParryWindowBonus, Is.EqualTo(0.5f).Within(1e-5), "upgrade 2: +50% window");
             Assert.That(shield.Shield.BashMaxGap, Is.GreaterThan(0f));
             Assert.That(shield.Shield.BashParryMultiplier, Is.EqualTo(2f).Within(1e-5), "bash in the parry window: x2");
+            Assert.That(shield.Shield.BashUpgrade, Is.EqualTo(2), "shield bash opens with sword tier 2");
+            Assert.That(shield.Shield.BlockCostUpgrade, Is.EqualTo(0), "sword upgrades stay as they were");
+            Assert.That(shield.Shield.ParryWidenUpgrade, Is.EqualTo(0));
+            var items = Configs().LoadTable<ItemConfig>(ConfigKeys.Items);
+            Assert.That(items.Get("sword").Offhand, Is.EqualTo("shield"));
+            Assert.That(shield.Color, Is.EqualTo(items.Get("sword").Color), "one blue weapon");
             Assert.That(new ItemConfig { Id = "s", Kind = ItemKind.Shield }.Tap(c => c.OnConfigLoaded()).Shield, Is.Not.Null,
                 "a shield without the section gets defaults");
         }

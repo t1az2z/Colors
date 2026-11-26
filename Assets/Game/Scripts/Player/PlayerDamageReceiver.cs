@@ -117,7 +117,7 @@ namespace ColorsAction.Unity
             var local = Quaternion.Inverse(controller.Body.rotation) * away;
             controller.Deformer.Impulse(-0.5f, new Vector2(local.x, local.z) * 4f);
             combat?.Shake(0.45f);
-            events.Publish(new DamageDealt(transform.position + Vector3.up * 1.1f, damage, false, Color.red, true));
+            events.Publish(new DamageDealt(transform.position + Vector3.up * 1.1f, damage, ColorsAction.Combat.ColorEffect.Neutral, Color.red, true));
 
             if (session.Vitals.Health.IsDead)
                 Die();
@@ -143,7 +143,7 @@ namespace ColorsAction.Unity
 
             controller.Deformer.SetSquash(-0.4f, -3f);
             combat?.Shake(0.35f + 0.3f * fraction);
-            events.Publish(new DamageDealt(transform.position + Vector3.up * 1.1f, damage, false, Color.red, true));
+            events.Publish(new DamageDealt(transform.position + Vector3.up * 1.1f, damage, ColorsAction.Combat.ColorEffect.Neutral, Color.red, true));
 
             if (health.IsDead)
                 Die();
@@ -152,11 +152,11 @@ namespace ColorsAction.Unity
 
         private bool BlockCovers(Vector3 towardAttacker)
         {
-            var hand = session.Inventory.Left?.Config.Kind == ItemKind.Shield ? session.Inventory.Left
-                : session.Inventory.Right?.Config.Kind == ItemKind.Shield ? session.Inventory.Right : null;
-            if (hand == null)
+            // Щит может быть второй рукой меча и не лежать в инвентаре: угол блока знает бой.
+            var angle = combat != null ? combat.ShieldBlockAngle : null;
+            if (angle == null)
                 return false;
-            return Vector3.Angle(controller.Forward, towardAttacker) <= hand.Config.BlockAngle * 0.5f;
+            return Vector3.Angle(controller.Forward, towardAttacker) <= angle.Value * 0.5f;
         }
 
         private void Die()

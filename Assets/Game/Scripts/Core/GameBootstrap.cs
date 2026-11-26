@@ -54,6 +54,8 @@ namespace ColorsAction.Unity
                 hudPrefab = Resources.Load<Hud>(HudResource);
             if (FindAnyObjectByType<Hud>() == null && hudPrefab != null)
                 Instantiate(hudPrefab, parent, false).name = "Hud";
+            if (FindAnyObjectByType<WeaponWheel>() == null)
+                WeaponWheel.Create(parent, host.Container);
             if (inventoryPrefab == null)
                 inventoryPrefab = Resources.Load<InventoryView>(InventoryResource);
             // Меню костра: префаб Resources/UI/BonfireMenu, пока его не собрали в редакторе — строится кодом.
@@ -89,11 +91,11 @@ namespace ColorsAction.Unity
         protected override void Update()
         {
             base.Update();
-            // TAB / Y открывает и закрывает инвентарь: состояния FSM сами решают, что делать.
+            // I / Select открывает и закрывает инвентарь: состояния FSM сами решают, что делать.
             if (Host != null && input != null && input.Pressed(GameAction.Inventory))
                 Host.Events.Publish(new InventoryToggleRequested());
 
-            // F1 / Select: переключить схему управления А ↔ Б прямо в игре, чтобы сравнить по ощущениям.
+            // F1: переключить схему управления А ↔ Б прямо в игре, чтобы сравнить по ощущениям.
             if (Host != null && input != null && input.Pressed(GameAction.SwitchScheme))
             {
                 var session = Host.Container.Resolve<GameSession>();

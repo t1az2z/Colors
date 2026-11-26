@@ -56,6 +56,13 @@ namespace ColorsAction.Unity
 
         private void Start()
         {
+            // Вторая рука другого оружия (щит меча) отдельно не лежит: она приходит вместе с оружием.
+            if (itemsDb.IsOffhandOnly(itemId))
+            {
+                Destroy(gameObject);
+                return;
+            }
+
             var config = itemsDb.Get(itemId);
             var color = palette.Get(config.Color);
 

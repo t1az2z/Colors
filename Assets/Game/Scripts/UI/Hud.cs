@@ -10,7 +10,7 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// HUD: слева вверху — здоровье (скруглённая полоса с цифрами) и выносливость под ним, опыт;
-    /// справа вверху — оружие в руках кружками (основное — правая рука, дополнительное — левая);
+    /// справа вверху — активное оружие кружком (подпись — кнопка колеса оружия), без оружия кружка нет;
     /// подсказка взаимодействия, всплывающие сообщения и цифры урона.
     /// Вёрстка — префаб Resources/UI/Hud (Canvas + CanvasScaler 1920×1080), его создаёт <see cref="GameBootstrap"/>.
     /// Ширина полос берётся из префаба (размер Fill/Lag при полном значении).
@@ -45,6 +45,11 @@ namespace ColorsAction.Unity
         [SerializeField] private Text damageNumberPrefab;
         [SerializeField] private int damageFontSize = 34;
         [SerializeField] private int bigDamageFontSize = 46;
+        [SerializeField] private int weakDamageFontSize = 26;
+        [SerializeField] private Color weakDamageColor = new Color(0.62f, 0.63f, 0.66f);
+
+        /// <summary>Иконки предметов (их берёт и колесо оружия).</summary>
+        public ItemIcons Icons => icons;
 
         private GameSession session;
         private GameInput input;
@@ -93,7 +98,9 @@ namespace ColorsAction.Unity
                     : "Схема А: свободная камера"), false));
 
             subscriptions.Add(events.Subscribe<ItemPickedUp>(e =>
-                ShowToast($"{e.Item.Config.Name} в инвентаре  ·  [{input.Label("inventory")}] открыть")));
+                ShowToast(e.Item.Config.IsWeapon
+                    ? $"{e.Item.Config.Name} на колесе  ·  [{input.Label("wheel")}] сменить оружие"
+                    : $"{e.Item.Config.Name} в инвентаре  ·  [{input.Label("inventory")}] открыть")));
             subscriptions.Add(events.Subscribe<InventoryFull>(_ => ShowToast("Инвентарь полон")));
             subscriptions.Add(events.Subscribe<ResourcesGained>(e =>
                 ShowToast($"{e.Item.Name} +{e.Count}  (всего {e.Total})")));
@@ -122,16 +129,12 @@ namespace ColorsAction.Unity
         private void RefreshHands()
         {
             RefreshQuick();
-            for (int i = 0; i < 2; i++)
-            {
-                var item = session.Inventory.InHand((Hand)i);
-                // Двуручное оружие показываем только в основном кружке.
-                if (i == (int)Hand.Left && item != null && item.Config.IsTwoHanded)
-                    item = null;
-                var slot = i == (int)Hand.Right ? primaryWeapon : secondaryWeapon;
-                if (slot != null)
-                    slot.Set(item, item != null ? palette.Get(item.Config.Color) : palette.Get("none"), icons);
-            }
+            // Активное оружие — один кружок справа вверху (без оружия прячется); второго кружка рук больше нет.
+            var item = session.Inventory.Active;
+            if (primaryWeapon != null)
+                primaryWeapon.Set(item, item != null ? palette.Get(item.Config.Color) : palette.Get("none"), icons);
+            if (secondaryWeapon != null)
+                secondaryWeapon.gameObject.SetActive(false);
         }
 
         private void Update()
@@ -167,10 +170,9 @@ namespace ColorsAction.Unity
 
             xpText.text = $"Опыт  {session.Experience.Value}";
 
+            // Подпись кружка — кнопка колеса: им оружие и меняется.
             if (primaryWeapon != null)
-                primaryWeapon.SetKey(input.Label("attack"));
-            if (secondaryWeapon != null)
-                secondaryWeapon.SetKey(input.Label("secondary"));
+                primaryWeapon.SetKey(input.Label("wheel"));
 
             schemeLabel.text = session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FixedAngles
                 ? $"Схема Б  ·  [{input.Label("cameraTurn")}] поворот камеры  ·  [{input.Label("lockOn")}] фиксация  ·  [{input.Label("switchScheme")}] схема А"
@@ -274,14 +276,22 @@ namespace ColorsAction.Unity
         {
             if (damageNumberPrefab == null || numbersRoot == null)
                 return;
-            var color = e.ToPlayer ? new Color(1f, 0.35f, 0.3f) : e.ColorBonus ? Color.Lerp(e.Color, Color.white, 0.25f) : UiFactory.TextColor;
+            // Цвет по кругу: слабый удар — мелкая серая цифра, через один — цифра цвета оружия,
+            // антипод — крупная цифра с «!».
+            var effect = e.ToPlayer ? ColorsAction.Combat.ColorEffect.Neutral : e.Effect;
+            var color = e.ToPlayer ? new Color(1f, 0.35f, 0.3f)
+                : effect == ColorsAction.Combat.ColorEffect.Weak ? weakDamageColor
+                : e.ColorBonus ? Color.Lerp(e.Color, Color.white, 0.25f)
+                : UiFactory.TextColor;
             var text = Instantiate(damageNumberPrefab, numbersRoot, false);
             text.gameObject.SetActive(true);
             text.text = Mathf.RoundToInt(e.Amount).ToString();
-            text.fontSize = e.ColorBonus || e.ToPlayer ? bigDamageFontSize : damageFontSize;
+            text.fontSize = effect == ColorsAction.Combat.ColorEffect.Antipode || e.ToPlayer ? bigDamageFontSize
+                : effect == ColorsAction.Combat.ColorEffect.Weak ? weakDamageFontSize
+                : damageFontSize;
             text.color = color;
             text.raycastTarget = false;
-            if (e.ColorBonus)
+            if (effect == ColorsAction.Combat.ColorEffect.Antipode)
                 text.text += "!";
             numbers.Add(new FloatingNumber
             {

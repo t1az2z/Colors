@@ -18,7 +18,7 @@ namespace ColorsAction.Tests
         public void ShotgunConfig_MatchesSpec()
         {
             var shotgun = Configs().LoadTable<ItemConfig>(ConfigKeys.Items).Get("shotgun");
-            Assert.That(shotgun.IsRanged && shotgun.IsTwoHanded, Is.True, "two-handed ranged weapon");
+            Assert.That(shotgun.IsRanged && shotgun.Kind == ItemKind.Weapon, Is.True, "ranged weapon, one wheel slot");
             Assert.That(shotgun.Color, Is.EqualTo("red"));
             Assert.That(shotgun.Damage, Is.EqualTo(1.5f), "damage per pellet");
             Assert.That(shotgun.Ranged.Pellets, Is.EqualTo(8));
@@ -29,20 +29,20 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void Shotgun_TakesBothHands()
+        public void Shotgun_GoesToRedSectorOfWheel()
         {
             var configs = Configs();
             var items = new ItemDatabase(configs);
             var inv = new PlayerInventory();
             var shotgun = items.Create("shotgun");
             Assert.That(inv.TryAdd(shotgun), Is.True);
-            Assert.That(inv.AutoEquip(shotgun), Is.True);
-            Assert.That(inv.Right, Is.SameAs(shotgun));
-            Assert.That(inv.InHand(Hand.Left), Is.SameAs(shotgun));
+            Assert.That(inv.WeaponOfColor("red"), Is.SameAs(shotgun));
+            Assert.That(inv.SetActive(shotgun), Is.True);
+            Assert.That(items.OffhandOf(shotgun.Config), Is.Null, "nothing in the second hand");
         }
 
         [Test]
-        public void SameColorBonus_RedPelletsOnRedEnemy()
+        public void ColorWheel_RedPelletsWeakOnRedStrongOnBlue()
         {
             var configs = Configs();
             var combat = configs.Load<CombatConfig>(ConfigKeys.Combat);
@@ -52,8 +52,8 @@ namespace ColorsAction.Tests
             var red = enemies.Get("club_cube_red");
             var blue = enemies.Get("club_cube");
             Assert.That(red.Color, Is.EqualTo("red"));
-            Assert.That(rules.Calculate(shotgun, null, red.Color).Damage, Is.EqualTo(shotgun.Damage * combat.SameColorMultiplier).Within(1e-4));
-            Assert.That(rules.Calculate(shotgun, null, blue.Color).ColorBonus, Is.False);
+            Assert.That(rules.Calculate(shotgun, null, red.Color).Damage, Is.EqualTo(shotgun.Damage * combat.ColorDistanceMultipliers[0]).Within(1e-4));
+            Assert.That(rules.Calculate(shotgun, null, blue.Color).ColorBonus, Is.True, "red is two steps from blue");
         }
 
         [Test]

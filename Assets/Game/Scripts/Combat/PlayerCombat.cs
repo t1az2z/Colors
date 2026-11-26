@@ -15,20 +15,24 @@ namespace ColorsAction.Unity
     {
         public readonly Vector3 Position;
         public readonly float Amount;
-        public readonly bool ColorBonus;
+
+        /// <summary>Как цвет оружия лёг на цвет цели (слабый удар — мелкая серая цифра, антипод — крупная с «!»).</summary>
+        public readonly ColorEffect Effect;
         public readonly Color Color;
 
         /// <summary>Урон получил игрок (цифра красная).</summary>
         public readonly bool ToPlayer;
 
-        public DamageDealt(Vector3 position, float amount, bool colorBonus, Color color, bool toPlayer = false)
+        public DamageDealt(Vector3 position, float amount, ColorEffect effect, Color color, bool toPlayer = false)
         {
             Position = position;
             Amount = amount;
-            ColorBonus = colorBonus;
+            Effect = effect;
             Color = color;
             ToPlayer = toPlayer;
         }
+
+        public bool ColorBonus => Effect == ColorEffect.Strong || Effect == ColorEffect.Antipode;
     }
 
     /// <summary>Успешное парирование щитом: сюда цепляются звук и VFX.</summary>
@@ -45,8 +49,8 @@ namespace ColorsAction.Unity
     }
 
     /// <summary>
-    /// Две руки: ЛКМ/RT — правая, ПКМ/LT — левая. Оружие в руке атакует серией ударов из конфига,
-    /// щит в руке ставит блок на её кнопку. Двуручное оружие отвечает на обе кнопки.
+    /// Активное оружие (колесо) — в правой руке на ЛКМ/RT, его вторая рука (щит меча) — в левой на ПКМ/LT:
+    /// оружие атакует серией ударов из конфига, щит ставит блок. Оружие без второй руки отвечает на обе кнопки.
     /// Позы рук считаются процедурно и проходят через ту же деформацию, что и куб.
     /// </summary>
     [DefaultExecutionOrder(100)]
@@ -152,43 +156,47 @@ namespace ColorsAction.Unity
 
         // ------------------------------------------------------------------ предметы в руках
 
+        /// <summary>
+        /// Предмет в руке: активное оружие — в правой, его вторая рука (<see cref="ItemConfig.Offhand"/>, щит меча) — в левой.
+        /// </summary>
         private ItemConfig ItemFor(Hand hand)
         {
-            var item = session.Inventory.InHand(hand);
-            if (item != null)
-                return item.Config;
+            var active = session.Inventory.Active?.Config;
+            if (hand == Hand.Left)
+                return items.OffhandOf(active);
+            if (active != null)
+                return active;
             // Без предмета рука не атакует (UnarmedItem пустой; кулаков в Items.json нет).
             return string.IsNullOrEmpty(combatConfig.UnarmedItem) || !items.Exists(combatConfig.UnarmedItem)
                 ? null
                 : items.Get(combatConfig.UnarmedItem);
         }
 
+        /// <summary>Оружие без второй руки держится обеими: на него работают обе кнопки атаки (дробовик).</summary>
+        private bool TwoHanded(ItemConfig item) => item != null && item.Kind == ItemKind.Weapon && items.OffhandOf(item) == null;
+
         private void RebuildVisuals()
         {
             if (attacking != null)
                 CancelAttack();
+            var active = session.Inventory.Active;
             foreach (var hand in hands)
             {
                 if (hand.Visual != null)
                     Destroy(hand.Visual);
                 hand.Visual = null;
 
-                var item = session.Inventory.InHand(hand.Hand);
                 hand.Item = ItemFor(hand.Hand);
-                // Двуручное оружие рисуется один раз, в правой руке.
-                if (item != null && item.Config.IsTwoHanded && hand.Hand == Hand.Left)
-                {
-                    hand.Visual = null;
-                    continue;
-                }
+                // Апгрейды щита — апгрейды оружия, чья это вторая рука.
+                hand.UpgradeOwner = active?.Id;
+                var held = hand.Hand == Hand.Right ? active?.Config : hand.Item;
 
                 // Пустая рука ничего не держит и без UnarmedItem не бьёт; если он задан, удар идёт самим кубом, без модели.
-                hand.Visual = item != null ? SpawnItem(item.Config, hand.Socket) : null;
+                hand.Visual = held != null ? SpawnItem(held, hand.Socket) : null;
                 hand.Trail = null;
-                if (hand.Visual != null && !item.Config.IsRanged &&
-                    (item.Config.Kind == ItemKind.OneHanded || item.Config.Kind == ItemKind.TwoHanded))
+                if (hand.Visual != null && !held.IsRanged && held.Kind == ItemKind.Weapon)
                     hand.Trail = WeaponTrail.Attach(hand.Visual, hand.Socket.parent != null ? hand.Socket.parent.parent : transform,
-                        palette.Get(item.Config.Color));
+                        palette.Get(held.Color));
             }
         }
 
@@ -225,7 +233,8 @@ namespace ColorsAction.Unity
             UpdateHitStop();
             var dt = Time.deltaTime;
             comboTimer -= dt;
-            var control = controller.HasControl && !controller.Rolling;
+            // Пока открыто колесо оружия, атаки и блок не начинаются.
+            var control = controller.HasControl && !controller.Rolling && !WeaponWheel.IsOpen;
 
             var right = hands[(int)Hand.Right];
             var left = hands[(int)Hand.Left];
@@ -258,7 +267,7 @@ namespace ColorsAction.Unity
 
             // Двуручное: обе кнопки управляют правой рукой.
             var actor = hand;
-            if (hand.Hand == Hand.Left && hand.Item.IsTwoHanded)
+            if (hand.Hand == Hand.Left && TwoHanded(hands[(int)Hand.Right].Item))
                 actor = hands[(int)Hand.Right];
 
             if (attacking != null)
@@ -576,7 +585,7 @@ namespace ColorsAction.Unity
                     WeaponId = weapon.Id
                 });
                 if (HitGate.ShowsDamage(target))
-                    events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.ColorBonus, color));
+                    events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.Effect, color));
                 // Импакт: толчок камеры по направлению удара и фриз-кадры, у финального удара сильнее.
                 var weight = Mathf.Max(1f, step.Knockback);
                 if (impulse != null && combatConfig.HitShake > 0f)
@@ -666,17 +675,13 @@ namespace ColorsAction.Unity
             var s = hand.Side;
             if (hand.Item == null)
                 return new Pose(new Vector3(0.64f * s, 0.38f, 0.12f), Quaternion.identity);
-            switch (hand.Item.Kind)
-            {
-                case ItemKind.Shield:
-                    return new Pose(new Vector3(0.68f * s, 0.58f, 0.12f), Quaternion.Euler(0f, 55f * s, 0f));
-                case ItemKind.OneHanded when hand.Visual != null:
-                    return new Pose(new Vector3(0.7f * s, 0.42f, 0.12f), Quaternion.Euler(18f, 0f, -24f * s));
-                case ItemKind.TwoHanded:
-                    return new Pose(new Vector3(0.5f * s, 0.45f, 0.35f), Quaternion.Euler(40f, 0f, 30f * -s));
-                default:
-                    return new Pose(new Vector3(0.64f * s, 0.38f, 0.12f), Quaternion.identity);
-            }
+            if (hand.Item.Kind == ItemKind.Shield)
+                return new Pose(new Vector3(0.68f * s, 0.58f, 0.12f), Quaternion.Euler(0f, 55f * s, 0f));
+            if (hand.Item.Kind == ItemKind.Weapon && TwoHanded(hand.Item))
+                return new Pose(new Vector3(0.5f * s, 0.45f, 0.35f), Quaternion.Euler(40f, 0f, 30f * -s));
+            if (hand.Item.Kind == ItemKind.Weapon && hand.Visual != null)
+                return new Pose(new Vector3(0.7f * s, 0.42f, 0.12f), Quaternion.Euler(18f, 0f, -24f * s));
+            return new Pose(new Vector3(0.64f * s, 0.38f, 0.12f), Quaternion.identity);
         }
 
         private static Pose BlockPose(HandState hand)
@@ -819,6 +824,9 @@ namespace ColorsAction.Unity
             public readonly Transform Socket;
             public readonly float Side;
             public ItemConfig Item;
+
+            /// <summary>Чьи апгрейды у предмета в руке: свой id или id оружия, чья это вторая рука (щит меча).</summary>
+            public string UpgradeOwner;
             public GameObject Visual;
 
             /// <summary>Доля прицела стрелкового оружия 0..1 (0 — поза покоя).</summary>

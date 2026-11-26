@@ -51,7 +51,7 @@ namespace ColorsAction.Unity
 
         /// <summary>Кнопка атаки текущей руки зажата (двуручное — любая из двух).</summary>
         private bool AttackHeld => attacking != null &&
-                                   (attacking.Holding || (attacking.Item.IsTwoHanded && hands[(int)Hand.Left].Holding));
+                                   (attacking.Holding || (TwoHanded(attacking.Item) && hands[(int)Hand.Left].Holding));
 
         /// <summary>Индекс удара серии с учётом апгрейдов: закрытые удары пропускаются, -1 — нечем бить.</summary>
         private int UnlockedComboIndex(ItemConfig item, int index)
@@ -92,7 +92,7 @@ namespace ColorsAction.Unity
         /// <summary>Урон с учётом заряда.</summary>
         private HitResult WithCharge(HitResult result)
         {
-            return charge.Full ? new HitResult(result.Damage * charge.DamageMultiplier, result.ColorBonus) : result;
+            return charge.Full ? result.WithDamage(result.Damage * charge.DamageMultiplier) : result;
         }
 
         private float ChargeKnockback => charge.Full ? charge.KnockbackMultiplier : 1f;
@@ -300,7 +300,7 @@ namespace ColorsAction.Unity
                     WeaponId = weapon.Id
                 });
                 if (HitGate.ShowsDamage(target))
-                    events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.ColorBonus, color));
+                    events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.Effect, color));
                 hits++;
             }
 

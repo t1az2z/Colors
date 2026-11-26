@@ -7,11 +7,12 @@ using UnityEngine;
 namespace ColorsAction.Unity
 {
     /// <summary>
-    /// Щит: блок, парирование и апгрейды (<see cref="ShieldConfig"/>):
+    /// Щит: блок, парирование и апгрейды (<see cref="ShieldConfig"/>; ступени — BlockCostUpgrade / ParryWidenUpgrade /
+    /// BashUpgrade, 0 — нет). Щит меча — его вторая рука (<see cref="ItemConfig.Offhand"/>), ступени берутся у меча:
     /// <list type="bullet">
-    /// <item>апгрейд 1 — блок дешевле по выносливости (<see cref="BlockCostMultiplier"/>);</item>
-    /// <item>апгрейд 2 — окно парирования шире поровну в обе стороны (<see cref="ShieldConfig.ParryWindowBonus"/>);</item>
-    /// <item>апгрейд 3 — удар щитом: отпустить блок и сразу нажать снова; попал в окно парирования —
+    /// <item>блок дешевле по выносливости (<see cref="BlockCostMultiplier"/>);</item>
+    /// <item>окно парирования шире поровну в обе стороны (<see cref="ShieldConfig.ParryWindowBonus"/>);</item>
+    /// <item>удар щитом (у меча — ступень 2): отпустить блок и сразу нажать снова; попал в окно парирования —
     /// атака парирована, урон и отбрасывание умножены (<see cref="ShieldConfig.BashParryMultiplier"/>).</item>
     /// </list>
     /// Парирование подаётся так: враг ещё начинает удар и встречает щит на полпути (<see cref="EnemyController.TryParry"/>);
@@ -47,23 +48,33 @@ namespace ColorsAction.Unity
             }
         }
 
-        /// <summary>Множитель выносливости на блок: подъём щита и принятый удар (апгрейд 1 щита).</summary>
+        /// <summary>Угол блока щита в руках (null — щита нет).</summary>
+        public float? ShieldBlockAngle => ShieldHand?.Item.BlockAngle;
+
+        /// <summary>Открыта ли ступень прокачки щита (0 — никогда); ступень — у владельца щита (меча).</summary>
+        private bool HasShieldUpgrade(HandState hand, int tier)
+        {
+            return hand?.Item?.Shield != null && tier > 0 && !string.IsNullOrEmpty(hand.UpgradeOwner) &&
+                   session.Upgrades.Has(hand.UpgradeOwner, tier);
+        }
+
+        /// <summary>Множитель выносливости на блок: подъём щита и принятый удар (апгрейд щита).</summary>
         public float BlockCostMultiplier
         {
             get
             {
-                var shield = ShieldHand?.Item;
-                return shield?.Shield != null && session.Upgrades.Has(shield.Id, 1) ? shield.Shield.BlockCostMultiplier : 1f;
+                var hand = ShieldHand;
+                return HasShieldUpgrade(hand, hand?.Item?.Shield?.BlockCostUpgrade ?? 0) ? hand.Item.Shield.BlockCostMultiplier : 1f;
             }
         }
 
         /// <summary>Расширение окна парирования щитом в руках сейчас (0 — без апгрейда или без щита).</summary>
-        public float ParryWidenNow => ParryWiden(ShieldHand?.Item);
+        public float ParryWidenNow => ParryWiden(ShieldHand);
 
-        /// <summary>Расширение окна парирования щитом (доля длины окна, апгрейд 2).</summary>
-        private float ParryWiden(ItemConfig shield)
+        /// <summary>Расширение окна парирования щитом (доля длины окна, апгрейд щита).</summary>
+        private float ParryWiden(HandState hand)
         {
-            return shield?.Shield != null && session.Upgrades.Has(shield.Id, 2) ? shield.Shield.ParryWindowBonus : 0f;
+            return HasShieldUpgrade(hand, hand?.Item?.Shield?.ParryWidenUpgrade ?? 0) ? hand.Item.Shield.ParryWindowBonus : 0f;
         }
 
         // ------------------------------------------------------------------ парирование
@@ -71,10 +82,11 @@ namespace ColorsAction.Unity
         /// <summary>Блок поставлен: враги в окне парирования (с учётом апгрейда) перед щитом — парированы.</summary>
         private void TryParry()
         {
-            var shield = ShieldHand?.Item;
+            var shieldHand = ShieldHand;
+            var shield = shieldHand?.Item;
             if (shield == null)
                 return;
-            var widen = ParryWiden(shield);
+            var widen = ParryWiden(shieldHand);
             var count = 0;
             foreach (var enemy in EnemyController.All)
             {
@@ -114,7 +126,7 @@ namespace ColorsAction.Unity
 
         // ------------------------------------------------------------------ удар щитом
 
-        /// <summary>Ход удара щитом и его запуск: блок отпущен и сразу нажат снова (апгрейд 3).</summary>
+        /// <summary>Ход удара щитом и его запуск: блок отпущен и сразу нажат снова (апгрейд BashUpgrade).</summary>
         private void UpdateShieldBash(bool control, float dt)
         {
             if (bashHand != null)
@@ -135,7 +147,7 @@ namespace ColorsAction.Unity
             var config = hand.Item.Shield;
             if (config == null || !bashTrigger.Tick(dt, hand.Holding, config.BashMaxGap))
                 return;
-            if (bashHand != null || attacking != null || !control || !session.Upgrades.Has(hand.Item.Id, 3))
+            if (bashHand != null || attacking != null || !control || !HasShieldUpgrade(hand, config.BashUpgrade))
                 return;
             if (!session.Stamina.TrySpend(config.BashStaminaCost))
                 return;
@@ -160,7 +172,7 @@ namespace ColorsAction.Unity
             if (!bashHitDone && bashTime >= config.BashWindup + config.BashStrike * 0.6f)
             {
                 bashHitDone = true;
-                BashImpact(bashHand.Item);
+                BashImpact(bashHand);
             }
 
             if (bashTime >= config.BashDuration)
@@ -168,10 +180,11 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>Удар щитом: урон и отбрасывание в секторе перед игроком; в окне парирования — парирование и ×множитель.</summary>
-        private void BashImpact(ItemConfig shield)
+        private void BashImpact(HandState hand)
         {
+            var shield = hand.Item;
             var config = shield.Shield;
-            var widen = ParryWiden(shield);
+            var widen = ParryWiden(hand);
             var center = transform.position + Vector3.up * playerConfig.ColliderHeight * 0.5f;
             var forward = controller.Forward;
             var color = palette.Get(shield.Color);
@@ -205,13 +218,13 @@ namespace ColorsAction.Unity
                         ParryCount++;
                 }
 
-                var bonus = rules.Calculate(shield, null, target.ColorId).ColorBonus;
-                var damage = config.BashDamage * multiplier * (bonus ? combatConfig.SameColorMultiplier : 1f);
+                var result = rules.Apply(config.BashDamage * multiplier, shield.Color, target.ColorId);
+                var damage = result.Damage;
                 var direction = toCenter.sqrMagnitude > 0.0001f ? toCenter.normalized : forward;
                 target.ReceiveHit(new HitInfo
                 {
                     Damage = damage,
-                    ColorBonus = bonus,
+                    ColorBonus = result.ColorBonus,
                     WeaponColor = color,
                     Direction = direction,
                     Point = target.HitPoint,
@@ -219,7 +232,7 @@ namespace ColorsAction.Unity
                     WeaponId = shield.Id
                 });
                 if (HitGate.ShowsDamage(target))
-                    events.Publish(new DamageDealt(target.HitPoint, damage, bonus, color));
+                    events.Publish(new DamageDealt(target.HitPoint, damage, result.Effect, color));
                 hits++;
                 strongest = Mathf.Max(strongest, multiplier);
             }

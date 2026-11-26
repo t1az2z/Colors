@@ -48,7 +48,7 @@ namespace ColorsAction.Unity
             {
                 hand.ShotTime += dt;
                 // Двуручное держит и стреляет правая рука, левая ничего не делает.
-                if (hand.Item == null || !hand.Item.IsRanged || (hand.Item.IsTwoHanded && hand.Hand == Hand.Left))
+                if (hand.Item == null || !hand.Item.IsRanged || (hand.Hand == Hand.Left && TwoHanded(hands[(int)Hand.Right].Item)))
                 {
                     hand.Gun.Reset();
                     if (gunChargeHand == hand)
@@ -57,7 +57,7 @@ namespace ColorsAction.Unity
                 }
 
                 bool pressed, held;
-                if (hand.Item.IsTwoHanded)
+                if (TwoHanded(hand.Item))
                 {
                     pressed = input.Pressed(GameAction.Primary) || input.Pressed(GameAction.Secondary);
                     held = hand.Holding || hands[(int)Hand.Left].Holding;
@@ -356,7 +356,7 @@ namespace ColorsAction.Unity
             private struct Tally
             {
                 public float Damage;
-                public bool ColorBonus;
+                public ColorEffect Effect;
                 public Vector3 Point;
             }
 
@@ -400,7 +400,7 @@ namespace ColorsAction.Unity
                 // Одна цифра урона на цель за весь залп.
                 foreach (var pair in tally)
                     if (pair.Value.Damage > 0f && HitGate.ShowsDamage(pair.Key))
-                        owner.events.Publish(new DamageDealt(pair.Value.Point, pair.Value.Damage, pair.Value.ColorBonus, color));
+                        owner.events.Publish(new DamageDealt(pair.Value.Point, pair.Value.Damage, pair.Value.Effect, color));
             }
 
             private void Apply(IHittable target, int pellets, float multiplier, Vector3 direction)
@@ -424,7 +424,7 @@ namespace ColorsAction.Unity
                 });
                 tally.TryGetValue(target, out var t);
                 t.Damage += damage;
-                t.ColorBonus |= result.ColorBonus;
+                t.Effect = result.Effect;
                 tally[target] = t;
                 if (!hitStopDone && owner.combatConfig.HitStop > 0f)
                 {

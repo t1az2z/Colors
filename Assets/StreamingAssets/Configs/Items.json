@@ -1,9 +1,9 @@
 {
   "sword": {
-    "name": "Меч",
+    "name": "Меч и щит",
     "color": "blue",
-    "kind": "OneHanded",
-    "hand": "Right",
+    "kind": "Weapon",
+    "offhand": "shield",
     "damage": 5,
     "prefab": "Items/Sword",
     "gripRoll": 80,
@@ -137,7 +137,7 @@
   "shotgun": {
     "name": "Дробовик",
     "color": "red",
-    "kind": "TwoHanded",
+    "kind": "Weapon",
     "damage": 1.5,
     "prefab": "Items/Shotgun",
     "ranged": {
@@ -166,15 +166,17 @@
   },
   "shield": {
     "name": "Щит",
-    "color": "lilac",
+    "color": "blue",
     "kind": "Shield",
-    "hand": "Left",
     "damage": 0,
     "prefab": "Items/Shield",
     "blockAngle": 120,
     "shield": {
       "blockCostMultiplier": 0.6,
       "parryWindowBonus": 0.5,
+      "blockCostUpgrade": 0,
+      "parryWidenUpgrade": 0,
+      "bashUpgrade": 2,
       "bashMaxGap": 0.25,
       "bashStaminaCost": 12,
       "bashDamage": 4,
@@ -199,12 +201,6 @@
   "metal": {
     "name": "Металл",
     "color": "blue",
-    "kind": "Resource",
-    "maxStack": 99
-  },
-  "rivets": {
-    "name": "Заклёпки",
-    "color": "lilac",
     "kind": "Resource",
     "maxStack": 99
   },

@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.IO;
 using ColorsAction.Combat;
@@ -80,26 +81,21 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void SwordGoesOnlyToRightHand_ShieldOnlyToLeft()
+        public void Weapons_GoToWheel_SwordCarriesShield()
         {
             using var host = CreateHost();
             host.Start<BootState>();
             var session = host.Container.Resolve<GameSession>();
             var items = host.Container.Resolve<ItemDatabase>();
             var inv = session.Inventory;
-            inv.TryAdd(items.Create("sword"));
-            inv.TryAdd(items.Create("shield"));
-            var sword = inv.Get(SlotRef.Grid(0));
-            var shield = inv.Get(SlotRef.Grid(1));
-
-            Assert.That(inv.EquipTargets(sword), Is.EqualTo(new[] { SlotRef.Of(Hand.Right) }));
-            Assert.That(inv.EquipTargets(shield), Is.EqualTo(new[] { SlotRef.Of(Hand.Left) }));
-            Assert.That(inv.Move(SlotRef.Grid(0), SlotRef.Of(Hand.Left)), Is.False);
-            Assert.That(inv.Move(SlotRef.Grid(1), SlotRef.Of(Hand.Right)), Is.False);
-            Assert.That(inv.AutoEquip(sword) && inv.AutoEquip(shield), Is.True);
-            Assert.That(inv.Right, Is.SameAs(sword));
-            Assert.That(inv.Left, Is.SameAs(shield));
-            Assert.That(inv.Move(SlotRef.Of(Hand.Right), SlotRef.Of(Hand.Left)), Is.False, "hands can't be swapped");
+            Assert.That(session.PickUp("sword"), Is.True);
+            Assert.That(session.PickUp("shotgun"), Is.True);
+            Assert.That(inv.Weapons.Select(w => w.Id), Is.EqualTo(new[] { "sword", "shotgun" }));
+            Assert.That(inv.Active?.Id, Is.EqualTo("sword"), "the first weapon is taken into hands");
+            foreach (var slot in inv.AllSlots())
+                Assert.That(inv.Get(slot), Is.Null, "weapons never lie in the grid");
+            Assert.That(items.OffhandOf(inv.Active.Config)?.Id, Is.EqualTo("shield"));
+            Assert.That(inv.WeaponOfColor("red")?.Id, Is.EqualTo("shotgun"));
         }
 
         [Test]
@@ -108,8 +104,8 @@ namespace ColorsAction.Tests
             using var host = CreateHost();
             host.Start<BootState>();
             var inv = host.Container.Resolve<GameSession>().Inventory;
-            Assert.That(inv.Left, Is.Null);
-            Assert.That(inv.Right, Is.Null);
+            Assert.That(inv.Active, Is.Null);
+            Assert.That(inv.Weapons, Is.Empty);
             foreach (var slot in inv.AllSlots())
                 Assert.That(inv.Get(slot), Is.Null);
         }
@@ -156,24 +152,23 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void PickUp_AutoEquipsIntoFreeHand_AsConfigured()
+        public void PickUp_TakesWeaponIntoEmptyHands_AsConfigured()
         {
             using var host = CreateHost();
             host.Start<BootState>();
             var session = host.Container.Resolve<GameSession>();
             Assert.That(host.Container.Resolve<ConfigService>().Load<InventoryConfig>(ConfigKeys.Inventory).AutoEquipOnPickup, Is.True);
+            Assert.That(session.PickUp("shotgun"), Is.True);
             Assert.That(session.PickUp("sword"), Is.True);
-            Assert.That(session.PickUp("shield"), Is.True);
-            Assert.That(session.Inventory.Right?.Id, Is.EqualTo("sword"));
-            Assert.That(session.Inventory.Left?.Id, Is.EqualTo("shield"));
+            Assert.That(session.Inventory.Active?.Id, Is.EqualTo("shotgun"), "hands are busy — the second weapon only goes to the wheel");
 
-            // Рука занята — второй меч ложится в сетку.
+            // То же оружие второй раз: подбирается (уходит с земли), но на колесе остаётся одно.
             Assert.That(session.PickUp("sword"), Is.True);
-            Assert.That(session.Inventory.Get(SlotRef.Grid(0))?.Id, Is.EqualTo("sword"));
+            Assert.That(session.Inventory.Weapons.Count, Is.EqualTo(2));
         }
 
         [Test]
-        public void PickUp_WithoutAutoEquip_PutsItemIntoGrid()
+        public void PickUp_WithoutAutoEquip_OnlyPutsWeaponOnWheel()
         {
             var source = new LayeredConfigSource(new FileConfigSource(ConfigsRoot()),
                 new InMemoryConfigSource().Set("Inventory", "{ \"autoEquipOnPickup\": false }"));
@@ -182,8 +177,9 @@ namespace ColorsAction.Tests
             host.Start<BootState>();
             var session = host.Container.Resolve<GameSession>();
             Assert.That(session.PickUp("sword"), Is.True);
-            Assert.That(session.Inventory.Right, Is.Null);
-            Assert.That(session.Inventory.Get(SlotRef.Grid(0)).Id, Is.EqualTo("sword"));
+            Assert.That(session.Inventory.Active, Is.Null);
+            Assert.That(session.Inventory.HasWeapon("sword"), Is.True);
+            Assert.That(session.Inventory.Get(SlotRef.Grid(0)), Is.Null);
         }
 
         [Test]
@@ -203,16 +199,39 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void SameColor_GivesDamageBonus()
+        public void ColorWheel_DamageByDistance()
         {
             using var host = CreateHost();
             var rules = host.Container.Resolve<DamageRules>();
             var sword = host.Container.Resolve<ItemDatabase>().Get("sword");
-            var vsRed = rules.Calculate(sword, sword.Combo[0], "red");
-            var vsBlue = rules.Calculate(sword, sword.Combo[0], "blue");
-            Assert.That(vsRed.ColorBonus, Is.False);
-            Assert.That(vsBlue.ColorBonus, Is.True);
-            Assert.That(vsBlue.Damage, Is.EqualTo(vsRed.Damage * 1.5f).Within(0.001f));
+            Assert.That(sword.Color, Is.EqualTo("blue"));
+            var step = sword.Combo[0];
+            var base_ = sword.Damage * step.DamageMultiplier;
+            var vsBlue = rules.Calculate(sword, step, "blue");
+            var vsGreen = rules.Calculate(sword, step, "green");
+            var vsRed = rules.Calculate(sword, step, "red");
+            var vsOrange = rules.Calculate(sword, step, "orange");
+            var vsNone = rules.Calculate(sword, step, "none");
+            Assert.That(vsBlue.Damage, Is.EqualTo(base_ * 0.4f).Within(0.001f));
+            Assert.That(vsBlue.Effect, Is.EqualTo(ColorEffect.Weak));
+            Assert.That(vsGreen.Damage, Is.EqualTo(base_ * 0.9f).Within(0.001f));
+            Assert.That(vsRed.Damage, Is.EqualTo(base_ * 1.2f).Within(0.001f));
+            Assert.That(vsRed.Effect, Is.EqualTo(ColorEffect.Strong));
+            Assert.That(vsOrange.Damage, Is.EqualTo(base_ * 1.6f).Within(0.001f));
+            Assert.That(vsOrange.Effect, Is.EqualTo(ColorEffect.Antipode));
+            Assert.That(vsNone.Damage, Is.EqualTo(base_).Within(0.001f));
+            Assert.That(vsNone.Effect, Is.EqualTo(ColorEffect.Neutral));
+        }
+
+        [Test]
+        public void ColorWheel_AntipodePairs()
+        {
+            var wheel = new ColorWheel(new CombatConfig());
+            Assert.That(wheel.Opposite("yellow"), Is.EqualTo("lilac"));
+            Assert.That(wheel.Opposite("orange"), Is.EqualTo("blue"));
+            Assert.That(wheel.Opposite("red"), Is.EqualTo("green"));
+            Assert.That(wheel.Distance("yellow", "green"), Is.EqualTo(1), "the wheel wraps around");
+            Assert.That(wheel.Distance("teal", "blue"), Is.EqualTo(-1));
         }
     }
 }

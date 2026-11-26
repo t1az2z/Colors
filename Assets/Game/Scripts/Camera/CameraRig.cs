@@ -66,7 +66,8 @@ namespace ColorsAction.Unity
             if (config == null || orbit == null)
                 return;
 
-            var control = session.PlayerControl.Value;
+            // Колесо оружия открыто: мышь и правый стик выбирают сектор, курсор свободен.
+            var control = session.PlayerControl.Value && !WeaponWheel.IsOpen;
             var fixedAngles = Scheme == CameraScheme.FixedAngles;
             if (Scheme != lastScheme)
             {

@@ -323,23 +323,23 @@ namespace ColorsAction.Configs
         public string Hex { get; set; }
     }
 
+    /// <summary>
+    /// Вид предмета (GDD v0.3: рук и двуручности нет). Оружие занимает один сектор колеса по своему цвету,
+    /// атакует на ЛКМ / RT и парирует по-своему на ПКМ / LT.
+    /// </summary>
     public enum ItemKind
     {
-        OneHanded,
-        TwoHanded,
+        /// <summary>Оружие (ближнего боя — серия ударов, дальнего — <see cref="ItemConfig.Ranged"/>): встаёт на колесо.</summary>
+        Weapon,
+
+        /// <summary>Щит: вторая рука оружия (<see cref="ItemConfig.Offhand"/>), отдельно не подбирается.</summary>
         Shield,
+
+        /// <summary>Расходник (лечилка): ставится в слоты 1–4 крестовины.</summary>
         Consumable,
 
-        /// <summary>Ресурс для прокачки оружия (металл, заклёпки, шестерёнки): складывается в стопки, лежит только в сетке.</summary>
+        /// <summary>Ресурс для прокачки оружия (металл, шестерёнки): складывается в стопки, лежит только в сетке.</summary>
         Resource
-    }
-
-    /// <summary>В какую руку можно надеть предмет.</summary>
-    public enum HandRestriction
-    {
-        Any,
-        Left,
-        Right
     }
 
     public enum AttackMotion
@@ -544,9 +544,6 @@ namespace ColorsAction.Configs
         public string Color { get; set; }
         public ItemKind Kind { get; set; }
 
-        /// <summary>Рука для экипировки: щит — только левая, меч — только правая. Any — любая.</summary>
-        public HandRestriction Hand { get; set; } = HandRestriction.Any;
-
         public float Damage { get; set; }
 
         /// <summary>Путь к префабу в Resources, например "Items/Sword".</summary>
@@ -598,6 +595,12 @@ namespace ColorsAction.Configs
         /// <summary>Щит: параметры апгрейдов (дешевле блок, шире окно парирования, удар щитом).</summary>
         public ShieldConfig Shield { get; set; }
 
+        /// <summary>
+        /// Id предмета, который оружие держит во второй руке, пока она пуста (меч — щит: одно синее оружие «меч и щит»).
+        /// Такой предмет не лежит в инвентаре и не подбирается отдельно; его апгрейды — апгрейды этого оружия.
+        /// </summary>
+        public string Offhand { get; set; }
+
         /// <summary>Лечилка (расходуемый предмет в быстром слоте 1–4): заряды и сила лечения. null — не лечит.</summary>
         public HealConfig Heal { get; set; }
 
@@ -606,8 +609,7 @@ namespace ColorsAction.Configs
         /// </summary>
         public int MaxStack { get; set; }
 
-        public bool IsWeapon => Kind == ItemKind.OneHanded || Kind == ItemKind.TwoHanded || Kind == ItemKind.Shield;
-        public bool IsTwoHanded => Kind == ItemKind.TwoHanded;
+        public bool IsWeapon => Kind == ItemKind.Weapon || Kind == ItemKind.Shield;
         public bool IsRanged => Ranged != null;
         public bool IsResource => Kind == ItemKind.Resource;
         public bool IsStackable => MaxStack > 1;
@@ -829,6 +831,14 @@ namespace ColorsAction.Configs
         /// </summary>
         public float ParryWindowBonus { get; set; } = 0.5f;
 
+        /// <summary>
+        /// На какой ступени прокачки (1..3) открываются: дешёвый блок, широкое окно парирования, удар щитом; 0 — никогда.
+        /// Ступень берётся у оружия-владельца щита (<see cref="ItemConfig.Offhand"/>), иначе у самого щита.
+        /// </summary>
+        public int BlockCostUpgrade { get; set; } = 1;
+        public int ParryWidenUpgrade { get; set; } = 2;
+        public int BashUpgrade { get; set; } = 3;
+
         /// <summary>Апгрейд 3: удар щитом, если блок отпущен и нажат снова не позже чем через столько секунд.</summary>
         public float BashMaxGap { get; set; } = 0.25f;
 
@@ -868,8 +878,20 @@ namespace ColorsAction.Configs
     [Preserve]
     public sealed class CombatConfig
     {
-        /// <summary>Множитель урона по врагу того же цвета, что и оружие.</summary>
-        public float SameColorMultiplier { get; set; } = 1.5f;
+        /// <summary>
+        /// Круг цветов (id из Colors.json) по часовой стрелке: 6 цветов круга Иттена через сектор, от жёлтого.
+        /// Расстояние между цветами — число шагов по кругу (0..3), по нему берётся множитель урона.
+        /// </summary>
+        public List<string> ColorWheel { get; set; } = new List<string> { "yellow", "orange", "red", "lilac", "blue", "green" };
+
+        /// <summary>
+        /// Множитель урона по расстоянию на круге между цветом оружия и цветом цели: [0] — свой цвет, [1] — сосед,
+        /// [2] — через один, [3] — напротив. Цвет не на круге (или без цвета) — ×1.
+        /// </summary>
+        public List<float> ColorDistanceMultipliers { get; set; } = new List<float> { 0.4f, 0.9f, 1.2f, 1.6f };
+
+        /// <summary>Колесо выбора оружия (TAB / Y).</summary>
+        public WeaponWheelConfig WeaponWheel { get; set; } = new WeaponWheelConfig();
 
         /// <summary>Предмет для пустой руки (id из Items.json). Пусто (по умолчанию) — без оружия рука не атакует.</summary>
         public string UnarmedItem { get; set; } = "";
@@ -920,6 +942,23 @@ namespace ColorsAction.Configs
         public float ParryShake { get; set; } = 0.35f;
     }
 
+    /// <summary>Колесо выбора оружия: замедление времени, пока оно открыто, и кулдаун смены оружия.</summary>
+    [Preserve]
+    public sealed class WeaponWheelConfig
+    {
+        /// <summary>Скорость времени, пока колесо открыто (0.1 — в 10 раз медленнее; 1 — без замедления).</summary>
+        public float TimeScale { get; set; } = 0.15f;
+
+        /// <summary>Кулдаун смены оружия через колесо, секунды реального времени.</summary>
+        public float SwitchCooldown { get; set; } = 0.6f;
+
+        /// <summary>Мёртвая зона выбора сектора: доля радиуса колеса (мышь) или отклонения стика.</summary>
+        public float DeadZone { get; set; } = 0.25f;
+
+        /// <summary>Как быстро колесо раскрывается и закрывается, секунды реального времени.</summary>
+        public float OpenTime { get; set; } = 0.08f;
+    }
+
     /// <summary>Configs/Dummy.json — тренировочный манекен.</summary>
     [Preserve]
     public sealed class DummyConfig
@@ -942,7 +981,10 @@ namespace ColorsAction.Configs
         public int Rows { get; set; } = 5;
         public int QuickSlots { get; set; } = 4;
 
-        /// <summary>Подобранное оружие сразу надевается, если его рука свободна; иначе ложится в сетку.</summary>
+        /// <summary>
+        /// Подобранное оружие сразу берётся в руки, если в руках ничего нет. Всё оружие в любом случае встаёт на колесо,
+        /// в сетку не ложится.
+        /// </summary>
         public bool AutoEquipOnPickup { get; set; } = true;
     }
 }
