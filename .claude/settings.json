@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(unity command:*)",
+      "Bash(git merge:*)",
+      "Bash(git checkout main)"
+    ]
+  }
+}

@@ -7,7 +7,7 @@
   "maxAttackers": 3,
   "attackerGap": 0.25,
   "lockOnRange": 12,
-  "lockOnBreakRange": 16,
+  "lockOnBreakRange": 19,
   "lockOnAnglePenalty": 4,
   "lockOnTurnSpeed": 900,
   "lockOnCameraSpeed": 4,

@@ -24,7 +24,9 @@
         "staminaCost": 14,
         "rollLockTo": 0.46,
         "fxFrom": 0.12,
-        "fxTo": 0.5
+        "fxTo": 0.5,
+        "upgrade": 0,
+        "chargeable": true
       },
       {
         "motion": "SlashLeft",
@@ -41,7 +43,8 @@
         "staminaCost": 14,
         "rollLockTo": 0.44,
         "fxFrom": 0.12,
-        "fxTo": 0.5
+        "fxTo": 0.5,
+        "chargeable": true
       },
       {
         "motion": "Thrust",
@@ -59,7 +62,8 @@
         "staminaCost": 16,
         "rollLockTo": 0.35,
         "fxFrom": 0.25,
-        "fxTo": 0.6
+        "fxTo": 0.6,
+        "chargeable": true
       },
       {
         "motion": "Chop",
@@ -82,7 +86,18 @@
         "chargeable": true
       }
     ],
-    "charge": { "upgrade": 3, "time": 0.35, "maxHold": 0.8, "perfectWindow": 0.12, "falloff": 0.25, "damageMultiplier": 2, "heldMultiplier": 1.3, "knockbackMultiplier": 1.6, "staminaCost": 12, "flash": 1 },
+    "charge": {
+      "upgrade": 3,
+      "time": 0.35,
+      "maxHold": 0.8,
+      "perfectWindow": 0.22,
+      "falloff": 0.25,
+      "damageMultiplier": 2,
+      "heldMultiplier": 1.3,
+      "knockbackMultiplier": 1.6,
+      "staminaCost": 12,
+      "flash": 1.9
+    },
     "finisher": {
       "upgrade": 2,
       "minHits": 1,
