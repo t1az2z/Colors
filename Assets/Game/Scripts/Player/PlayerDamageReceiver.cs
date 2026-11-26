@@ -178,11 +178,16 @@ namespace ColorsAction.Unity
         private float blinkApplied;
 
         /// <summary>
-        /// Белое свечение тела (подматериал 0, глаза и оружие не трогаем): цвет тянется к белому, emission даёт bloom.
-        /// Материалу тела нужен включённый _EMISSION — берём его копию только для этого игрока.
+        /// Белое свечение тела (подматериал 0, глаза не трогаем) и оружия в руках: цвет тянется к белому,
+        /// emission даёт bloom. Материалам нужен _EMISSION — берём светящиеся копии (<see cref="GlowMaterials"/>).
         /// </summary>
         private void ApplyBlink(float amount)
         {
+            var glow = config.Health.BlinkGlow;
+            if (amount > 0f || blinkApplied > 0f)
+                foreach (var visual in controller.Body.GetComponentsInChildren<ItemVisual>(true))
+                    visual.SetBlink(amount, glow);
+
             if (bodyRenderer == null)
             {
                 bodyRenderer = controller.Deformer != null ? controller.Deformer.GetComponent<Renderer>() : null;
@@ -190,17 +195,7 @@ namespace ColorsAction.Unity
                     return;
                 var material = bodyRenderer.sharedMaterial;
                 bodyColor = material != null && material.HasProperty(BaseColorId) ? material.GetColor(BaseColorId) : Color.gray;
-                if (material != null && !material.IsKeywordEnabled("_EMISSION"))
-                {
-                    var glowing = new Material(material) { name = material.name + " (Blink)" };
-                    glowing.EnableKeyword("_EMISSION");
-                    glowing.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
-                    glowing.SetColor(EmissionColorId, Color.black);
-                    var shared = bodyRenderer.sharedMaterials;
-                    shared[0] = glowing;
-                    bodyRenderer.sharedMaterials = shared;
-                }
-
+                GlowMaterials.EnsureEmission(bodyRenderer);
                 blinkBlock = new MaterialPropertyBlock();
             }
 
@@ -209,7 +204,7 @@ namespace ColorsAction.Unity
             blinkApplied = amount;
             bodyRenderer.GetPropertyBlock(blinkBlock, 0);
             blinkBlock.SetColor(BaseColorId, Color.Lerp(bodyColor, Color.white, amount));
-            blinkBlock.SetColor(EmissionColorId, Color.white * (amount * config.Health.BlinkGlow));
+            blinkBlock.SetColor(EmissionColorId, Color.white * (amount * glow));
             bodyRenderer.SetPropertyBlock(blinkBlock, 0);
         }
 
