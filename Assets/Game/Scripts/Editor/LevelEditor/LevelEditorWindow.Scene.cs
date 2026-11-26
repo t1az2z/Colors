@@ -464,22 +464,25 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             }
             else if (o.IsBridge)
             {
-                // Разводной мост: плоский настил 4×2 и поднятая дальняя створка (стенка 2 в высоту) посередине.
+                // Разводной мост: ближняя створка лежит (половина 4×2), дальняя поднята стенкой у дальнего края,
+                // от её верха к раме за мостом — цепи.
                 top = o.Cell.Y + DrawBridgeShape.Height;
                 var rot = Quaternion.Euler(0, DrawBridgeShape.SnapYaw(o.Yaw), 0);
                 var (cx, cz) = DrawBridgeShape.Center(o.Cell.X, o.Cell.Z, o.Yaw);
-                var deck = rot * new Vector3(DrawBridgeShape.Length, 0f, DrawBridgeShape.Width);
-                var deckCenter = new Vector3(cx, pos.y + 0.03f, cz);
+                var center = new Vector3(cx, pos.y + 0.03f, cz);
+                var deck = rot * new Vector3(DrawBridgeShape.LeafLength, 0f, DrawBridgeShape.Width);
                 Handles.color = new Color(0.85f, 0.85f, 0.85f, 0.45f);
-                DrawSolidBox(deckCenter, new Vector3(Mathf.Abs(deck.x), 0.06f, Mathf.Abs(deck.z)));
-                var leafCenter = deckCenter + rot * new Vector3(0.2f, DrawBridgeShape.Height * 0.5f, 0f);
-                var leaf = rot * new Vector3(0.25f, 0f, DrawBridgeShape.Width);
+                DrawSolidBox(center - rot * new Vector3(1f, 0f, 0f), new Vector3(Mathf.Abs(deck.x), 0.06f, Mathf.Abs(deck.z)));
+                var leafCenter = center + rot * new Vector3(1.7f, DrawBridgeShape.Height * 0.5f, 0f);
+                var leaf = rot * new Vector3(0.4f, 0f, DrawBridgeShape.Width);
                 var leafSize = new Vector3(Mathf.Abs(leaf.x), DrawBridgeShape.Height, Mathf.Abs(leaf.z));
-                Handles.color = new Color(c.r, c.g, c.b, 0.55f);
+                Handles.color = new Color(0.85f, 0.85f, 0.85f, 0.55f);
                 DrawSolidBox(leafCenter, leafSize);
                 Handles.color = c;
                 Handles.DrawWireCube(leafCenter, leafSize);
-                Handles.DrawLine(pos + Vector3.up * 0.1f, leafCenter + Vector3.up * (DrawBridgeShape.Height * 0.45f) - rot * new Vector3(0.15f, 0f, 0f));
+                foreach (var side in new[] { -0.8f, 0.8f })
+                    Handles.DrawLine(center + rot * new Vector3(1.5f, DrawBridgeShape.Height - 0.1f, side),
+                        center + rot * new Vector3(2.8f, 2.55f, side * 1.5f), 3f);
             }
             else if (o.IsDoor)
             {

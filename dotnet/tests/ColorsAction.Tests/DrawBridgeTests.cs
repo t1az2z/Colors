@@ -37,11 +37,12 @@ namespace ColorsAction.Tests
         {
             var o = new LevelObject { Kind = LevelObjectKind.DrawBridge, Cell = new Int3(2, 1, 2), Yaw = 0f, Height = 2 };
             Assert.That(o.BlocksPath, Is.True);
-            Assert.That(o.Covers(new Int3(4, 1, 2)), Is.True, "raised leaf, near row");
-            Assert.That(o.Covers(new Int3(4, 2, 3)), Is.True, "raised leaf, far row, top");
-            Assert.That(o.Covers(new Int3(4, 3, 2)), Is.False, "above the leaf");
+            Assert.That(o.Covers(new Int3(5, 1, 2)), Is.True, "raised leaf at the far end, near row");
+            Assert.That(o.Covers(new Int3(5, 2, 3)), Is.True, "raised leaf, far row, top");
+            Assert.That(o.Covers(new Int3(5, 3, 2)), Is.False, "above the leaf");
             Assert.That(o.Covers(new Int3(2, 1, 2)), Is.False, "lowered leaf is walkable");
-            Assert.That(o.Covers(new Int3(5, 1, 2)), Is.False, "behind the raised leaf");
+            Assert.That(o.Covers(new Int3(4, 1, 2)), Is.False, "the gap in front of the raised leaf");
+            Assert.That(o.Covers(new Int3(6, 1, 2)), Is.False, "behind the bridge");
             Assert.That(o.Covers(new Int3(4, 1, 4)), Is.False, "beside the bridge");
         }
 
@@ -73,7 +74,7 @@ namespace ColorsAction.Tests
             Assert.That(config.Bridges, Has.Count.EqualTo(1));
             var b = config.Bridges[0];
             Assert.That((b.Id, b.X, b.Z, b.Y), Is.EqualTo(("drawbridge_1", 0, 1, (float?)1f)));
-            Assert.That(level.BarrierAt(new Int3(2, 1, 2))?.Id, Is.EqualTo("drawbridge_1"), "raised leaf over the gap");
+            Assert.That(level.BarrierAt(new Int3(3, 1, 2))?.Id, Is.EqualTo("drawbridge_1"), "raised leaf at the far end");
 
             var round = VoxelLevelData.From(level).ToLevel();
             Assert.That(round.FindObject("drawbridge_1").Kind, Is.EqualTo(LevelObjectKind.DrawBridge));

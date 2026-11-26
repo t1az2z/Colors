@@ -9,12 +9,13 @@ using UnityEngine;
 namespace ColorsAction.Unity
 {
     /// <summary>
-    /// Разводной мост 4×2×2 (<see cref="DrawBridgeShape"/>): две створки по 2 клетки из досок на продольных балках.
-    /// Ближняя створка опущена; дальняя поднята на шарнире посередине моста (почти вертикально, с наклоном вперёд)
-    /// и держится на красной цепи (<see cref="BridgeChain"/>), натянутой от кольца на ближней створке к её краю.
-    /// По бокам шарниров — красные шестерни, остальной мост — в цвете мира. Цепь рвётся выстрелом из дробовика
-    /// (Configs/Bridges.json): створка вздрагивает, падает под своим весом (шестерни крутятся), бьётся о землю
-    /// с отскоком, пылью и тряской камеры — проход открыт навсегда (<see cref="GameSession.OpenedBridges"/>).
+    /// Разводной мост 4×2×2 (<see cref="DrawBridgeShape"/>), как на референсе: две створки по 2 клетки, каждая на шарнире
+    /// у своего берега. Ближняя опущена и лежит на каменных опорах; дальняя поднята (с наклоном к игроку) и держится
+    /// на двух красных цепях (<see cref="BridgeChain"/>), идущих от её края к П-образной раме за шарниром. У шарнира
+    /// дальней створки по бокам — большие красные шестерни; рамы, опоры и настил — в цвете мира.
+    /// Цепи рвутся выстрелом из дробовика (Configs/Bridges.json): створка вздрагивает, падает к ближней под своим весом
+    /// (шестерни крутятся), бьётся о землю с отскоком, пылью и тряской камеры — проход открыт навсегда
+    /// (<see cref="GameSession.OpenedBridges"/>).
     /// Корень — в центре первой клетки на высоте опоры; длина — по локальной +X, ширина — по +Z.
     /// </summary>
     public sealed class DrawBridge : GameBehaviour
@@ -25,15 +26,17 @@ namespace ColorsAction.Unity
 
         // Геометрия (локально, метры). Настил чуть выше опоры, чтобы не мерцал с полом.
         private const float DeckTop = 0.04f;
-        private const float PlankThickness = 0.09f;
+        private const float PlankThickness = 0.1f;
         private const float ColliderThickness = 0.25f;
         private const float LeafLength = DrawBridgeShape.LeafLength;
-        private const float Near = -0.5f;                       // ближний край моста
-        private const float Hinge = Near + LeafLength;           // шарнир поднятой створки
+        private const float Near = -0.5f;                                   // ближний край моста, шарнир ближней створки
+        private const float Far = DrawBridgeShape.Length - 0.5f;            // дальний край, шарнир дальней створки
         private const float WidthMin = -0.5f;
         private const float WidthMax = DrawBridgeShape.Width - 0.5f;
         private const float WidthMid = (WidthMin + WidthMax) * 0.5f;
-        private const float GearThickness = 0.1f;
+        private const float HalfWidth = (WidthMax - WidthMin) * 0.5f;
+        private const float GearThickness = 0.12f;
+        private const float PostSize = 0.22f;
 
         private string id;
         private Material worldMaterial;
@@ -43,8 +46,7 @@ namespace ColorsAction.Unity
         private GameSession session;
 
         private readonly List<Material> materials = new List<Material>();
-        private readonly List<Transform> bigGears = new List<Transform>();
-        private readonly List<Transform> smallGears = new List<Transform>();
+        private readonly List<Transform> gears = new List<Transform>();
         private Material chainMaterial;
         private Color chainColor;
         private Transform leaf;
@@ -111,6 +113,7 @@ namespace ColorsAction.Unity
             var plankA = CreateMaterial("BridgePlank", deckColor);
             var plankB = CreateMaterial("BridgePlankDark", Shade(deckColor, 0.93f));
             var beam = CreateMaterial("BridgeBeam", Shade(world, config.BeamShade));
+            var stone = CreateMaterial("BridgeStone", Shade(world, config.StoneShade));
             var mechanism = palette != null ? palette.Get(config.Color) : new Color(0.9f, 0.15f, 0.12f);
             chainColor = Shade(mechanism, config.GearShade);
             chainMaterial = CreateMaterial("BridgeChain", chainColor);
@@ -119,58 +122,71 @@ namespace ColorsAction.Unity
             debrisRoot = new GameObject("Debris").transform;
             debrisRoot.SetParent(transform, false);
 
-            // Ближняя створка: лежит всегда, свой коллайдер настила.
+            // Ближняя створка: лежит всегда, свой коллайдер настила; по бокам шарнира — каменные опоры.
             var nearLeaf = new GameObject("NearLeaf").transform;
             nearLeaf.SetParent(transform, false);
-            nearLeaf.localPosition = new Vector3(Near, 0f, 0f);
-            BuildLeaf(nearLeaf, plankA, plankB, beam, false);
+            nearLeaf.localPosition = new Vector3(Near, 0f, WidthMid);
+            BuildLeaf(nearLeaf, plankA, plankB, beam);
             AddDeckCollider(nearLeaf.gameObject);
-            // Кольцо, к которому прикована цепь: красная пластина на настиле ближе к началу моста.
-            Part(nearLeaf, chainMaterial, new Vector3(0.9f, DeckTop + 0.025f, WidthMid), new Vector3(0.26f, 0.05f, 0.26f));
-            Part(nearLeaf, hub, new Vector3(0.9f, DeckTop + 0.07f, WidthMid), new Vector3(0.08f, 0.06f, 0.08f));
+            foreach (var s in Sides)
+                Bearing(new Vector3(Near + 0.22f, 0f, WidthMid + s * (HalfWidth + 0.16f)), stone);
 
-            // Дальняя створка: поворачивается вокруг шарнира (ось — локальная Z), кинематическое тело для коллайдера.
+            // Дальняя створка: шарнир у дальнего края, разворот на 180° — створка тянется к ближней и поднимается к игроку.
             leaf = new GameObject("RaisedLeaf").transform;
             leaf.SetParent(transform, false);
-            leaf.localPosition = new Vector3(Hinge, 0f, 0f);
-            BuildLeaf(leaf, plankA, plankB, beam, true);
+            leaf.localPosition = new Vector3(Far, 0f, WidthMid);
+            BuildLeaf(leaf, plankA, plankB, beam);
             AddDeckCollider(leaf.gameObject);
             var body = leaf.gameObject.AddComponent<Rigidbody>();
             body.isKinematic = true;
+            // Красная оковка края, к которой крепятся цепи.
+            Part(leaf, chainMaterial, new Vector3(LeafLength - 0.06f, DeckTop - 0.03f, 0f), new Vector3(0.12f, 0.18f, 2f * HalfWidth - 0.1f));
 
-            // Шестерни по бокам: большие у шарнира поднятой створки, поменьше у начала моста; оси — через всю ширину.
-            foreach (var z in new[] { WidthMin - GearThickness, WidthMax + GearThickness })
-            {
-                bigGears.Add(BuildGear(new Vector3(Hinge, 0f, z), config.GearRadius, chainMaterial, hub));
-                smallGears.Add(BuildGear(new Vector3(Near + config.SmallGearRadius * 0.55f, 0f, z), config.SmallGearRadius, chainMaterial, hub));
-            }
+            // Большие шестерни по бокам шарнира дальней створки, ось — через всю ширину.
+            foreach (var s in Sides)
+                gears.Add(BuildGear(new Vector3(Far, 0f, WidthMid + s * (HalfWidth + GearThickness * 0.5f + 0.02f)), config.GearRadius, chainMaterial, hub));
+            Part(transform, beam, new Vector3(Far, 0f, WidthMid), new Vector3(0.12f, 0.12f, 2f * HalfWidth + 2f * GearThickness + 0.1f),
+                Quaternion.Euler(0f, 0f, 45f));
 
-            Axle(new Vector3(Hinge, 0f, WidthMid), beam);
-            Axle(new Vector3(Near + config.SmallGearRadius * 0.55f, 0f, WidthMid), beam);
+            // П-образные рамы на обоих концах: столбы на каменных тумбах по бокам, поперечина над проходом.
+            var farGantry = Far + config.GearRadius + 0.3f;
+            Gantry(Near - 0.45f, beam, stone);
+            Gantry(farGantry, beam, stone);
 
             angle = open ? 0f : config.RaisedAngle;
             ApplyAngle();
             if (open)
                 return;
 
-            // Цепь: от кольца на ближней створке к краю поднятой (на стороне настила, обращённой к игроку).
-            var from = nearLeaf.TransformPoint(new Vector3(0.9f, DeckTop + 0.09f, WidthMid));
-            var to = leaf.TransformPoint(new Vector3(LeafLength - 0.12f, DeckTop + 0.06f, WidthMid));
-            var chainGo = new GameObject("Chain");
-            chainGo.transform.SetParent(transform, true);
+            // Цепи: от углов края поднятой створки (сторона настила) к верхушкам столбов дальней рамы.
+            var top = config.GantryHeight - 0.25f;
+            var chains = new (Vector3 from, Vector3 to)[2];
+            for (int i = 0; i < 2; i++)
+            {
+                var s = Sides[i];
+                // Створка развёрнута на 180°: её локальная Z смотрит в обратную сторону.
+                var z = -s * (HalfWidth - 0.18f);
+                chains[i] = (leaf.TransformPoint(new Vector3(LeafLength - 0.1f, DeckTop + 0.06f, z)),
+                    transform.TransformPoint(new Vector3(farGantry - PostSize * 0.6f, top, WidthMid + s * (HalfWidth + 0.2f))));
+            }
+
+            var chainGo = new GameObject("Chains");
+            chainGo.transform.SetParent(transform, false);
             chain = chainGo.AddComponent<BridgeChain>();
-            chain.Build(this, from, to, chainMaterial, config.ChainLinks);
+            chain.Build(this, chains, chainMaterial, config.ChainLinks);
 
             impulse = gameObject.AddComponent<CinemachineImpulseSource>();
             impulse.ImpulseDefinition.ImpulseShape = CinemachineImpulseDefinition.ImpulseShapes.Bump;
             impulse.ImpulseDefinition.ImpulseDuration = 0.2f;
         }
 
+        private static readonly float[] Sides = { -1f, 1f };
+
         /// <summary>
-        /// Створка от шарнира по +X на 2 м: доски поперёк хода с узкими щелями, бортики-балки по краям, поперечины снизу.
-        /// У поднятой — красная оковка края, к которой крепится цепь.
+        /// Створка от шарнира по локальной +X на 2 м, ширина симметрично вокруг Z = 0: доски поперёк хода с узкими щелями,
+        /// бортики-балки по краям, поперечины снизу.
         /// </summary>
-        private void BuildLeaf(Transform parent, Material plankA, Material plankB, Material beam, bool raised)
+        private static void BuildLeaf(Transform parent, Material plankA, Material plankB, Material beam)
         {
             const int planks = 8;
             const float gap = 0.016f;
@@ -178,29 +194,48 @@ namespace ColorsAction.Unity
             for (int i = 0; i < planks; i++)
             {
                 var x = gap + plankLength * 0.5f + i * (plankLength + gap);
-                Part(parent, i % 2 == 0 ? plankA : plankB, new Vector3(x, DeckTop - PlankThickness * 0.5f, WidthMid),
-                    new Vector3(plankLength, PlankThickness, WidthMax - WidthMin - 0.16f));
+                Part(parent, i % 2 == 0 ? plankA : plankB, new Vector3(x, DeckTop - PlankThickness * 0.5f, 0f),
+                    new Vector3(plankLength, PlankThickness, 2f * HalfWidth - 0.16f));
             }
 
             // Бортики: невысокие балки вдоль краёв, чуть выше настила.
-            foreach (var z in new[] { WidthMin + 0.07f, WidthMax - 0.07f })
-                Part(parent, beam, new Vector3(LeafLength * 0.5f, DeckTop + 0.02f, z), new Vector3(LeafLength, 0.2f, 0.14f));
+            foreach (var s in Sides)
+                Part(parent, beam, new Vector3(LeafLength * 0.5f, DeckTop + 0.02f, s * (HalfWidth - 0.07f)), new Vector3(LeafLength, 0.2f, 0.14f));
             // Поперечины под настилом.
             foreach (var x in new[] { 0.12f, LeafLength * 0.5f, LeafLength - 0.12f })
-                Part(parent, beam, new Vector3(x, DeckTop - PlankThickness - 0.05f, WidthMid), new Vector3(0.14f, 0.1f, WidthMax - WidthMin));
-
-            if (raised)
-            {
-                Part(parent, chainMaterial, new Vector3(LeafLength - 0.06f, DeckTop - 0.02f, WidthMid), new Vector3(0.12f, 0.16f, WidthMax - WidthMin - 0.2f));
-                Part(parent, chainMaterial, new Vector3(LeafLength - 0.12f, DeckTop + 0.04f, WidthMid), new Vector3(0.1f, 0.06f, 0.1f));
-            }
+                Part(parent, beam, new Vector3(x, DeckTop - PlankThickness - 0.05f, 0f), new Vector3(0.14f, 0.1f, 2f * HalfWidth));
         }
 
         private static void AddDeckCollider(GameObject go)
         {
             var box = go.AddComponent<BoxCollider>();
-            box.center = new Vector3(LeafLength * 0.5f, DeckTop - ColliderThickness * 0.5f, WidthMid);
-            box.size = new Vector3(LeafLength, ColliderThickness, WidthMax - WidthMin);
+            box.center = new Vector3(LeafLength * 0.5f, DeckTop - ColliderThickness * 0.5f, 0f);
+            box.size = new Vector3(LeafLength, ColliderThickness, 2f * HalfWidth);
+        }
+
+        /// <summary>Каменная опора шарнира: тумба с закруглённой (срезанной) верхушкой, в которой лежит ось створки.</summary>
+        private void Bearing(Vector3 at, Material stone)
+        {
+            Part(transform, stone, at + new Vector3(0f, -0.08f, 0f), new Vector3(0.5f, 0.16f, 0.26f));
+            Part(transform, stone, at + new Vector3(0f, 0.08f, 0f), new Vector3(0.3f, 0.26f, 0.2f));
+            Part(transform, stone, at + new Vector3(0f, 0.2f, 0f), new Vector3(0.21f, 0.21f, 0.2f), Quaternion.Euler(0f, 0f, 45f));
+        }
+
+        /// <summary>П-образная рама поперёк моста на позиции <paramref name="x"/>: тумбы, столбы с накладками, поперечина.</summary>
+        private void Gantry(float x, Material wood, Material stone)
+        {
+            var height = config.GantryHeight;
+            foreach (var s in Sides)
+            {
+                var z = WidthMid + s * (HalfWidth + 0.2f);
+                Part(transform, stone, new Vector3(x, 0.3f, z), new Vector3(0.44f, 0.6f, 0.4f));
+                Part(transform, wood, new Vector3(x, 0.6f + 0.05f, z), new Vector3(0.48f, 0.1f, 0.44f));
+                Part(transform, wood, new Vector3(x, (0.6f + height) * 0.5f, z), new Vector3(PostSize, height - 0.6f, PostSize));
+                // Накладка-«ухо» на верхушке, как на референсе.
+                Part(transform, wood, new Vector3(x, height - 0.12f, z), new Vector3(PostSize + 0.12f, 0.36f, PostSize - 0.06f));
+            }
+
+            Part(transform, wood, new Vector3(x, height - 0.18f, WidthMid), new Vector3(0.16f, 0.16f, 2f * HalfWidth + 0.6f));
         }
 
         /// <summary>Шестерня: обод из сегментов, зубья, три спицы и ступица; плоскость — XY, ось — локальная Z.</summary>
@@ -209,26 +244,23 @@ namespace ColorsAction.Unity
             var gear = new GameObject("Gear").transform;
             gear.SetParent(transform, false);
             gear.localPosition = center;
-            var teeth = Mathf.Max(8, Mathf.RoundToInt(2f * Mathf.PI * radius / 0.21f));
-            var rim = radius * 0.8f;
+            var teeth = Mathf.Max(8, Mathf.RoundToInt(2f * Mathf.PI * radius / 0.24f));
+            var rim = radius * 0.78f;
             var segment = 2f * Mathf.PI * rim / teeth * 1.08f;
             for (int i = 0; i < teeth; i++)
             {
                 var a = 360f * i / teeth;
                 var rotation = Quaternion.Euler(0f, 0f, a);
-                Part(gear, material, rotation * new Vector3(rim, 0f, 0f), new Vector3(0.12f, segment, GearThickness), rotation);
+                Part(gear, material, rotation * new Vector3(rim, 0f, 0f), new Vector3(0.16f, segment, GearThickness), rotation);
                 var toothRotation = Quaternion.Euler(0f, 0f, a + 180f / teeth);
-                Part(gear, material, toothRotation * new Vector3(radius - 0.07f, 0f, 0f), new Vector3(0.14f, 0.1f, GearThickness), toothRotation);
+                Part(gear, material, toothRotation * new Vector3(radius - 0.08f, 0f, 0f), new Vector3(0.16f, 0.12f, GearThickness), toothRotation);
             }
 
             for (int i = 0; i < 3; i++)
-                Part(gear, material, Vector3.zero, new Vector3(rim * 2f, 0.08f, GearThickness * 0.8f), Quaternion.Euler(0f, 0f, 60f * i));
-            Part(gear, hubMaterial, Vector3.zero, new Vector3(0.24f, 0.24f, GearThickness * 1.6f), Quaternion.Euler(0f, 0f, 45f));
+                Part(gear, material, Vector3.zero, new Vector3(rim * 2f, 0.1f, GearThickness * 0.8f), Quaternion.Euler(0f, 0f, 60f * i));
+            Part(gear, hubMaterial, Vector3.zero, new Vector3(0.26f, 0.26f, GearThickness * 1.6f), Quaternion.Euler(0f, 0f, 45f));
             return gear;
         }
-
-        private void Axle(Vector3 center, Material material) =>
-            Part(transform, material, center, new Vector3(0.12f, 0.12f, WidthMax - WidthMin + 2f * GearThickness), Quaternion.Euler(0f, 0f, 45f));
 
         private static Transform Part(Transform parent, Material material, Vector3 position, Vector3 size, Quaternion? rotation = null)
         {
@@ -282,10 +314,10 @@ namespace ColorsAction.Unity
 
         // ------------------------------------------------------------------ механика
 
-        /// <summary>Попадание по цепи: короткая вспышка шестерён и цепи.</summary>
+        /// <summary>Попадание по цепям: короткая вспышка шестерён и цепей.</summary>
         public void Flash() => flashTimer = config.FlashTime;
 
-        /// <summary>Цепь порвана: мост запоминается опущенным, створка вздрагивает и через паузу падает.</summary>
+        /// <summary>Цепи порваны: мост запоминается опущенным, створка вздрагивает и через паузу падает.</summary>
         public void ChainSnapped()
         {
             session?.OpenedBridges.Add(id);
@@ -296,17 +328,17 @@ namespace ColorsAction.Unity
             bouncesLeft = config.Bounces;
         }
 
+        /// <summary>Поворот дальней створки: разворот к ближней (180° вокруг вертикали) и подъём на угол вокруг оси шарнира.</summary>
+        private Quaternion LeafRotation(float degrees) => Quaternion.Euler(0f, 180f, 0f) * Quaternion.Euler(0f, 0f, degrees);
+
         private void ApplyAngle()
         {
             if (leaf != null)
-                leaf.localRotation = Quaternion.Euler(0f, 0f, angle);
-            // Шестерни у шарнира крутятся вместе со створкой (с передаточным числом), малые — навстречу.
+                leaf.localRotation = LeafRotation(angle);
+            // Шестерни у шарнира крутятся вместе со створкой (с передаточным числом).
             var spin = (config.RaisedAngle - angle) * config.GearRatio;
-            foreach (var g in bigGears)
-                g.localRotation = Quaternion.Euler(0f, 0f, -spin);
-            var ratio = config.GearRadius / Mathf.Max(0.05f, config.SmallGearRadius);
-            foreach (var g in smallGears)
-                g.localRotation = Quaternion.Euler(0f, 0f, spin * ratio);
+            foreach (var g in gears)
+                g.localRotation = Quaternion.Euler(0f, 0f, spin);
         }
 
         private void Update()
@@ -324,11 +356,11 @@ namespace ColorsAction.Unity
 
             if (fallDelay >= 0f)
             {
-                // Цепь лопнула: створка вздрагивает, качнувшись назад, и только потом валится вперёд.
+                // Цепи лопнули: створка вздрагивает, качнувшись назад, и только потом валится вперёд.
                 fallDelay -= dt;
                 trembleTimer = Mathf.Max(0f, trembleTimer - dt);
                 var k = trembleTimer / Mathf.Max(0.01f, config.FallDelay);
-                leaf.localRotation = Quaternion.Euler(0f, 0f, angle + Mathf.Sin(k * Mathf.PI) * 2.5f + Mathf.Sin(Time.time * 60f) * 0.6f * k);
+                leaf.localRotation = LeafRotation(angle + Mathf.Sin(k * Mathf.PI) * 2.5f + Mathf.Sin(Time.time * 60f) * 0.6f * k);
                 if (fallDelay < 0f)
                     falling = true;
                 return;
@@ -361,7 +393,7 @@ namespace ColorsAction.Unity
             ApplyAngle();
         }
 
-        /// <summary>Удар створки о землю: пыль вдоль края, тряска камеры (первый удар — полная, отскоки — слабее).</summary>
+        /// <summary>Удар створки о землю: пыль у края, где створки сходятся, тряска камеры (отскоки — слабее).</summary>
         private void Land(float speed, bool first)
         {
             var strength = first ? 1f : Mathf.Clamp01(speed / 400f);
@@ -369,8 +401,9 @@ namespace ColorsAction.Unity
             if (dust > 0)
             {
                 var color = Shade(WorldColor(), 0.85f);
-                Debris.Burst(transform.TransformPoint(new Vector3(Hinge + LeafLength - 0.15f, 0.05f, WidthMin + 0.2f)), color, dust / 2, 0.06f, 2.5f, 0.9f);
-                Debris.Burst(transform.TransformPoint(new Vector3(Hinge + LeafLength - 0.15f, 0.05f, WidthMax - 0.2f)), color, dust - dust / 2, 0.06f, 2.5f, 0.9f);
+                var edge = Far - LeafLength + 0.15f;
+                Debris.Burst(transform.TransformPoint(new Vector3(edge, 0.05f, WidthMin + 0.2f)), color, dust / 2, 0.06f, 2.5f, 0.9f);
+                Debris.Burst(transform.TransformPoint(new Vector3(edge, 0.05f, WidthMax - 0.2f)), color, dust - dust / 2, 0.06f, 2.5f, 0.9f);
             }
 
             if (impulse != null && config.LandShake > 0f)

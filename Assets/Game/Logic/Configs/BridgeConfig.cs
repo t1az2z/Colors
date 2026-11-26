@@ -7,8 +7,8 @@ namespace ColorsAction.Configs
 {
     /// <summary>
     /// Configs/Bridges.json — разводной мост 4×2×2 (<see cref="ColorsAction.Level.DrawBridgeShape"/>): ближняя створка
-    /// опущена, дальняя поднята и держится на цепи. Цепь рвётся только оружием из <see cref="BreakableBy"/> (дробовик),
-    /// створка падает и открывает проход. Шестерни и цепь — цвета <see cref="Color"/>, сам мост — в цвете мира.
+    /// опущена, дальняя поднята и держится на двух цепях к раме. Цепи рвутся только оружием из <see cref="BreakableBy"/>
+    /// (дробовик), створка падает и открывает проход. Шестерни и цепи — цвета <see cref="Color"/>, остальное — в цвете мира.
     /// </summary>
     [Preserve]
     public sealed class BridgeConfig : IConfigPostLoad
@@ -31,16 +31,20 @@ namespace ColorsAction.Configs
         /// <summary>Яркость балок и окантовки относительно цвета мира.</summary>
         public float BeamShade { get; set; } = 0.72f;
 
+        /// <summary>Яркость каменных опор и тумб рам относительно цвета мира.</summary>
+        public float StoneShade { get; set; } = 0.62f;
+
         /// <summary>Яркость шестерён и цепи относительно цвета <see cref="Color"/>.</summary>
         public float GearShade { get; set; } = 1f;
 
         /// <summary>Угол поднятой створки от горизонтали, градусы (больше 90 нельзя — створка должна падать вперёд).</summary>
-        public float RaisedAngle { get; set; } = 80f;
+        public float RaisedAngle { get; set; } = 72f;
 
-        /// <summary>Радиус больших шестерён у шарнира поднятой створки и у опущенной, метры.</summary>
+        /// <summary>Радиус больших шестерён у шарнира поднятой створки, метры.</summary>
         public float GearRadius { get; set; } = 0.72f;
 
-        public float SmallGearRadius { get; set; } = 0.5f;
+        /// <summary>Высота П-образных рам на концах моста (к дальней крепятся цепи), метры.</summary>
+        public float GantryHeight { get; set; } = 2.8f;
 
         /// <summary>Сколько оборотов шестерни на один оборот створки (шестерни крутятся, пока створка падает).</summary>
         public float GearRatio { get; set; } = 2.5f;
@@ -88,6 +92,7 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException("bridges: chainHp must be > 0");
             RaisedAngle = Math.Max(10f, Math.Min(89f, RaisedAngle));
             ChainLinks = Math.Max(3, ChainLinks);
+            GantryHeight = Math.Max(2.2f, GantryHeight);
             Bounces = Math.Max(0, Bounces);
         }
     }

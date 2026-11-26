@@ -7,8 +7,8 @@ using UnityEngine;
 namespace ColorsAction.Unity.Editor
 {
     /// <summary>
-    /// Автопрогон разводного моста на карте VoxelLevels/BridgeTest (коридор 2 клетки, мост drawbridge_1 от x=4 по +X,
-    /// под дальней створкой — пропасть): поднятая створка не пускает пешком и прыжком, меч цепь не рвёт, фиксация
+    /// Автопрогон разводного моста на карте VoxelLevels/BridgeTest (коридор, мост drawbridge_1 от x=4 по +X, дальняя
+    /// створка на шарнире x=8, под ней поперёк коридора — пропасть x=6..7): поднятая створка не пускает пешком и прыжком, меч цепь не рвёт, фиксация
     /// берёт цепь, выстрел из дробовика её рвёт, створка падает, по мосту можно пройти над пропастью.
     /// Нужен дробовик в руке (окно «Параметры запуска»). Меню: ColorsAction → Debug → Run Bridge Playtest (в Play Mode).
     /// Скриншоты — в Temp/BridgePlaytest.
@@ -131,7 +131,7 @@ namespace ColorsAction.Unity.Editor
             Check(session.Inventory.Right?.Id == "shotgun", "shotgun in hand (launch options)");
             report.AppendLine($"  info fps ~{1f / Mathf.Max(0.0001f, Time.smoothDeltaTime):F0}, chain length {chain?.Length:F2}");
 
-            // 1. Пешком не пройти: идём по коридору в поднятую створку (шарнир на x=6).
+            // 1. Пешком не пройти: впереди пропасть и поднятая створка (шарнир на x=8).
             var start = new Vector3(1.5f, 0f, 3f);
             player.Teleport(start, 90f);
             input.ClearScripted();
@@ -142,23 +142,25 @@ namespace ColorsAction.Unity.Editor
             input.ScriptedMove = null;
             yield return 0.2f;
             var x = player.transform.position.x;
-            Check(x > 4f && x < 6f, $"walking is blocked by the raised leaf: player x={x:F2} (hinge at 6.0)");
+            Check(x < 7.6f, $"walking does not get past the raised leaf: player x={x:F2} y={player.transform.position.y:F2} (hinge at 8.0)");
 
-            // 2. Прыжком не перебраться.
+            // 2. Прыжком с края ближней створки не перебраться.
+            player.Teleport(new Vector3(5.6f, 0f, 3f), 90f);
+            yield return 0.3f;
             input.ScriptedMove = Dir(Vector3.right);
             input.ScriptPress(GameAction.Jump);
             yield return 1.2f;
             input.ScriptedMove = null;
             yield return 0.5f;
             x = player.transform.position.x;
-            Check(x < 6f, $"jump over is blocked: x={x:F2} y={player.transform.position.y:F2}");
+            Check(x < 7.6f, $"jump over is blocked: x={x:F2} y={player.transform.position.y:F2}");
 
             // 3. Меч цепь не рвёт, только раскачивает.
             chain.ReceiveHit(new HitInfo { Damage = 100f, WeaponId = "sword", Direction = Vector3.right, Knockback = 1f });
             Check(!chain.Broken && !chain.Accepts("sword") && chain.Accepts("shotgun"), "gate: shotgun only");
 
             // 4. Фиксация берёт цепь.
-            player.Teleport(new Vector3(2.5f, 0f, 3f), 90f);
+            player.Teleport(new Vector3(4.8f, 0f, 3f), 90f);
             yield return 0.4f;
             var lockOn = player.LockOn;
             lockOn.Release();
@@ -185,7 +187,7 @@ namespace ColorsAction.Unity.Editor
             Check(Mathf.Approximately(bridge.LeafAngle, 0f) && !bridge.Falling, $"far leaf lies flat: {bridge.LeafAngle:F1}°");
             Shot("4_lowered");
 
-            // 6. По мосту — над пропастью на ту сторону.
+            // 6. По мосту — над пропастью на ту сторону (под рамой).
             player.Teleport(start, 90f);
             yield return 0.3f;
             input.ScriptedMove = Dir(Vector3.right);
