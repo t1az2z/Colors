@@ -107,7 +107,7 @@ namespace ColorsAction.Unity
             get
             {
                 // Удар в прыжке и удар с подскоком не гасят инерцию полёта.
-                if (attacking != null && (Plunging || LeapStep))
+                if (attacking != null && (Plunging || (LeapStep && !leapPending)))
                     return 1f;
                 if (attacking != null)
                     return playerConfig.AttackMoveMultiplier;
@@ -345,6 +345,13 @@ namespace ColorsAction.Unity
                 return;
             var previousTime = attackTime;
             attackTime += dt;
+            // Подскок удара — в момент начала удара (после замаха и заряда), а не на замахе.
+            if (leapPending && attackTime >= step.Windup)
+            {
+                leapPending = false;
+                controller.Leap(step.Hop, controller.Forward * step.Lunge);
+            }
+
             // Окно урона внутри удара (HitFrom..HitTo от длительности Strike), в секундах от начала удара.
             // Проверяем, задел ли кадр (previousTime..attackTime] это окно, а не попал ли конец кадра внутрь:
             // иначе при длинном кадре короткое окно «проскакивало» и удар не наносил урон.
@@ -428,7 +435,13 @@ namespace ColorsAction.Unity
             var b = Mathf.Max(a, step.ActiveTo);
             // 0..1 замах, 1 удар, затем возврат к 0.
             float wind, strike;
-            if (t < a)
+            if (Charging)
+            {
+                // Заряд: куб замер на пике замаха, скручивание в удар — только после отпускания.
+                wind = 1f;
+                strike = 0f;
+            }
+            else if (t < a)
             {
                 wind = EaseOut(t / a);
                 strike = 0f;
@@ -485,16 +498,18 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>
-        /// Рывок при ударе: отдаётся контроллеру движения по кадрам до конца активной фазы.
+        /// Рывок при ударе: отдаётся контроллеру движения по кадрам только в фазе удара (от конца замаха до
+        /// финальной позы) — на замахе и во время заряда куб стоит на месте.
         /// Положительный <see cref="AttackStepConfig.Lunge"/> — вперёд, отрицательный — шаг назад.
         /// </summary>
         public Vector3 ConsumeLunge(Vector3 forward)
         {
             var recoil = ConsumeRecoil() + ConsumeBashLunge(forward);
-            // Отрицательный выпад — шаг назад. У удара с подскоком выпад уже отдан полётом.
-            if (attacking == null || LeapStep || Mathf.Abs(step.Lunge) < 1e-4f)
+            // Отрицательный выпад — шаг назад. У удара с подскоком выпад отдаётся полётом.
+            if (attacking == null || LeapStep || Charging || Mathf.Abs(step.Lunge) < 1e-4f)
                 return recoil;
-            var t = Mathf.Clamp01(attackTime / (step.Duration * step.ActiveTo));
+            var strikeStart = step.Windup;
+            var t = Mathf.Clamp01((attackTime - strikeStart) / Mathf.Max(0.0001f, StrikeEnd - strikeStart));
             var target = step.Lunge * (1f - (1f - t) * (1f - t));
             var delta = target - lungeDone;
             lungeDone = target;
@@ -664,6 +679,9 @@ namespace ColorsAction.Unity
             var rest = RestPose(hand);
             var a = step.ActiveFrom;
             var b = step.ActiveTo;
+            // Заряд: оружие стоит на пике замаха (начало траектории удара).
+            if (Charging)
+                return ArcPose(hand, 0f);
             if (t < a)
             {
                 var start = ArcPose(hand, 0f);
