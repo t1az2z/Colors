@@ -6,8 +6,9 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Цепи разводного моста (<see cref="DrawBridge"/>): две цепи от края поднятой створки к раме за шарниром — одна цель.
-    /// Цель для пуль (триггер-коллайдер, накрывающий обе цепи и промежуток между ними) и для фиксации (СКМ / R3,
-    /// список <see cref="All"/>); точка прицела — ближе к краю створки, чтобы залп шёл над ней. Рвётся только оружием
+    /// Цель для пуль (триггер-коллайдер, накрывающий обе цепи и промежуток между ними, плюс зона у края створки, где
+    /// цепи крепятся, — залп снизу задевает сначала её, а не саму створку) и для фиксации (СКМ / R3, список
+    /// <see cref="All"/>); точка прицела — над краем створки. Рвётся только оружием
     /// из Configs/Bridges.json (дробовик), и сразу обе; удар другим оружием только раскачивает их.
     /// Объект стоит в середине между цепями, локальная +Z — вдоль цепей от створки к раме.
     /// </summary>
@@ -19,6 +20,8 @@ namespace ColorsAction.Unity
         private DrawBridge owner;
         private BreakableState state;
         private BoxCollider hitBox;
+        private BoxCollider edgeBox;
+        private Vector3 aimLocal;
         private float length;
         private float swingTimer;
         private float swingAmount;
@@ -43,8 +46,8 @@ namespace ColorsAction.Unity
 
         public string ColorId => owner != null ? owner.Config.Color : "red";
 
-        /// <summary>Точка прицела: между цепями, на четверти длины от края створки.</summary>
-        public Vector3 HitPoint => transform.TransformPoint(new Vector3(0f, 0f, -length * 0.25f));
+        /// <summary>Точка прицела: над серединой края створки, где крепятся цепи.</summary>
+        public Vector3 HitPoint => transform.TransformPoint(aimLocal);
 
         public bool ShowsDamageNumbers => false;
 
@@ -84,6 +87,14 @@ namespace ColorsAction.Unity
             hitBox = gameObject.AddComponent<BoxCollider>();
             hitBox.isTrigger = true;
             hitBox.size = new Vector3(2f * spread + 0.35f, 0.4f, length);
+
+            // Зона у края створки: крепления цепей. Пули, летящие снизу к цепям, иначе упирались бы в верх створки.
+            var edge = transform.InverseTransformPoint(from + Vector3.up * 0.08f);
+            edgeBox = gameObject.AddComponent<BoxCollider>();
+            edgeBox.isTrigger = true;
+            edgeBox.center = edge;
+            edgeBox.size = new Vector3(2f * spread + 0.35f, 0.6f, 0.7f);
+            aimLocal = transform.InverseTransformPoint(from + Vector3.up * 0.22f);
         }
 
         /// <summary>Одна цепь: звенья-овалы из четырёх брусков, каждое следующее повёрнуто на 90° вокруг оси цепи.</summary>
@@ -172,6 +183,8 @@ namespace ColorsAction.Unity
             enabled = false;
             if (hitBox != null)
                 Destroy(hitBox);
+            if (edgeBox != null)
+                Destroy(edgeBox);
             var config = owner.Config;
             var push = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
             Debris.Burst(HitPoint, owner.ChainColor, 10, 0.05f, 4f, 0.9f);

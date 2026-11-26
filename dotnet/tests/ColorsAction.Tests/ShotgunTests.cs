@@ -20,7 +20,7 @@ namespace ColorsAction.Tests
             var shotgun = Configs().LoadTable<ItemConfig>(ConfigKeys.Items).Get("shotgun");
             Assert.That(shotgun.IsRanged && shotgun.IsTwoHanded, Is.True, "two-handed ranged weapon");
             Assert.That(shotgun.Color, Is.EqualTo("red"));
-            Assert.That(shotgun.Damage, Is.EqualTo(3f), "damage per pellet");
+            Assert.That(shotgun.Damage, Is.EqualTo(1.5f), "damage per pellet");
             Assert.That(shotgun.Ranged.Pellets, Is.EqualTo(8));
             Assert.That(shotgun.Ranged.StaminaCost, Is.EqualTo(20f));
             Assert.That(shotgun.Ranged.Cooldown, Is.EqualTo(0.3f).Within(1e-4));
@@ -52,7 +52,7 @@ namespace ColorsAction.Tests
             var red = enemies.Get("club_cube_red");
             var blue = enemies.Get("club_cube");
             Assert.That(red.Color, Is.EqualTo("red"));
-            Assert.That(rules.Calculate(shotgun, null, red.Color).Damage, Is.EqualTo(3f * combat.SameColorMultiplier).Within(1e-4));
+            Assert.That(rules.Calculate(shotgun, null, red.Color).Damage, Is.EqualTo(shotgun.Damage * combat.SameColorMultiplier).Within(1e-4));
             Assert.That(rules.Calculate(shotgun, null, blue.Color).ColorBonus, Is.False);
         }
 

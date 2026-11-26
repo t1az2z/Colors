@@ -88,14 +88,15 @@ namespace ColorsAction.Tests
             Assert.That(charge.DamageMultiplier, Is.EqualTo(2f).Within(1e-4f));
             Assert.That(charge.KnockbackMultiplier, Is.EqualTo(3f).Within(1e-4f));
 
-            // Передержали: середина спада — урон посередине между 2 и 1.4, отбрасывание спадает так же.
+            // Передержали: середина спада — урон посередине между 2 и 1.4, отбрасывание спадает той же долей бонуса
+            // (передержка 1.4 — это 40% бонуса: отбрасывание ×1.8, середина между 3 и 1.8 — 2.4).
             charge.Begin(config);
             charge.Tick(0.3f, true, _ => true);
             charge.Tick(0.2f, true, _ => true);
             charge.Tick(0f, false, _ => true);
             Assert.That(charge.Perfect, Is.False);
             Assert.That(charge.DamageMultiplier, Is.EqualTo(1.7f).Within(1e-3f));
-            Assert.That(charge.KnockbackMultiplier, Is.EqualTo(2.5f).Within(1e-3f));
+            Assert.That(charge.KnockbackMultiplier, Is.EqualTo(2.4f).Within(1e-3f));
 
             // После спада — множитель передержки.
             charge.Begin(config);
@@ -239,7 +240,9 @@ namespace ColorsAction.Tests
             Assert.That(sword.Combo.Count, Is.GreaterThanOrEqualTo(4));
             Assert.That(sword.Combo[2].Motion, Is.EqualTo(AttackMotion.Thrust));
             Assert.That(sword.Combo[2].Upgrade, Is.Zero);
-            Assert.That(sword.ChargeFor(sword.Combo[2]), Is.Null, "only the fourth attack charges by default");
+            // Балансные правки: заряжаются все удары комбо (общий заряд меча), четвёртый — тоже.
+            for (int i = 0; i < 3; i++)
+                Assert.That(sword.ChargeFor(sword.Combo[i]), Is.SameAs(sword.Charge), $"combo step {i + 1} charges");
             Assert.That(sword.Combo[3].Chargeable, Is.True);
             Assert.That(sword.ChargeFor(sword.Combo[3]), Is.SameAs(sword.Charge));
             Assert.That(sword.Charge.Upgrade, Is.EqualTo(3));

@@ -27,8 +27,9 @@ namespace ColorsAction.Tests
         [Test]
         public void Center_IsBetweenBothCells()
         {
-            Assert.That(CrateStackShape.Center(3, 4, CrateStackShape.AlongX), Is.EqualTo((4.5f, 4.5f)));
-            Assert.That(CrateStackShape.Center(3, 4, CrateStackShape.AlongZ), Is.EqualTo((3.5f, 5.5f)));
+            // Клетка (3, 4) занимает 3..4 × 4..5: середина стопки — на шве между двумя клетками.
+            Assert.That(CrateStackShape.Center(3, 4, CrateStackShape.AlongX), Is.EqualTo((4f, 4.5f)));
+            Assert.That(CrateStackShape.Center(3, 4, CrateStackShape.AlongZ), Is.EqualTo((3.5f, 5f)));
         }
 
         [Test]
