@@ -45,7 +45,9 @@ namespace ColorsAction
             {
                 if (w == null || string.IsNullOrEmpty(w.Item))
                     continue;
-                session.GiveItem(w.Item, equip: true);
+                // Предмета нет в Items.json (например, старые "fists" в сохранённых параметрах) — пропускаем целиком.
+                if (!session.GiveItem(w.Item, equip: true))
+                    continue;
                 session.Upgrades.Set(w.Item, Math.Max(0, Math.Min(Progression.WeaponUpgrades.MaxTier, w.Upgrade)));
             }
 

@@ -798,7 +798,7 @@ namespace ColorsAction.Configs
         /// <summary>Множитель урона по врагу того же цвета, что и оружие.</summary>
         public float SameColorMultiplier { get; set; } = 1.5f;
 
-        /// <summary>Предмет для пустой руки (например "fists"). Пусто — без оружия рука не атакует.</summary>
+        /// <summary>Предмет для пустой руки (id из Items.json). Пусто (по умолчанию) — без оружия рука не атакует.</summary>
         public string UnarmedItem { get; set; } = "";
 
         /// <summary>Фриз-кадры при попадании, секунды (0 — выключено). Умножается на отбрасывание удара.</summary>
