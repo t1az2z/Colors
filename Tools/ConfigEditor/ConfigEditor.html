@@ -241,6 +241,14 @@ const SCHEMA = {
         { k: 'health.blinkStrength', l: 'Сила мигания', d: 'Насколько куб окрашивается в белый на пике вспышки: 0 — не мигает, 1 — полностью белый.', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.6 },
         { k: 'health.blinkGlow', l: 'Свечение вспышки', d: 'Яркость белого свечения (emission) на пике при силе 1. Больше 1 — сильнее ореол bloom, 0 — просто белый без свечения.', u: U.x, min: 0, max: 8, step: 0.1, def: 2 },
       ] },
+      { title: 'Урон от падения', sub: 'высота — от верхней точки полёта до места приземления; ниже первой ступени урона нет', fields: [
+        { k: 'fallDamage.enabled', l: 'Включён', t: 'bool', def: true, d: 'Выключено — падение с любой высоты без урона (смерть ниже дна мира остаётся).' },
+        { k: 'fallDamage.lightHeight', l: 'Ступень 1: высота', d: 'С этой высоты падение начинает ранить.', u: U.bl, min: 1, max: 20, step: 0.5, def: 4 },
+        { k: 'fallDamage.lightDamage', l: 'Ступень 1: урон', d: 'Доля максимального здоровья, которую снимает падение ступени 1 (0.2 = 20%).', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.2 },
+        { k: 'fallDamage.heavyHeight', l: 'Ступень 2: высота', d: 'С этой высоты урон сильнее. Не ниже ступени 1.', u: U.bl, min: 1, max: 20, step: 0.5, def: 5 },
+        { k: 'fallDamage.heavyDamage', l: 'Ступень 2: урон', d: 'Доля максимального здоровья для ступени 2 (0.7 = 70%).', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.7 },
+        { k: 'fallDamage.lethalHeight', l: 'Смертельная высота', d: 'С этой высоты падение убивает (100% здоровья). Не ниже ступени 2.', u: U.bl, min: 1, max: 30, step: 0.5, def: 6 },
+      ] },
       { title: 'Выносливость', viz: vizStamina, fields: [
         { k: 'stamina.max', l: 'Запас', d: 'Полная шкала выносливости.', u: U.pts, min: 10, max: 300, step: 1 },
         { k: 'stamina.regenPerSecond', l: 'Восстановление', d: 'Сколько единиц восстанавливается в секунду.', u: 'ед./с', min: 1, max: 200, step: 1 },
@@ -274,6 +282,8 @@ const SCHEMA = {
       if (!(num(d.gravity) > 0)) w.push('gravity должна быть больше 0.');
       if (num(d.jumpHeight) < 0) w.push('jumpHeight не может быть отрицательной.');
       if (num(d.stepHeight) >= num(d.colliderHeight, 1)) w.push('Высота шага должна быть меньше высоты коллайдера — иначе игра не загрузит конфиг.');
+      const fd = d.fallDamage || {};
+      if (num(fd.heavyHeight, 5) < num(fd.lightHeight, 4) || num(fd.lethalHeight, 6) < num(fd.heavyHeight, 5)) w.push('Урон от падения: высоты ступеней должны идти по возрастанию (ступень 1 ≤ ступень 2 ≤ смертельная) — иначе игра не загрузит конфиг.');
       w.push(...validateDodge(d.dodge));
       return w;
     },

@@ -93,6 +93,9 @@ namespace ColorsAction.Configs
         /// <summary>Здоровье: максимум, прирост за уровень, неуязвимость и мигание после урона.</summary>
         public PlayerHealthConfig Health { get; set; } = new PlayerHealthConfig();
 
+        /// <summary>Урон от падения с высоты: ступени высоты и доли здоровья.</summary>
+        public FallDamageConfig FallDamage { get; set; } = new FallDamageConfig();
+
         /// <summary>Отбрасывание игрока при получении урона, метры.</summary>
         public float HitKnockback { get; set; } = 0.8f;
 
@@ -111,6 +114,8 @@ namespace ColorsAction.Configs
             Stamina ??= new StaminaConfig();
             Health ??= new PlayerHealthConfig();
             Health.Validate();
+            FallDamage ??= new FallDamageConfig();
+            FallDamage.Validate();
             Dodge ??= new DodgeConfig();
             Dodge.Validate();
         }
@@ -166,6 +171,46 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException("health.maxPerLevel, hitInvulnerability and blinkRate, blinkGlow must not be negative");
             if (BlinkStrength < 0f || BlinkStrength > 1f)
                 throw new InvalidOperationException("health.blinkStrength must be within 0..1");
+        }
+    }
+
+    /// <summary>
+    /// Урон от падения: высота считается от верхней точки полёта до места приземления, в блоках.
+    /// Три ступени: с <see cref="LightHeight"/> — <see cref="LightDamage"/> доли здоровья, с <see cref="HeavyHeight"/> —
+    /// <see cref="HeavyDamage"/>, с <see cref="LethalHeight"/> — смерть. Ниже первой ступени урона нет.
+    /// </summary>
+    [Preserve]
+    public sealed class FallDamageConfig
+    {
+        /// <summary>Допуск на погрешность коллизий: падение с ровно 4 блоков считается за 4.</summary>
+        public const float HeightTolerance = 0.05f;
+
+        public bool Enabled { get; set; } = true;
+        public float LightHeight { get; set; } = 4f;
+        public float LightDamage { get; set; } = 0.2f;
+        public float HeavyHeight { get; set; } = 5f;
+        public float HeavyDamage { get; set; } = 0.7f;
+        public float LethalHeight { get; set; } = 6f;
+
+        /// <summary>Доля максимального здоровья, которую снимает падение с высоты <paramref name="height"/> (1 — смерть).</summary>
+        public float DamageFraction(float height)
+        {
+            if (!Enabled)
+                return 0f;
+            var h = height + HeightTolerance;
+            if (h >= LethalHeight)
+                return 1f;
+            if (h >= HeavyHeight)
+                return HeavyDamage;
+            return h >= LightHeight ? LightDamage : 0f;
+        }
+
+        public void Validate()
+        {
+            if (LightHeight <= 0f || HeavyHeight < LightHeight || LethalHeight < HeavyHeight)
+                throw new InvalidOperationException("fallDamage heights must be positive and go lightHeight <= heavyHeight <= lethalHeight");
+            if (LightDamage < 0f || LightDamage > 1f || HeavyDamage < 0f || HeavyDamage > 1f)
+                throw new InvalidOperationException("fallDamage.lightDamage and heavyDamage must be within 0..1");
         }
     }
 

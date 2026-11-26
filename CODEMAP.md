@@ -26,7 +26,7 @@
 ## Unity (`Assets/Game/Scripts`)
 
 - `Core/` — `GameBootstrap` (точка входа сцены, хост ядра, создаёт HUD/инвентарь/EventSystem из префабов, регистрирует `LaunchOptions`), `LaunchOptionsStore` (UserSettings/ColorsActionLaunch.json), `GameInput` (действия клавиатура/геймпад), `Palette`, `ComponentPool` (пулинг), `GlowMaterials` (копии материалов с `_EMISSION` для белой вспышки неуязвимости).
-- `Player/` — `PlayerController` (ходьба, бег, прыжок, серия отскоков, хуки удара в прыжке), `BoxMotor` (кинематика бокса), `CubeDeformer` (деформация куба), `PlayerDamageReceiver` (урон, блок, i-frames с белым свечением тела и оружия, смерть/респаун, смерть при падении ниже `KillHeight`, быстрые слоты 1–4 — лечилка), `PlayerLockOn` (фиксация цели: враги, манекены, цепи мостов), `AimMarker`.
+- `Player/` — `PlayerController` (ходьба, бег, прыжок, серия отскоков, хуки удара в прыжке), `BoxMotor` (кинематика бокса), `CubeDeformer` (деформация куба), `PlayerDamageReceiver` (урон, блок, i-frames с белым свечением тела и оружия, смерть/респаун, смерть при падении ниже `KillHeight`, урон от падения с высоты по ступеням `PlayerConfig.FallDamage`, быстрые слоты 1–4 — лечилка), `PlayerLockOn` (фиксация цели: враги, манекены, цепи мостов), `AimMarker`.
 - `Combat/` — `PlayerCombat` (partial: `.cs` — атаки обеих рук, комбо, позы; `.Moves.cs` — заряд, добивающий, удар в прыжке, окно эффекта; `.Shotgun.cs` — выстрел пулями, заряд, позы дробовика; `.Shield.cs` — блок, парирование, удар щитом), `Pellet` (пуля из пула), `WeaponGlow`, `ParticleFx` (разовые эффекты на Particle System из `Resources/Fx` с пулом и окраской в цвет оружия: `ChargeFlash` — вспышка на пике заряда, `GroundSlam` — удар по земле, `HitFlash` — тёплая вспышка парирования, удара по цепи, дула, лечения: `ParticleFx.Flash`), `WeaponTrail` (след клинка: частицы префаба `Fx/SwordTrail` испускаются вдоль клинка), `TrainingDummy`, `Hittable` (`IHittable`, `HitInfo` + `WeaponId`, `IWeaponGate`/`HitGate` — цели, которые берёт не любое оружие). `ShotFx` больше не используется.
 - `Enemies/` — `EnemyController` (движение, атаки, анимации, реакция на парирование; удар по игроку ждёт конца окна парирования), `EnemyFx` (трещины, осколки `DebrisChip` из пула, опыт, маркер тревоги).
 - `Items/` — `Pickup` (предмет на земле, префаб `Resources/Items/Pickups/<Name>`; без модели — склянка из примитивов), `PickupVisual`, `ItemVisual` (цвет оружия + `SetBlink` — белая вспышка поверх), `Interactable`/`PlayerInteractor` (E / X).
@@ -43,7 +43,7 @@
 
 ## Инструменты
 
-- `Tools/ConfigEditor/ConfigEditor.html` — веб-редактор JSON-конфигов (таймлайны атак, цены апгрейдов, сундуки, ресурсы, мосты).
+- `Tools/ConfigEditor/ConfigEditor.html` — веб-редактор JSON-конфигов (таймлайны атак, цены апгрейдов, сундуки, ресурсы, мосты, урон от падения игрока).
 - `Tools/LevelEditorWeb/index.html` — веб-редактор уровней (сундук: ресурс и количество, подпись на значке; разводной мост с направлением) (GitHub Pages, `.github/workflows/level-editor-pages.yml`).
 - `Tools/Dev/CompileCheck.ps1` — быстрая проверка компиляции Unity-кода через dotnet, без редактора (`-Root <worktree>`).
 - `Tools/Blender`, `Tools/Level` — генерация моделей и тестовых уровней.

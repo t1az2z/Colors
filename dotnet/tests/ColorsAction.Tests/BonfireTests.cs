@@ -267,6 +267,28 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void FallDamage_StepsFromPlayerConfig_AndIgnoresInvulnerability()
+        {
+            using var host = CreateHost();
+            var fall = host.Container.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player).FallDamage;
+            Assert.That(fall.DamageFraction(3.7f), Is.Zero, "a jump off a 3-block ledge is safe");
+            Assert.That(fall.DamageFraction(3.99f), Is.EqualTo(0.2f), "exactly 4 blocks, minus collision skin");
+            Assert.That(fall.DamageFraction(4.6f), Is.EqualTo(0.2f));
+            Assert.That(fall.DamageFraction(5f), Is.EqualTo(0.7f));
+            Assert.That(fall.DamageFraction(6f), Is.EqualTo(1f));
+            Assert.That(fall.DamageFraction(40f), Is.EqualTo(1f));
+
+            var off = new FallDamageConfig { Enabled = false };
+            Assert.That(off.DamageFraction(40f), Is.Zero);
+            Assert.Throws<System.InvalidOperationException>(() => new FallDamageConfig { HeavyHeight = 3f }.Validate());
+
+            var vitals = new ColorsAction.Combat.PlayerVitals(100f, 2f);
+            vitals.TryHit(10f);
+            vitals.TakeFallDamage(100f * fall.DamageFraction(5f));
+            Assert.That(vitals.Health.Current.Value, Is.EqualTo(20f).Within(0.001f), "lands during i-frames still hurts");
+        }
+
+        [Test]
         public void LockOn_AfterTargetDies_GoesToEnemyNearestToIt_WithinRange()
         {
             // Игрок в (0,0), цель умерла в (0,5). Кандидаты: рядом с погибшей, ближе к игроку, далеко за радиусом.

@@ -30,6 +30,12 @@ namespace ColorsAction.Unity
         /// <summary>Вертикальная скорость в момент последнего приземления (для силы сжатия).</summary>
         public float LastLandingSpeed { get; private set; }
 
+        /// <summary>С какой высоты упал куб при последнем приземлении: верхняя точка полёта минус точка приземления, метры.</summary>
+        public float LastFallHeight { get; private set; }
+
+        /// <summary>Самая высокая точка низа куба с момента, как он оторвался от земли.</summary>
+        private float airPeakY = float.NegativeInfinity;
+
         public event System.Action Landed;
 
         public LayerMask CollisionMask
@@ -56,6 +62,7 @@ namespace ColorsAction.Unity
             transform.position = bottom;
             VerticalVelocity = 0;
             Grounded = false;
+            airPeakY = bottom.y;
         }
 
         /// <summary>Сдвиг по горизонтали + вертикаль по <see cref="VerticalVelocity"/> (гравитацию считает вызывающий).</summary>
@@ -71,8 +78,20 @@ namespace ColorsAction.Unity
 
             transform.position = pos;
 
-            if (Grounded && !WasGrounded)
-                Landed?.Invoke();
+            if (Grounded)
+            {
+                if (!WasGrounded)
+                {
+                    LastFallHeight = Mathf.Max(0f, airPeakY - pos.y);
+                    Landed?.Invoke();
+                }
+
+                airPeakY = pos.y;
+            }
+            else
+            {
+                airPeakY = Mathf.Max(airPeakY, pos.y);
+            }
         }
 
         private Vector3 MoveHorizontal(Vector3 pos, Vector3 delta)

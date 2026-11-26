@@ -77,6 +77,9 @@ namespace ColorsAction.Combat
             return true;
         }
 
+        /// <summary>Урон от падения: мимо неуязвимости после удара и сам её не даёт. Возвращает снятое здоровье.</summary>
+        public float TakeFallDamage(float damage) => Health.TakeDamage(damage);
+
         /// <summary>Мгновенная смерть (падение за границу мира): мимо неуязвимости.</summary>
         public void Kill()
         {

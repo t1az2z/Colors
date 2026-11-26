@@ -124,6 +124,32 @@ namespace ColorsAction.Unity
             return true;
         }
 
+        /// <summary>
+        /// Урон от падения с высоты <paramref name="height"/> по ступеням <see cref="FallDamageConfig"/>:
+        /// ни перекат, ни щит, ни неуязвимость после удара его не гасят. true — урон прошёл.
+        /// </summary>
+        public bool ReceiveFallDamage(float height)
+        {
+            if (Dead || controller == null)
+                return false;
+            var fraction = config.FallDamage.DamageFraction(height);
+            if (fraction <= 0f)
+                return false;
+
+            var health = session.Vitals.Health;
+            var damage = fraction >= 1f ? health.Current.Value : health.Max * fraction;
+            if (session.Vitals.TakeFallDamage(damage) <= 0f)
+                return false;
+
+            controller.Deformer.SetSquash(-0.4f, -3f);
+            combat?.Shake(0.35f + 0.3f * fraction);
+            events.Publish(new DamageDealt(transform.position + Vector3.up * 1.1f, damage, false, Color.red, true));
+
+            if (health.IsDead)
+                Die();
+            return true;
+        }
+
         private bool BlockCovers(Vector3 towardAttacker)
         {
             var hand = session.Inventory.Left?.Config.Kind == ItemKind.Shield ? session.Inventory.Left

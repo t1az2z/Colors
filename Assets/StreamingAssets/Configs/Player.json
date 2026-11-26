@@ -57,6 +57,7 @@
     "blinkRate": 12,
     "blinkStrength": 0.45
   },
+  "fallDamage": { "enabled": true, "lightHeight": 4, "lightDamage": 0.2, "heavyHeight": 5, "heavyDamage": 0.7, "lethalHeight": 6 },
   "deformation": {
     "stiffness": 270,
     "damping": 9,

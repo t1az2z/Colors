@@ -44,6 +44,7 @@ namespace ColorsAction.Unity
         // Направление отскока в осях куба (x — вправо, z — вперёд): задаёт ось переворота и изгиб.
         private Vector3 rollLocal = Vector3.forward;
         private int rollHalvesLanded;
+        private PlayerDamageReceiver damageReceiver;
 
         private int controlResumedFrame;
 
@@ -95,8 +96,12 @@ namespace ColorsAction.Unity
             motor.Configure(config.ColliderWidth, config.ColliderHeight, config.StepHeight);
             // Свой слой и осколки (Ignore Raycast) не мешают движению.
             motor.CollisionMask = ~((1 << gameObject.layer) | (1 << Debris.Layer));
-            if (GetComponent<PlayerDamageReceiver>() == null)
-                gameObject.AddComponent<PlayerDamageReceiver>().Construct(resolver);
+            damageReceiver = GetComponent<PlayerDamageReceiver>();
+            if (damageReceiver == null)
+            {
+                damageReceiver = gameObject.AddComponent<PlayerDamageReceiver>();
+                damageReceiver.Construct(resolver);
+            }
             lockOn = GetComponent<PlayerLockOn>();
             if (lockOn == null)
             {
@@ -419,6 +424,7 @@ namespace ColorsAction.Unity
         {
             if (leaping && leapTime > 0f)
                 leaping = false;
+            damageReceiver?.ReceiveFallDamage(motor.LastFallHeight);
             if (rolling)
                 return;
             var d = config.Deformation;
