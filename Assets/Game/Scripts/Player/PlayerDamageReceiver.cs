@@ -109,7 +109,7 @@ namespace ColorsAction.Unity
                 }
             }
 
-            if (!session.Vitals.TryHit(damage))
+            if (!session.Vitals.TryHit(damage, out var dealt))
                 return false;
 
             controller.ApplyKnockback(away * config.HitKnockback * knockback);
@@ -117,7 +117,7 @@ namespace ColorsAction.Unity
             var local = Quaternion.Inverse(controller.Body.rotation) * away;
             controller.Deformer.Impulse(-0.5f, new Vector2(local.x, local.z) * 4f);
             combat?.Shake(0.45f);
-            events.Publish(new DamageDealt(transform.position + Vector3.up * 1.1f, damage, ColorsAction.Combat.ColorEffect.Neutral, Color.red, true));
+            events.Publish(new DamageDealt(transform.position + Vector3.up * 1.1f, dealt, ColorsAction.Combat.ColorEffect.Neutral, Color.red, true));
 
             if (session.Vitals.Health.IsDead)
                 Die();

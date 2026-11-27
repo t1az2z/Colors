@@ -84,7 +84,6 @@ namespace ColorsAction.Unity
         private float comboTimer;
         private float lungeDone;
         private float hitStopTimer;
-        private float timeScaleBeforeHitStop = 1f;
 
         // Стрелковое оружие (дробовик): выстрел, пули и заряд — PlayerCombat.Shotgun.cs
         private Vector3 recoilVector;
@@ -601,10 +600,8 @@ namespace ColorsAction.Unity
         /// <summary>Фриз-кадры: время стоит, пока не истечёт таймер по реальному времени кадров.</summary>
         private void StartHitStop(float duration)
         {
-            if (hitStopTimer <= 0f)
-                timeScaleBeforeHitStop = Time.timeScale > 0.05f ? Time.timeScale : 1f;
             hitStopTimer = Mathf.Max(hitStopTimer, duration);
-            Time.timeScale = 0f;
+            GameTimeScale.SetFrozen(true);
         }
 
         private void UpdateHitStop()
@@ -613,7 +610,7 @@ namespace ColorsAction.Unity
                 return;
             hitStopTimer -= Time.unscaledDeltaTime;
             if (hitStopTimer <= 0f)
-                Time.timeScale = timeScaleBeforeHitStop;
+                GameTimeScale.SetFrozen(false);
         }
 
         private void OnDisable()
@@ -621,7 +618,7 @@ namespace ColorsAction.Unity
             if (hitStopTimer > 0f)
             {
                 hitStopTimer = 0f;
-                Time.timeScale = timeScaleBeforeHitStop;
+                GameTimeScale.SetFrozen(false);
             }
         }
 

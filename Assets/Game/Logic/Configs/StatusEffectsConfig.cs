@@ -66,6 +66,10 @@ namespace ColorsAction.Configs
                 pair.Value.Validate(pair.Key);
             }
 
+            // Оглушение после парирования код накладывает по StunId: без него парирование бросало бы исключение.
+            if (!TryGet(StunId, out var stun) || stun.Kind != StatusEffectKinds.Stun)
+                throw new InvalidOperationException($"StatusEffects: effect '{StunId}' with kind '{StatusEffectKinds.Stun}' is required (parry stun)");
+
             foreach (var application in OnParry)
             {
                 if (application == null || !TryGet(application.Effect, out _))

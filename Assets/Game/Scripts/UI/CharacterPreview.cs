@@ -35,7 +35,10 @@ namespace ColorsAction.Unity
         /// <summary>Повесить превью на картинку <paramref name="target"/> и снять игрока.</summary>
         public static CharacterPreview Attach(RawImage target)
         {
-            var preview = target.gameObject.GetComponent<CharacterPreview>() ?? target.gameObject.AddComponent<CharacterPreview>();
+            // Без ??: в редакторе GetComponent возвращает «фальшивый null», который ?? считает объектом.
+            var preview = target.gameObject.GetComponent<CharacterPreview>();
+            if (preview == null)
+                preview = target.gameObject.AddComponent<CharacterPreview>();
             preview.image = target;
             preview.Build();
             return preview;

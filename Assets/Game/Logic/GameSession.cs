@@ -161,6 +161,9 @@ namespace ColorsAction
         /// <summary>Подбор предмета с земли. false — инвентарь полон, предмет остаётся лежать.</summary>
         public bool PickUp(string itemId)
         {
+            // Вторая рука другого оружия (щит меча) отдельным оружием не бывает: приходит только вместе с ним.
+            if (items.IsOffhandOnly(itemId))
+                return false;
             var item = items.Create(itemId);
             // То же оружие второй раз: на колесе оно уже есть, подбор просто убирает его с земли.
             if (item.Config.IsWeapon && Inventory.HasWeapon(itemId))
@@ -182,11 +185,11 @@ namespace ColorsAction
         /// <summary>
         /// Выдать предмет без подбора (стартовое снаряжение): в инвентарь (оружие — на колесо) и, если <paramref name="equip"/>,
         /// в руки, когда они пусты.
-        /// Неизвестный id или полный инвентарь — false, событий не публикует.
+        /// Неизвестный id, вторая рука другого оружия (щит) или полный инвентарь — false, событий не публикует.
         /// </summary>
         public bool GiveItem(string itemId, bool equip)
         {
-            if (string.IsNullOrEmpty(itemId) || !items.Exists(itemId))
+            if (string.IsNullOrEmpty(itemId) || !items.Exists(itemId) || items.IsOffhandOnly(itemId))
                 return false;
             var item = items.Create(itemId);
             if (!Inventory.TryAdd(item))

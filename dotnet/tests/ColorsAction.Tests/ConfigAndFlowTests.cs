@@ -99,6 +99,19 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void Shield_IsNeverASeparateWeapon()
+        {
+            using var host = CreateHost();
+            host.Start<BootState>();
+            var session = host.Container.Resolve<GameSession>();
+            var inv = session.Inventory;
+            Assert.That(session.GiveItem("shield", equip: true), Is.False, "start kit / launch options");
+            Assert.That(session.PickUp("shield"), Is.False, "pickup");
+            Assert.That(inv.Weapons, Is.Empty);
+            Assert.That(inv.Active, Is.Null);
+        }
+
+        [Test]
         public void PlayerStartsWithoutWeapons()
         {
             using var host = CreateHost();

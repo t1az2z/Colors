@@ -138,6 +138,21 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void MissingStun_FailsOnLoad()
+        {
+            var config = new StatusEffectsConfig
+            {
+                Effects = new Dictionary<string, StatusEffectConfig>
+                {
+                    ["vulnerable"] = new StatusEffectConfig { Kind = StatusEffectKinds.DamageTaken, Duration = 1f, Value = 1.5f }
+                }
+            };
+            Assert.Throws<System.InvalidOperationException>(() => config.OnConfigLoaded());
+            config.Effects[StatusEffectsConfig.StunId] = new StatusEffectConfig { Kind = StatusEffectKinds.DamageTaken, Duration = 1f, Value = 1f };
+            Assert.Throws<System.InvalidOperationException>(() => config.OnConfigLoaded());
+        }
+
+        [Test]
         public void RealConfig_Loads_WithStunAndParryEffects()
         {
             var configs = new ConfigService(new FileConfigSource(TestPaths.ConfigsRoot()), new NewtonsoftConfigSerializer());
@@ -227,7 +242,8 @@ namespace ColorsAction.Tests
         {
             var vitals = new PlayerVitals(100f, 0f) { Status = new StatusEffects(Config()) };
             vitals.Status.Apply("vulnerable");
-            Assert.That(vitals.TryHit(10f), Is.True);
+            Assert.That(vitals.TryHit(10f, out var dealt), Is.True);
+            Assert.That(dealt, Is.EqualTo(15f).Within(1e-4), "damage number shows the scaled damage");
             Assert.That(vitals.Health.Current.Value, Is.EqualTo(85f).Within(1e-4));
             vitals.Revive();
             Assert.That(vitals.Status.Active, Is.Empty);

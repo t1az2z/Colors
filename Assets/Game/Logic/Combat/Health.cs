@@ -72,11 +72,19 @@ namespace ColorsAction.Combat
         }
 
         /// <summary>Попадание по игроку. false — урон не прошёл (неуязвим или уже мёртв).</summary>
-        public bool TryHit(float damage)
+        public bool TryHit(float damage) => TryHit(damage, out _);
+
+        /// <summary>
+        /// Попадание по игроку; <paramref name="dealt"/> — урон с учётом статус-эффектов (уязвимости),
+        /// его и показывает цифра урона.
+        /// </summary>
+        public bool TryHit(float damage, out float dealt)
         {
+            dealt = 0f;
             if (Invulnerable || Health.IsDead || damage <= 0f)
                 return false;
-            Health.TakeDamage(damage * (Status?.DamageTakenMultiplier ?? 1f));
+            dealt = damage * (Status?.DamageTakenMultiplier ?? 1f);
+            Health.TakeDamage(dealt);
             InvulnerableTime = invulnerabilityAfterHit;
             return true;
         }

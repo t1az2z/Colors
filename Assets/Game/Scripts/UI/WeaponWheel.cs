@@ -204,7 +204,7 @@ namespace ColorsAction.Unity
         {
             IsOpen = true;
             hovered = -1;
-            Time.timeScale = Mathf.Clamp(config.TimeScale, 0.01f, 1f);
+            GameTimeScale.SetSlowMotion(config.TimeScale);
             Refresh();
         }
 
@@ -213,9 +213,8 @@ namespace ColorsAction.Unity
             if (!IsOpen)
                 return;
             IsOpen = false;
-            // Время возвращается, только если его никто не остановил поверх (фриз-кадры удара).
-            if (Mathf.Approximately(Time.timeScale, Mathf.Clamp(config.TimeScale, 0.01f, 1f)))
-                Time.timeScale = 1f;
+            // Фриз-кадры удара, если идут, держат время сами (GameTimeScale).
+            GameTimeScale.SetSlowMotion(1f);
         }
 
         private void Choose()
