@@ -127,6 +127,7 @@
       "minHeight": 0.35,
       "hang": 0.1,
       "radius": 1.8,
+      "fxScale": 1,
       "damageMultiplier": 1.5,
       "knockback": 2.5,
       "staminaCost": 18,
