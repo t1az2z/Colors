@@ -19,7 +19,8 @@ namespace ColorsAction.Unity
 
         [SerializeField] private float stickSpeed = 220f;
         [SerializeField] private float mouseSpeed = 0.45f;
-        [SerializeField] private float startYaw = 200f;
+        [Tooltip("Начальный поворот: лицом к игроку, на 3/4 вправо (относительно персонажа).")]
+        [SerializeField] private float startYaw = 45f;
         [SerializeField] private int textureSize = 640;
 
         private RawImage image;
