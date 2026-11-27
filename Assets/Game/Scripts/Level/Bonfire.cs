@@ -162,7 +162,7 @@ namespace ColorsAction.Unity
 
         private Material FireMaterial()
         {
-            var source = worldMaterial != null ? worldMaterial : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            var source = worldMaterial != null ? worldMaterial : new Material(CurvedWorld.FindLit());
             var m = new Material(source) { name = "BonfireFire" };
             m.mainTexture = null;
             if (m.HasProperty("_BaseMap"))

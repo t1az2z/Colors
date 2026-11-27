@@ -278,7 +278,7 @@ namespace ColorsAction.Unity.Editor
             var mat = AssetDatabase.LoadAssetAtPath<Material>(path);
             if (mat == null)
             {
-                mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                mat = new Material(CurvedWorld.FindLit());
                 AssetDatabase.CreateAsset(mat, path);
             }
 

@@ -94,7 +94,7 @@ namespace ColorsAction.Unity
             var color = broken ? Stun : Color.Lerp(Low, High, shown);
             fill.color = Color.Lerp(color, Color.white, Mathf.Clamp01(flash / 0.25f));
 
-            rect.position = anchor.position + Vector3.up * height;
+            rect.position = CurvedWorld.Bend(anchor.position + Vector3.up * height);
             var cam = Camera.main;
             if (cam != null)
                 rect.rotation = cam.transform.rotation;

@@ -312,6 +312,29 @@ namespace ColorsAction.Configs
         public float StickRotateSpeed { get; set; } = 140f;
         public float SnapStep { get; set; } = 45f;
         public float FollowDamping { get; set; } = 0.15f;
+
+        /// <summary>Искривление мира к горизонту (картинка; физика и логика плоские).</summary>
+        public CurvedWorldConfig CurvedWorld { get; set; } = new CurvedWorldConfig();
+    }
+
+    /// <summary>
+    /// Camera.json → curvedWorld. Вершины опускаются на curvature × (расстояние до игрока по горизонтали − flatRadius)²:
+    /// мир «заваливается» за горизонт, в кадр попадает больше дали. Изгиб радиальный — одинаковый при любом повороте камеры.
+    /// </summary>
+    [Preserve]
+    public sealed class CurvedWorldConfig
+    {
+        /// <summary>Кривизна, 1/м. 0 — мир плоский.</summary>
+        public float Curvature { get; set; } = 0.015f;
+
+        /// <summary>Радиус вокруг игрока, где мир не изгибается (зона боя: картинка совпадает с физикой), м.</summary>
+        public float FlatRadius { get; set; } = 6f;
+
+        /// <summary>
+        /// Насколько градусов расширить отсечение камеры вверх: изогнутые дальние куски опускаются в кадр,
+        /// а Unity отсекает объекты по их плоским границам. Мало — у верхнего края кадра выскакивают куски.
+        /// </summary>
+        public float CullingExtraAngle { get; set; } = 25f;
     }
 
     /// <summary>Configs/Colors.json — палитра: id цвета → HEX.</summary>

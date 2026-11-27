@@ -48,7 +48,7 @@ namespace ColorsAction.Unity
             get
             {
                 if (material == null)
-                    material = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { name = "Pellet (runtime)" };
+                    material = new Material(CurvedWorld.FindUnlit()) { name = "Pellet (runtime)" };
                 return material;
             }
         }

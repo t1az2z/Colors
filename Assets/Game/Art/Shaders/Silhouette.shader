@@ -37,6 +37,7 @@ Shader "ColorsAction/Silhouette"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Assets/Game/Art/Shaders/CurvedWorld.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _Color;
@@ -44,7 +45,7 @@ Shader "ColorsAction/Silhouette"
 
             float4 vert(float4 positionOS : POSITION) : SV_POSITION
             {
-                return TransformObjectToHClip(positionOS.xyz);
+                return TransformObjectToHClip(CurvedWorldBendOS(positionOS.xyz));
             }
 
             half4 frag() : SV_Target
@@ -74,6 +75,7 @@ Shader "ColorsAction/Silhouette"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Assets/Game/Art/Shaders/CurvedWorld.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _Color;
@@ -81,7 +83,7 @@ Shader "ColorsAction/Silhouette"
 
             float4 vert(float4 positionOS : POSITION) : SV_POSITION
             {
-                return TransformObjectToHClip(positionOS.xyz);
+                return TransformObjectToHClip(CurvedWorldBendOS(positionOS.xyz));
             }
 
             half4 frag() : SV_Target

@@ -198,7 +198,7 @@ namespace ColorsAction.Unity
 
         private Material CreateMaterial(string name, Color color)
         {
-            var source = worldMaterial != null ? worldMaterial : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            var source = worldMaterial != null ? worldMaterial : new Material(CurvedWorld.FindLit());
             var m = new Material(source) { name = name };
             // Без текстуры мира (рамка на каждом кубе): доски читаются чистым цветом и рамой.
             m.mainTexture = null;

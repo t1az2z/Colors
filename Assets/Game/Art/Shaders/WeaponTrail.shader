@@ -21,6 +21,7 @@ Shader "ColorsAction/WeaponTrail"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Assets/Game/Art/Shaders/CurvedWorld.hlsl"
 
             CBUFFER_START(UnityPerMaterial)
                 half4 _Color;
@@ -43,7 +44,7 @@ Shader "ColorsAction/WeaponTrail"
             Varyings vert(Attributes v)
             {
                 Varyings o;
-                o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                o.positionCS = TransformObjectToHClip(CurvedWorldBendOS(v.positionOS.xyz));
                 o.color = v.color * _Color;
                 o.uv = v.uv;
                 return o;

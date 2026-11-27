@@ -323,17 +323,11 @@ namespace ColorsAction.Unity
             var ray = cam.ScreenPointToRay(mouse.position.ReadValue());
             Vector3 point;
             // Сначала по геометрии уровня (маркер ложится на ступени), иначе — плоскость на высоте игрока.
-            if (Physics.Raycast(ray, out var hit, 500f, motor.CollisionMask, QueryTriggerInteraction.Ignore))
-            {
+            // Луч идёт по изогнутой картинке мира (CurvedWorld), а проверяется в плоском.
+            if (CurvedWorld.Raycast(ray, 200f, motor.CollisionMask, out var hit))
                 point = hit.point;
-            }
-            else
-            {
-                var plane = new Plane(Vector3.up, transform.position);
-                if (!plane.Raycast(ray, out var enter))
-                    return null;
-                point = ray.GetPoint(enter);
-            }
+            else if (!CurvedWorld.RaycastPlane(ray, transform.position.y, 200f, out point))
+                return null;
 
             AimPoint = point;
             var flat = point - transform.position;

@@ -254,7 +254,7 @@ namespace ColorsAction.Unity.Voxel
         {
             if (materials.TryGetValue((color, mode), out var m) && m != null)
                 return m;
-            var source = baseMaterial != null ? baseMaterial : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            var source = baseMaterial != null ? baseMaterial : new Material(CurvedWorld.FindLit());
             m = new Material(source) { name = $"Voxel_{color ?? "world"}_{mode}", hideFlags = HideFlags.DontSave };
             var baseColor = source.HasProperty("_BaseColor") ? source.GetColor("_BaseColor") : Color.white;
             var c = color == null || palette == null ? baseColor : palette(color);

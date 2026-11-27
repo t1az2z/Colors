@@ -23,6 +23,7 @@ Shader "ColorsAction/Particle"
             #pragma vertex vert
             #pragma fragment frag
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            #include "Assets/Game/Art/Shaders/CurvedWorld.hlsl"
 
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
@@ -49,7 +50,7 @@ Shader "ColorsAction/Particle"
             Varyings vert(Attributes v)
             {
                 Varyings o;
-                o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                o.positionCS = TransformObjectToHClip(CurvedWorldBendOS(v.positionOS.xyz));
                 o.color = v.color * _Color;
                 o.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 return o;

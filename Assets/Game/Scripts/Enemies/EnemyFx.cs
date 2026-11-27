@@ -63,7 +63,7 @@ namespace ColorsAction.Unity
             var pop = time < 0.18f ? Mathf.Sin(time / 0.18f * Mathf.PI * 0.5f) * 1.25f : Mathf.Lerp(1.25f, 1f, Mathf.Clamp01((time - 0.18f) / 0.15f));
             var tail = Mathf.Clamp01((duration - time) / 0.15f);
             var bob = Mathf.Sin(time * 9f) * 0.04f;
-            rect.position = anchor.position + Vector3.up * (height + bob);
+            rect.position = CurvedWorld.Bend(anchor.position + Vector3.up * (height + bob));
             var cam = Camera.main;
             if (cam != null)
                 rect.rotation = cam.transform.rotation;
@@ -208,7 +208,7 @@ namespace ColorsAction.Unity
             {
                 if (material == null)
                 {
-                    material = new Material(Shader.Find("Universal Render Pipeline/Lit")) { name = "Debris (runtime)", enableInstancing = true };
+                    material = new Material(CurvedWorld.FindLit()) { name = "Debris (runtime)", enableInstancing = true };
                     material.SetFloat("_Smoothness", 0.2f);
                 }
 

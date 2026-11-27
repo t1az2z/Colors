@@ -276,7 +276,7 @@ namespace ColorsAction.Unity
 
         private Material CreateMaterial(string name, Color color)
         {
-            var source = worldMaterial != null ? worldMaterial : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            var source = worldMaterial != null ? worldMaterial : new Material(CurvedWorld.FindLit());
             var m = new Material(source) { name = name };
             m.mainTexture = null;
             if (m.HasProperty("_BaseMap"))

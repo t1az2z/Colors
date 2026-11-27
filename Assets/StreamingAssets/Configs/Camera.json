@@ -15,5 +15,10 @@
   "lockCursor": true,
   "stickRotateSpeed": 140,
   "snapStep": 45,
-  "followDamping": 0.15
+  "followDamping": 0.15,
+  "curvedWorld": {
+    "curvature": 0.015,
+    "flatRadius": 6,
+    "cullingExtraAngle": 25
+  }
 }

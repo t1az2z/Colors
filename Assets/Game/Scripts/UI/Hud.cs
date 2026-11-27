@@ -317,7 +317,7 @@ namespace ColorsAction.Unity
                 }
 
                 var world = n.World + Vector3.up * (n.Time * 1.2f);
-                var screen = cam.WorldToScreenPoint(world);
+                var screen = cam.WorldToScreenPoint(CurvedWorld.Bend(world));
                 n.Text.enabled = screen.z > 0;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(numbersRoot, screen, null, out var local);
                 // Точка относительно пивота контейнера: якорь цифры совпадает с пивотом.

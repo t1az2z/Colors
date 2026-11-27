@@ -30,6 +30,7 @@ namespace ColorsAction.Unity
         private float tweenFrom;
         private float tweenTime = 1f;
         private CameraScheme lastScheme;
+        private CurvedWorld curvedWorld;
 
         public CameraScheme Scheme => session != null ? session.ControlScheme.Value : CameraScheme.FreeOrbit;
 
@@ -59,6 +60,18 @@ namespace ColorsAction.Unity
             orbit.TrackerSettings.PositionDamping = Vector3.one * config.FollowDamping;
             Apply();
             orbit.ForceCameraPosition(virtualCamera.transform.position, virtualCamera.transform.rotation);
+
+            // Искривление мира к горизонту: центр — игрок (за ним следует камера).
+            curvedWorld = new CurvedWorld(config.CurvedWorld, followTarget);
+            curvedWorld.Tick();
+        }
+
+        private void LateUpdate() => curvedWorld?.Tick();
+
+        private void OnDestroy()
+        {
+            curvedWorld?.Dispose();
+            curvedWorld = null;
         }
 
         private void Update()

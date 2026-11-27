@@ -24,7 +24,7 @@ namespace ColorsAction.Unity
             get
             {
                 if (material == null)
-                    material = new Material(Shader.Find("Universal Render Pipeline/Unlit")) { name = "ShotTracer (runtime)" };
+                    material = new Material(CurvedWorld.FindUnlit()) { name = "ShotTracer (runtime)" };
                 return material;
             }
         }
