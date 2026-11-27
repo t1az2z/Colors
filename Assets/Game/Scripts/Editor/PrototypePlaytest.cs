@@ -571,6 +571,7 @@ namespace ColorsAction.Unity.Editor
                     var parriesBefore = combat.ParryCount;
                     var parried = false;
                     var flashSeen = false;
+                    var staminaFull = false;
                     for (int f = 0; f < 60 * 8 && !parried; f++)
                     {
                         // Бьёт тот, у кого право атаки; блок ставим лицом к нему ровно в окно парирования.
@@ -584,9 +585,11 @@ namespace ColorsAction.Unity.Editor
                             var face = foe.transform.position - player.transform.position;
                             face.y = 0f;
                             player.Teleport(player.transform.position, Mathf.Atan2(face.x, face.z) * Mathf.Rad2Deg);
+                            session.Stamina.Restore();
                             input.ScriptHold(GameAction.Secondary, true);
                             yield return 2;
                             parried = foe.Brain.State == ColorsAction.Combat.EnemyState.Parried;
+                            staminaFull = session.Stamina.Current.Value >= session.Stamina.Max - 0.5f;
                             // Вспышка — в момент столкновения: враг ещё доводит удар до середины (ParryContactTime).
                             for (int w = 0; w < 20 && !flashSeen; w++)
                             {
@@ -606,6 +609,9 @@ namespace ColorsAction.Unity.Editor
                     Check(flashSeen, "parry shows a flash", "flash seen");
                     if (parried)
                     {
+                        Check(staminaFull, $"a successful parry costs no stamina: {session.Stamina.Current.Value:F1}/{session.Stamina.Max:F0}", "stamina stays full");
+                        Check(foe.Brain.ParryStunned && foe.Brain.Poise.Broken,
+                            $"regular enemy: one parry fills the poise bar and stuns: {foe.Brain.Poise.Current:F0}/{foe.Brain.Poise.Max:F0}", "bar full, stunned");
                         yield return 35;
                         Check(foe.Brain.State == ColorsAction.Combat.EnemyState.Parried, $"parried enemy stands with the weapon lowered: {foe.Brain.State}", "Parried");
                         yield return Mathf.CeilToInt(foe.Brain.Config.ParriedDuration * 60f);
@@ -614,7 +620,114 @@ namespace ColorsAction.Unity.Editor
                 }
             }
 
+            // Шаги проверки мечника — в том же ритме кадров (Tick понимает только int).
+            var elite = EliteSwordsman(input, player, combat, session);
+            while (elite.MoveNext())
+                yield return elite.Current;
             session.ControlScheme.Value = startScheme;
+        }
+
+        /// <summary>
+        /// 17. Элитный мечник (тир, z ≥ 64): оранжевый куб 1.3; удар сверху бьёт по области, серия из двух ударов накрест;
+        /// парирование без полной шкалы только поглощает удар (серия продолжается), третье парирование ошеломляет.
+        /// </summary>
+        private static IEnumerator EliteSwordsman(GameInput input, PlayerController player, PlayerCombat combat, GameSession session)
+        {
+            EnemyController elite = null;
+            foreach (var e in EnemyController.All)
+                if (e != null && !e.Dead && e.Brain.Config.Elite)
+                    elite = e;
+            Check(elite != null, "elite swordsman is on the test map", "elite_sword spawned");
+            if (elite == null)
+                yield break;
+            var brain = elite.Brain;
+            Check(brain.Config.Color == "orange" && Mathf.Approximately(brain.Config.Size, 1.3f) && brain.Poise.Max > 0f,
+                $"elite: color {brain.Config.Color}, size {brain.Config.Size}, poise {brain.Poise.Max}", "orange, 1.3, has a poise bar");
+
+            var ep = elite.transform.position;
+            player.Teleport(new Vector3(ep.x, ep.y, ep.z - 3f), 0f);
+            input.ClearScripted();
+            var vitals = session.Vitals;
+
+            // а) Смотрим, как он атакует (здоровье игрока восстанавливаем, чтобы он не погиб).
+            var hitsBy = new HashSet<ColorsAction.Configs.EnemyAttackMotion>();
+            var slamFx = false;
+            var secondCrossStrike = false;
+            for (int f = 0; f < 60 * 16 && !(hitsBy.Contains(ColorsAction.Configs.EnemyAttackMotion.Slam) && secondCrossStrike); f++)
+            {
+                if (vitals.Health.Current.Value < vitals.Health.Max - 0.01f)
+                {
+                    if (brain.RootAttack != null)
+                        hitsBy.Add(brain.RootAttack.Motion);
+                    vitals.Health.Restore();
+                }
+
+                slamFx |= brain.State == ColorsAction.Combat.EnemyState.Hold && brain.Attack != null && brain.Attack.IsArea &&
+                          ParticleFx.AnyPlaying(ParticleFx.GroundSlam);
+                secondCrossStrike |= brain.ComboIndex == 1 && brain.State == ColorsAction.Combat.EnemyState.Strike;
+                yield return 1;
+            }
+
+            Check(hitsBy.Contains(ColorsAction.Configs.EnemyAttackMotion.Slam), $"overhead slam hits the player: hits by {string.Join(", ", hitsBy)}", "hit by Slam");
+            Check(slamFx, "slam shows the ground wave", "GroundSlam playing at the slam");
+            Check(secondCrossStrike, "cross combo: the second strike follows the first", "ComboIndex 1 strike seen");
+
+            // б) Парирования: первые два только поглощают удар, третье заполняет шкалу (300) и ошеломляет.
+            var absorbed = 0;
+            var absorbedNoStun = true;
+            var staminaKept = true;
+            var comboContinued = false;
+            var comboChecked = false;
+            var stunned = false;
+            for (int f = 0; f < 60 * 30 && !stunned; f++)
+            {
+                vitals.Health.Restore();
+                if (!brain.InParryWindow)
+                {
+                    yield return 1;
+                    continue;
+                }
+
+                var face = elite.transform.position - player.transform.position;
+                face.y = 0f;
+                player.Teleport(player.transform.position, Mathf.Atan2(face.x, face.z) * Mathf.Rad2Deg);
+                session.Stamina.Restore();
+                var wasCombo = brain.RootAttack != null && brain.RootAttack.Steps > 1 && brain.ComboIndex == 0;
+                input.ScriptHold(GameAction.Secondary, true);
+                yield return 2;
+                if (brain.State == ColorsAction.Combat.EnemyState.Parried)
+                {
+                    staminaKept &= session.Stamina.Current.Value >= session.Stamina.Max - 0.5f;
+                    if (brain.ParryStunned)
+                        stunned = true;
+                    else
+                    {
+                        absorbed++;
+                        absorbedNoStun &= !brain.Status.IsStunned;
+                        if (wasCombo && !comboChecked)
+                        {
+                            comboChecked = true;
+                            for (int w = 0; w < 60 && !comboContinued; w++)
+                            {
+                                comboContinued = brain.ComboIndex == 1 && brain.State == ColorsAction.Combat.EnemyState.Windup;
+                                yield return 1;
+                            }
+                        }
+                    }
+                }
+
+                input.ScriptHold(GameAction.Secondary, false);
+                yield return 3;
+            }
+
+            input.ScriptHold(GameAction.Secondary, false);
+            Check(absorbed == 2 && absorbedNoStun, $"elite: the first two parries only absorb the blow: absorbed {absorbed}", "2 absorbed, no stun");
+            Check(stunned && brain.Poise.Broken, $"elite: the third parry fills the bar and stuns: {brain.Poise.Current:F0}/{brain.Poise.Max:F0}", "stunned on the 3rd parry");
+            Check(staminaKept, "parries against the elite cost no stamina", "stamina stays full");
+            if (comboChecked)
+                Check(comboContinued, "an absorbed first cross strike is followed by the second", "ComboIndex 1 windup after the parry");
+            else
+                report.AppendLine("  info no first cross strike was parried this run (random attack choice)");
         }
 
         private static int Frames(float meters, float speed) => Mathf.CeilToInt(meters / Mathf.Max(0.1f, speed) * 60f);
