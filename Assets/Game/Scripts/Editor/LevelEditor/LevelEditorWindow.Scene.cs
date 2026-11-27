@@ -236,10 +236,11 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     ? "spawn"
                     : session.Level.NewObjectId(objectKind),
                 Kind = objectKind, Cell = cell.Value, Barrier = barrierKind,
-                Height = objectKind == LevelObjectKind.ShortcutDoor ? doorHeight
+                Height = objectKind == LevelObjectKind.ShortcutDoor || objectKind == LevelObjectKind.KeyDoor ? doorHeight
                     : objectKind == LevelObjectKind.CrateStack ? crateHeight
                     : objectKind == LevelObjectKind.DrawBridge ? DrawBridgeShape.Height : barrierHeight,
-                Yaw = objectKind == LevelObjectKind.ShortcutDoor ? doorYaw : objectKind == LevelObjectKind.CrateStack ? crateYaw
+                Yaw = objectKind == LevelObjectKind.ShortcutDoor ? doorYaw : objectKind == LevelObjectKind.KeyDoor ? keyDoorYaw
+                    : objectKind == LevelObjectKind.CrateStack ? crateYaw
                     : objectKind == LevelObjectKind.DrawBridge ? bridgeYaw : 0f,
                 Color = HasColor(objectKind) ? objectColor : null,
                 Item = string.IsNullOrEmpty(objectItem) ? null : objectItem,
@@ -381,6 +382,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 case LevelObjectKind.Npc: return new Color(0.4f, 0.8f, 1f);
                 case LevelObjectKind.Hint: return Color.white;
                 case LevelObjectKind.ShortcutDoor: return new Color(0.6f, 0.4f, 0.25f);
+                case LevelObjectKind.KeyDoor: return new Color(0.75f, 0.75f, 0.8f);
                 case LevelObjectKind.CrateStack: return new Color(0.18f, 0.42f, 1f);
                 case LevelObjectKind.Chest: return new Color(0.85f, 0.7f, 0.25f);
                 case LevelObjectKind.DrawBridge: return new Color(0.9f, 0.2f, 0.15f);
@@ -485,6 +487,29 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     Handles.DrawLine(center + rot * new Vector3(1.5f, DrawBridgeShape.Height - 0.1f, side),
                         center + rot * new Vector3(2.8f, 2.55f, side * 1.5f), 3f);
             }
+            else if (o.IsKeyDoor)
+            {
+                // Плита поперёк клетки, замок с обеих сторон; пунктир к врагу, который роняет ключ.
+                var h = Mathf.Max(1, o.Height);
+                top = o.Cell.Y + h;
+                var rot = Quaternion.Euler(0, o.Yaw, 0);
+                var footprint = rot * new Vector3(1f, 0, 0.3f);
+                var size = new Vector3(Mathf.Abs(footprint.x), h, Mathf.Abs(footprint.z));
+                var center = new Vector3(pos.x, o.Cell.Y + h * 0.5f, pos.z);
+                Handles.color = new Color(c.r, c.g, c.b, 0.55f);
+                DrawSolidBox(center, size);
+                Handles.color = c;
+                Handles.DrawWireCube(center, size);
+                Handles.color = new Color(0.15f, 0.15f, 0.18f);
+                var plate = rot * new Vector3(0.3f, 0f, 0.04f);
+                var plateSize = new Vector3(Mathf.Abs(plate.x), 0.36f, Mathf.Abs(plate.z));
+                foreach (var side in new[] { 1f, -1f })
+                    DrawSolidBox(new Vector3(pos.x, o.Cell.Y + 1.05f, pos.z) + rot * new Vector3(0f, 0f, side * 0.17f), plateSize);
+                var holders = KeyDoorRules.Holders(session.Level, o.Id);
+                Handles.color = holders.Count == 0 ? new Color(1f, 0.3f, 0.2f) : new Color(1f, 0.85f, 0.3f);
+                foreach (var e in holders)
+                    Handles.DrawDottedLine(center, new Vector3(e.Cell.X + 0.5f, Surface(e.Cell) + 0.5f, e.Cell.Z + 0.5f), 4f);
+            }
             else if (o.IsDoor)
             {
                 // Плита поперёк клетки и стрелка в лицевую сторону — оттуда дверь открывается.
@@ -552,10 +577,21 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 Handles.DrawWireCube(new Vector3(pos.x, o.Cell.Y + h * 0.5f, pos.z), new Vector3(1.08f, h + 0.08f, 1.08f));
             }
 
-            var text = enemyName != null ? $"Враг: {enemyName} (агро {o.AggroRadius:0.#})"
+            var text = enemyName != null
+                    ? $"Враг: {enemyName} (агро {o.AggroRadius:0.#})" + (string.IsNullOrEmpty(o.Key) ? "" : $"\nключ от {o.Key}")
+                : o.IsKeyDoor ? KeyDoorLabel(o)
                 : o.IsDoor ? "Дверь-срезка ↦ " + DoorSideLabels[((Mathf.RoundToInt(o.Yaw / 90f) % 4) + 4) % 4]
                 : o.Item != null ? $"{o.Kind}: {o.Item}" : o.Kind.ToString();
             Handles.Label(new Vector3(pos.x, top + 0.2f, pos.z), text, label);
+        }
+
+        /// <summary>Подпись двери на ключ: у кого ключ или предупреждение, что ключа нет.</summary>
+        private string KeyDoorLabel(LevelObject door)
+        {
+            var holders = KeyDoorRules.Holders(session.Level, door.Id).Where(VoxelLevelData.IsEnemy).Select(e => e.Id).ToList();
+            return holders.Count == 0
+                ? $"Дверь на ключ {door.Id}\n⚠ ни у кого нет ключа"
+                : $"Дверь на ключ {door.Id}\nключ: {string.Join(", ", holders)}";
         }
 
         private void DrawPoint(InteractionPoint p, GUIStyle label)

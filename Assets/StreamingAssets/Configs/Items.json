@@ -210,5 +210,11 @@
     "color": "red",
     "kind": "Resource",
     "maxStack": 99
+  },
+  "key": {
+    "name": "Ключ",
+    "color": "none",
+    "kind": "Key",
+    "prefab": "Items/Key"
   }
 }

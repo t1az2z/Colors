@@ -193,7 +193,33 @@ const OBJECT_KINDS = {
   CrateStack:     { name: 'Ящики (меч)',    mk: '▦', col: '#2F6BFF' },
   Chest:          { name: 'Сундук',         mk: '▣', col: '#b8892e' },
   DrawBridge:     { name: 'Мост (дробовик)', mk: '⊼', col: '#E8413C' },
+  KeyDoor:        { name: 'Дверь на ключ',  mk: '⚿', col: '#5b5e68' },
 };
+// Дверь на ключ (KeyDoorRules в Unity): плита поперёк прохода, открывается с любой стороны ключом. Ключ задаётся у врага:
+// o.key = id двери, враг роняет ключ при смерти. Поворот: 0° — проход по Z, 90° — по X.
+const KEY_DOOR_AXES = [[0, 'проход ↑↓ (Z)'], [90, 'проход ←→ (X)']];
+function keyDoorAxis(yaw) { return doorSide(yaw) % 180; }
+function keyHolders(doorId) { return L.objects.filter(o => o.kind === 'EnemySpawn' && o.key === doorId); }
+/** Предупреждения расстановки дверей на ключ — те же, что KeyDoorRules.Warnings в Unity. */
+function keyWarnings() {
+  const out = [];
+  const doors = new Set(L.objects.filter(o => o.kind === 'KeyDoor').map(o => o.id));
+  for (const d of L.objects.filter(o => o.kind === 'KeyDoor')) {
+    const holders = keyHolders(d.id).filter(isEnemy);
+    if (!holders.length) out.push(`Дверь ${d.id}: ни у одного врага нет ключа от неё — её не открыть.`);
+    else if (holders.length > 1) out.push(`Дверь ${d.id}: ключ у нескольких врагов (${holders.map(e => e.id).join(', ')}) — выпадет из каждого, нужен один.`);
+  }
+  for (const o of L.objects) {
+    if (o.kind !== 'EnemySpawn' || !o.key) continue;
+    if (!isEnemy(o)) out.push(`${o.id}: манекен не роняет ключ от ${o.key} — отдайте ключ врагу.`);
+    else if (!doors.has(o.key)) out.push(`Враг ${o.id}: ключ от двери ${o.key}, а такой двери на карте нет.`);
+  }
+  return out;
+}
+function warningsBox() {
+  const w = keyWarnings();
+  return w.length ? h('div', { class: 'note warn' }, w.map(t => h('div', {}, '⚠ ' + t))) : null;
+}
 // Разводной мост 4×2×2 (DrawBridgeShape в Unity): от клетки по стрелке на 4 клетки, вторая клетка ширины — слева по ходу.
 // Ближняя створка опущена, дальняя (клетки 3–4) поднята у дальнего края на цепях к раме — её опускает выстрел из дробовика.
 const BRIDGE_DIRS = [[0, '→ +X'], [90, '↓ −Z'], [180, '← −X'], [270, '↑ +Z']];
@@ -390,6 +416,7 @@ function toJSON() {
       barrier: o.kind === 'Barrier' && o.barrier && o.barrier !== 'Wall' ? o.barrier : undefined,
       height: o.height ?? 2, item: o.item, count: o.kind === 'Chest' ? Math.max(1, o.count | 0) : undefined,
       aggroRadius: isEnemy(o) ? aggroOf(o) : undefined,
+      key: o.kind === 'EnemySpawn' && o.key ? o.key : undefined,
     })),
     points: L.points.map(p => clean({
       id: p.id, action: p.action, cell: cellStr(p.cell), requiredItem: p.requiredItem, requiredOpen: p.requiredOpen,
@@ -420,6 +447,7 @@ function fromJSON(d, file) {
     yaw: +(get(o, 'yaw') || 0), color: get(o, 'color') || null, barrier: enumOf(get(o, 'barrier'), BARRIERS, 'Wall'),
     height: get(o, 'height') ?? 2, item: get(o, 'item') || null, count: Math.max(1, +(get(o, 'count') || 1) | 0),
     aggroRadius: get(o, 'aggroRadius') ?? null,
+    key: get(o, 'key') || null,
   }));
   L.points = (get(d, 'points') || []).map(p => ({
     id: get(p, 'id'), action: enumOf(get(p, 'action'), ACTIONS, 'ShieldSlide'), cell: parseCell(get(p, 'cell')),
@@ -479,7 +507,8 @@ function download() {
   a.href = URL.createObjectURL(levelBlob()); a.download = L.file + '.json';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
-  toast('Скачан ' + L.file + '.json');
+  const w = keyWarnings();
+  toast('Скачан ' + L.file + '.json' + (w.length ? ' · ⚠ ' + w[0] + (w.length > 1 ? ` (и ещё ${w.length - 1})` : '') : ''), w.length ? 5000 : 2000);
 }
 // ------------------------------------------------------------------ поделиться
 // Файлом .json умеет делиться только Safari (iPad/Mac): Chrome и Edge пускают в системное меню лишь картинки,
@@ -618,7 +647,7 @@ const st = {
   height: 1, top: '', rot: 0, color: null, brush: 1, slab: false,
   blockShape: 'F', blockMode: 'add',
   paintColumn: false,
-  objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, crateYaw: 0, crateHeight: 2, bridgeYaw: 0,
+  objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, keyDoorYaw: 0, crateYaw: 0, crateHeight: 2, bridgeYaw: 0,
   objResource: 'metal', chestCount: 1, enemyAggro: DEFAULT_AGGRO,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
@@ -774,7 +803,7 @@ function refreshPanelSoft() { if (st.tool === 'object' || st.tool === 'point' ||
 function objectPanel() {
   const out = [];
   const o = sel.obj && L.objects.find(x => x.id === sel.obj);
-  out.push(desc('Тап по пустой клетке ставит объект, тап по объекту выбирает его, выбранный можно перетащить.'));
+  out.push(desc('Тап по пустой клетке ставит объект, тап по объекту выбирает его, выбранный можно перетащить.'), warningsBox());
   out.push(H3('Новый объект'), h('div', { class: 'list' }, Object.entries(OBJECT_KINDS).map(([k, v]) =>
     h('button', { class: st.objKind === k ? 'on' : '', on: { click: () => { st.objKind = k; renderPanel(); } } },
       h('span', { class: 'mk', style: `background:${v.col}` }, v.mk), v.name))));
@@ -788,6 +817,10 @@ function objectPanel() {
   if (st.objKind === 'ShortcutDoor') out.push(
     desc('Дверь открывается только со стороны стрелки и дальше остаётся открытой. Ставьте её в проём стены.'),
     row('Открывается со стороны', chips(DOOR_SIDES, st.doorYaw, v => { st.doorYaw = v; renderPanel(); })),
+    row('Высота, кубов', stepper(st.doorHeight, v => st.doorHeight = v, 1, 12)));
+  if (st.objKind === 'KeyDoor') out.push(
+    desc('Дверь открывается с любой стороны ключом и дальше остаётся открытой. Ключ выпадает из врага: выберите его у двери («Ключ у врага») или у врага («Ключ от двери»). Один ключ — одна дверь. Ставьте её в проём стены.'),
+    row('Стоит поперёк', chips(KEY_DOOR_AXES, st.keyDoorYaw, v => { st.keyDoorYaw = v; renderPanel(); })),
     row('Высота, кубов', stepper(st.doorHeight, v => st.doorHeight = v, 1, 12)));
   if (st.objKind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(st.objEnemy, v => { st.objEnemy = v; renderPanel(); }),
     st.objEnemy !== 'dummy' ? aggroRow(st.enemyAggro, v => st.enemyAggro = v) : '');
@@ -811,6 +844,8 @@ function objectPanel() {
       if (v === 'ShortcutDoor' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
       if (v === 'CrateStack' && o.kind !== v) { o.yaw = crateDir(o.yaw); o.height = st.crateHeight; o.color = null; o.item = null; }
       if (v === 'DrawBridge' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = 2; o.color = null; o.item = null; }
+      if (v === 'KeyDoor' && o.kind !== v) { o.yaw = keyDoorAxis(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
+      if (v !== 'EnemySpawn') o.key = null;
       if (v === 'Chest' && o.kind !== v) { o.color = null; o.item = st.objResource; o.count = st.chestCount; }
       o.kind = v;
     }))));
@@ -823,6 +858,15 @@ function objectPanel() {
       row('Ящиков в высоту', stepper(o.height ?? 2, v => edit(() => o.height = v), 1, 3)));
     else if (o.kind === 'DrawBridge') out.push(
       row('Мост тянется', chips(BRIDGE_DIRS, doorSide(o.yaw), v => edit(() => o.yaw = v))));
+    else if (o.kind === 'KeyDoor') {
+      const holder = keyHolders(o.id).find(isEnemy);
+      out.push(
+        row('Стоит поперёк', chips(KEY_DOOR_AXES, keyDoorAxis(o.yaw), v => edit(() => o.yaw = v))),
+        row('Высота', stepper(o.height ?? 3, v => edit(() => o.height = v), 1, 12)),
+        row('Ключ у врага', selectInput(holder?.id || null, [[null, '— ни у кого'], ...L.objects.filter(isEnemy).map(e => [e.id, e.id + ' · ' + enemyName(e.item)])],
+          v => edit(() => { for (const e of L.objects) if (e.kind === 'EnemySpawn' && (e.key === o.id || e.id === v)) e.key = e.id === v ? o.id : null; }))),
+        holder ? null : h('div', { class: 'note warn' }, '⚠ Ни у одного врага нет ключа от этой двери — её не открыть.'));
+    }
     else out.push(row('Поворот ' + Math.round(o.yaw || 0) + '°', h('span', { class: 'chips' },
       h('button', { on: { click: () => edit(() => o.yaw = norm180((o.yaw || 0) - 45)) } }, '⟲ 45'),
       h('button', { on: { click: () => edit(() => o.yaw = norm180((o.yaw || 0) + 45)) } }, '⟳ 45'))));
@@ -833,10 +877,13 @@ function objectPanel() {
     }
     const itemList = o.kind === 'WeaponPedestal' ? ITEMS : o.kind === 'Hint' ? HINTS : null;
     if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })),
-      isEnemy(o) ? aggroRow(aggroOf(o), v => edit(() => o.aggroRadius = v)) : '');
+      isEnemy(o) ? aggroRow(aggroOf(o), v => edit(() => o.aggroRadius = v)) : '',
+      isEnemy(o) ? [row('Ключ от двери', selectInput(o.key, [[null, '— нет'], ...L.objects.filter(d => d.kind === 'KeyDoor').map(d => [d.id, d.id]),
+        ...(o.key && !L.objects.some(d => d.kind === 'KeyDoor' && d.id === o.key) ? [[o.key, o.key + ' (нет такой двери)']] : [])], v => edit(() => o.key = v))),
+        desc('Враг роняет ключ от этой двери при смерти; ключ лежит, пока игрок его не подберёт.')] : '');
     else if (o.kind === 'Chest') out.push(H3('Ресурс в сундуке'), resourceList(o.item, v => edit(() => o.item = v)),
       row('Количество', stepper(o.count || 1, v => edit(() => o.count = v), 1, 99)));
-    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack' && o.kind !== 'DrawBridge')
+    else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack' && o.kind !== 'DrawBridge' && o.kind !== 'KeyDoor')
       out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
     out.push(h('div', { class: 'chips', style: 'margin-top:8px' },
       h('button', { class: 'danger', on: { click: () => { touchMarkup(); removeObject(o.id); sel.obj = null; commit(); renderPanel(); } } }, 'Удалить объект'),
@@ -845,7 +892,7 @@ function objectPanel() {
   out.push(H3('Объекты уровня (' + L.objects.length + ')'), h('div', { class: 'list' }, L.objects.map(x =>
     h('button', { class: sel.obj === x.id ? 'on' : '', on: { click: () => { sel.obj = x.id; sel.point = null; focusCell(x.cell); renderPanel(); } } },
       h('span', { class: 'mk', style: `background:${objColor(x)}` }, OBJECT_KINDS[x.kind]?.mk || '?'),
-      x.id + (x.kind === 'EnemySpawn' ? ' · ' + enemyName(x.item) : x.kind === 'Chest' ? ' · ' + chestLabel(x) : x.item ? ' · ' + x.item : '')))));
+      x.id + (x.kind === 'EnemySpawn' ? ' · ' + enemyName(x.item) + (x.key ? ' · ключ от ' + x.key : '') : x.kind === 'KeyDoor' ? (keyHolders(x.id).some(isEnemy) ? '' : ' · ⚠ нет ключа') : x.kind === 'Chest' ? ' · ' + chestLabel(x) : x.item ? ' · ' + x.item : '')))));
   return out;
 }
 /** Ресурсы кнопками (цвет и название); неизвестный id из файла тоже показывается, чтобы его не потерять. */
@@ -870,12 +917,14 @@ function norm180(a) { a = ((a + 180) % 360 + 360) % 360 - 180; return a; }
 // Удаляет объект и обнуляет ссылки точек на него (цель рычага, «нужен открытый»), чтобы в JSON не оставались висячие id.
 function removeObject(id) {
   L.objects = L.objects.filter(o => o.id !== id);
+  for (const o of L.objects) if (o.key === id) o.key = null;
   for (const p of L.points) {
     if (p.targetObject === id) p.targetObject = null;
     if (p.requiredOpen === id) p.requiredOpen = null;
   }
 }
 function renameRefs(oldId, newIdv, kind) {
+  if (kind === 'obj') for (const o of L.objects) if (o.key === oldId) o.key = newIdv;
   for (const p of L.points) {
     if (kind === 'obj') { if (p.targetObject === oldId) p.targetObject = newIdv; if (p.requiredOpen === oldId) p.requiredOpen = newIdv; }
     else if (p.targetPoint === oldId) p.targetPoint = newIdv;
@@ -897,7 +946,7 @@ function pointPanel() {
     out.push(row('Действие', selectInput(p.action, Object.entries(ACTIONS).map(([k, v]) => [k, v.name]), v => edit(() => p.action = v))));
     out.push(row('Клетка', h('span', {}, cellStr(p.cell))));
     out.push(row('Нужен предмет', itemSelect(p.requiredItem, v => edit(() => p.requiredItem = v), true, ['hook', 'flail'])));
-    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'ShortcutDoor' || o.kind === 'CrateStack' || o.kind === 'DrawBridge').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
+    out.push(row('Нужен открытый', selectInput(p.requiredOpen, [[null, '—'], ...L.objects.filter(o => o.kind === 'Barrier' || o.kind === 'ShortcutDoor' || o.kind === 'KeyDoor' || o.kind === 'CrateStack' || o.kind === 'DrawBridge').map(o => [o.id, o.id])], v => edit(() => p.requiredOpen = v))));
     out.push(row('Точка B', selectInput(p.targetPoint, [[null, '—'], ...L.points.filter(x => x !== p).map(x => [x.id, x.id])], v => edit(() => p.targetPoint = v))));
     out.push(row('Объект-цель', selectInput(p.targetObject, [[null, '—'], ...L.objects.map(o => [o.id, o.id])], v => edit(() => p.targetObject = v))));
     out.push(row('Этаж-цель', selectInput(p.targetFloor, [[null, '—'], ...L.floors.map(f => [f.id, f.name])], v => edit(() => p.targetFloor = v))));
@@ -929,6 +978,7 @@ function viewPanel() {
     H3('Уровень'),
     row('Название', textInput(L.name, v => setLevelName(v, L.file === fileNameFrom(L.name) ? null : L.file))),
     row('Имя файла', textInput(L.file, v => setLevelName(L.name, v || 'Level'))),
+    warningsBox(),
     h('div', { class: 'note' }, `Блоков: ${L.blocks.size}, объектов: ${L.objects.length}, точек: ${L.points.length}. Размер: ${bounds.maxX - bounds.minX + 1}×${bounds.maxZ - bounds.minZ + 1}, высота ${bounds.minY}…${bounds.maxY}.`),
   ];
 }
@@ -1176,6 +1226,7 @@ function buildMarkers() {
   markerGroup.clear();
   for (const o of L.objects) {
     if (o.kind === 'ShortcutDoor') { addDoorMesh(o); continue; }
+    if (o.kind === 'KeyDoor') { addKeyDoorMesh(o); continue; }
     if (o.kind === 'CrateStack') { addCrateMesh(o); continue; }
     if (o.kind === 'Chest') { addChestMesh(o); continue; }
     if (o.kind === 'DrawBridge') { addBridgeMesh(o); continue; }
@@ -1211,6 +1262,31 @@ function addDoorMesh(o) {
   // Меши переносим в мировые координаты: очистка markerGroup ожидает у детей geometry/material.
   g.updateMatrixWorld(true);
   for (const m of [slab, bar]) { m.applyMatrix4(g.matrixWorld); m.visible = g.visible; }
+}
+// Дверь на ключ: плита поперёк клетки, тёмные полосы и замок с обеих сторон (KeyDoor.cs).
+function addKeyDoorMesh(o) {
+  const hgt = Math.max(1, o.height ?? 3);
+  const fi = floorIndexOf(o.cell[1]);
+  const g = new THREE.Group();
+  const ghost = fi > activeFloor ? 0.2 : 0.85;
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.96, hgt, 0.3), new THREE.MeshLambertMaterial({ color: '#9a9ca6', transparent: true, opacity: ghost, depthWrite: false }));
+  slab.position.y = hgt / 2;
+  const parts = [slab];
+  for (const side of [1, -1]) {
+    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.36, 0.06), new THREE.MeshLambertMaterial({ color: '#3a3c44', transparent: true, opacity: ghost }));
+    lock.position.set(0, Math.min(1.05, hgt - 0.25), side * 0.18);
+    parts.push(lock);
+    for (let y = 0.35; y < hgt - 0.2; y += 1.1) {
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.12, 0.04), new THREE.MeshLambertMaterial({ color: '#4c4f58', transparent: true, opacity: ghost }));
+      band.position.set(0, y, side * 0.17);
+      parts.push(band);
+    }
+  }
+  g.position.set(o.cell[0] + .5, surfaceOf(o.cell), o.cell[2] + .5);
+  g.rotation.y = -(o.yaw || 0) * Math.PI / 180;
+  g.visible = !(fi > activeFloor && st.upper === 'hide');
+  g.updateMatrixWorld(true);
+  for (const m of parts) { m.renderOrder = 3; markerGroup.add(m); m.applyMatrix4(g.matrixWorld); m.visible = g.visible; }
 }
 // Сундук: корпус, крышка и полоса цвета ресурса (как в игре, Chest.cs).
 function addChestMesh(o) {
@@ -1444,6 +1520,15 @@ function drawOverlay() {
     octx.stroke(); octx.setLineDash([6, 4]);
   }
   octx.setLineDash([]);
+  // ключи: пунктир от врага с ключом к его двери
+  octx.lineWidth = 2; octx.setLineDash([3, 4]); octx.strokeStyle = 'rgba(200,150,20,.9)';
+  for (const e of L.objects) {
+    const d = e.kind === 'EnemySpawn' && e.key && L.objects.find(o => o.id === e.key && o.kind === 'KeyDoor');
+    if (!d) continue;
+    const a = project(e.cell[0] + .5, surfaceOf(e.cell) + .1, e.cell[2] + .5), b = project(d.cell[0] + .5, surfaceOf(d.cell) + 1, d.cell[2] + .5);
+    octx.beginPath(); octx.moveTo(a[0], a[1]); octx.lineTo(b[0], b[1]); octx.stroke();
+  }
+  octx.setLineDash([]);
   // зоны агро врагов: круг на полу; у выбранного — ярче и с заливкой
   for (const o of L.objects) {
     if (!isEnemy(o) || aggroOf(o) <= 0) continue;
@@ -1464,7 +1549,7 @@ function drawOverlay() {
   // объекты и точки
   const r = Math.max(9, Math.min(17, ppu * 0.36));
   const markers = [];
-  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? '' : o.kind === 'EnemySpawn' ? enemyName(o.item) : o.kind === 'Chest' ? chestLabel(o) : o.item, badge: o.kind === 'Chest', kind: 'obj' });
+  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' || o.kind === 'KeyDoor' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? '' : o.kind === 'KeyDoor' ? (keyHolders(o.id).some(isEnemy) ? 'на ключ' : '⚠ нет ключа') : o.kind === 'EnemySpawn' ? enemyName(o.item) + (o.key ? ' · ключ' : '') : o.kind === 'Chest' ? chestLabel(o) : o.item, badge: o.kind === 'Chest', kind: 'obj' });
   for (const p of L.points) markers.push({ id: p.id, cell: p.cell, col: '#8a5cf0', mk: '◆', sel: sel.point === p.id, diamond: true, label: ACTIONS[p.action]?.name, kind: 'pt' });
   for (const m of markers) {
     const fi = floorIndexOf(m.cell[1]);
@@ -1715,11 +1800,12 @@ function objectTap(px, py) {
   touchMarkup();
   const o = {
     id: kind === 'PlayerSpawn' && !L.objects.some(o => o.id === 'spawn') ? 'spawn' : newId(kind.toLowerCase() + '_', L.objects),
-    kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : kind === 'CrateStack' ? st.crateYaw : kind === 'DrawBridge' ? st.bridgeYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
-    height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : 2,
+    kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : kind === 'KeyDoor' ? st.keyDoorYaw : kind === 'CrateStack' ? st.crateYaw : kind === 'DrawBridge' ? st.bridgeYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
+    height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' || kind === 'KeyDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : 2,
     item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : kind === 'Chest' ? st.objResource : null,
     count: kind === 'Chest' ? st.chestCount : 1,
     aggroRadius: kind === 'EnemySpawn' ? st.enemyAggro : null,
+    key: null,
   };
   if (kind === 'PlayerSpawn') { L.objects = L.objects.filter(x => x.kind !== 'PlayerSpawn'); o.id = 'spawn'; }
   L.objects.push(o); commit();

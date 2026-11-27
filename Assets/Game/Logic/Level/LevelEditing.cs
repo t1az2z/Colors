@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ColorsAction.Level
 {
@@ -104,6 +105,23 @@ namespace ColorsAction.Level
                         l.RemoveObject(a.Id);
                     else
                         l.PutObject(b.Clone());
+                });
+        }
+
+        /// <summary>Заменить несколько объектов одной отменой (ключ двери переходит от врага к врагу).</summary>
+        public static MarkupCommand PutObjects(string name, IEnumerable<(LevelObject before, LevelObject after)> changes)
+        {
+            var list = changes.Select(c => (b: c.before.Clone(), a: c.after.Clone())).ToList();
+            return new MarkupCommand(name,
+                l =>
+                {
+                    foreach (var c in list)
+                        l.PutObject(c.a.Clone());
+                },
+                l =>
+                {
+                    foreach (var c in list)
+                        l.PutObject(c.b.Clone());
                 });
         }
 

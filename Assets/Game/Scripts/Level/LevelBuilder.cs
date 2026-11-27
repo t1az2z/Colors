@@ -17,7 +17,7 @@ namespace ColorsAction.Unity
     /// <summary>
     /// Строит уровень из карты высот (<see cref="LevelConfig"/>): столбики кубов 1×1, объединённые в меши по чанкам 16×16
     /// с MeshCollider; ставит игрока на точку появления, раскладывает предметы, манекены, подсказки на полу, двери-срезки,
-    /// костры, стопки ящиков и разводные мосты, обносит карту невидимыми стенами. Отдых у костра (и смерть игрока) возрождает врагов.
+    /// двери на ключ (ключ роняет враг), костры, стопки ящиков и разводные мосты, обносит карту невидимыми стенами. Отдых у костра (и смерть игрока) возрождает врагов.
     /// Воксельный уровень из веб-редактора (ключ "VoxelLevels/…") строится через <see cref="VoxelLevelView"/>, его объекты
     /// переводит <see cref="VoxelPlayLayout"/>. Какой уровень грузить — Game.json или окно «Параметры запуска».
     /// В редакторе показывает превью уровня (не сохраняется в сцену).
@@ -375,6 +375,16 @@ namespace ColorsAction.Unity
 
             SpawnHints(config, pickups, doors);
 
+            // Двери на ключ: открываются с любой стороны ключом, который выпадает из врага (LevelEnemy.Key).
+            foreach (var d in config.KeyDoors)
+            {
+                var go = new GameObject($"KeyDoor_{d.Id}");
+                go.transform.SetParent(root, false);
+                go.transform.SetPositionAndRotation(PointPosition(d), Quaternion.Euler(0, d.Yaw, 0));
+                go.AddComponent<KeyDoor>().Init(d.Id, d.Height, worldMaterial);
+                bootstrap.Inject(go);
+            }
+
             // Стопки ломаемых ящиков: закрывают проход, пока их не разобьют мечом (Configs/Crates.json).
             foreach (var c in config.Crates)
             {
@@ -435,15 +445,44 @@ namespace ColorsAction.Unity
                 return;
             if (voxel != null && reach == null)
                 reach = new EnemyReach(voxel, IsOpenForEnemies,
-                    () => session.OpenedShortcuts.Count + session.BrokenCrates.Count + session.OpenedBridges.Count);
+                    () => session.OpenedShortcuts.Count + session.BrokenCrates.Count + session.OpenedBridges.Count +
+                          session.OpenedKeyDoors.Count);
             foreach (var e in config.Enemies)
-                enemies.Add(EnemyController.Spawn(e.Type, PointPosition(e), e.Yaw, root, bootstrap, mesh, materials,
-                    e.AggroRadius, reach));
+            {
+                var enemy = EnemyController.Spawn(e.Type, PointPosition(e), e.Yaw, root, bootstrap, mesh, materials,
+                    e.AggroRadius, reach);
+                enemies.Add(enemy);
+                // Ключ выпадает один раз: возрождённый у костра враг его уже не носит.
+                if (!string.IsNullOrEmpty(e.Key) && !session.DroppedKeys.Contains(e.Key) && !session.OpenedKeyDoors.Contains(e.Key))
+                {
+                    enemy.KeyDoor = e.Key;
+                    enemy.Died += DropKey;
+                }
+            }
         }
 
-        /// <summary>Открыт ли проход для врагов: дверь-срезка открыта, ящики разбиты, мост опущен.</summary>
+        /// <summary>Враг с ключом погиб: ключ ложится на пол под ним и лежит, пока игрок его не подберёт.</summary>
+        private void DropKey(EnemyController enemy)
+        {
+            var door = enemy.KeyDoor;
+            if (string.IsNullOrEmpty(door) || root == null || !session.DroppedKeys.Add(door))
+                return;
+            var position = enemy.transform.position;
+            // Враг мог погибнуть в воздухе (отброшен ударом): ключ опускается на пол под ним.
+            var mask = ~(1 << EnemyController.EnemyLayer);
+            if (Physics.Raycast(position + Vector3.up * 0.5f, Vector3.down, out var hit, 30f, mask, QueryTriggerInteraction.Ignore))
+                position = hit.point;
+            var go = new GameObject($"Key_{door}");
+            go.transform.SetParent(root, false);
+            go.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, enemy.transform.eulerAngles.y, 0f));
+            go.AddComponent<Pickup>().InitKey(door);
+            bootstrap.Inject(go);
+        }
+
+        /// <summary>Открыт ли проход для врагов: дверь-срезка или дверь на ключ открыта, ящики разбиты, мост опущен.</summary>
         private bool IsOpenForEnemies(string id) =>
-            session.OpenedShortcuts.Contains(id) || session.BrokenCrates.Contains(id) || session.OpenedBridges.Contains(id);
+            session.OpenedShortcuts.Contains(id) || session.BrokenCrates.Contains(id) || session.OpenedBridges.Contains(id) ||
+            session.OpenedKeyDoors.Contains(id);
 
         /// <summary>
         /// Все враги уровня заново на своих местах и в исходном состоянии (живые убираются, погибшие возвращаются).

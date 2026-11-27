@@ -37,6 +37,7 @@ namespace ColorsAction.Configs
         public List<LevelEnemy> Enemies { get; set; } = new List<LevelEnemy>();
         public List<LevelHint> Hints { get; set; } = new List<LevelHint>();
         public List<LevelDoor> Doors { get; set; } = new List<LevelDoor>();
+        public List<LevelKeyDoor> KeyDoors { get; set; } = new List<LevelKeyDoor>();
         public List<LevelBonfire> Bonfires { get; set; } = new List<LevelBonfire>();
         public List<LevelCrate> Crates { get; set; } = new List<LevelCrate>();
         public List<LevelChest> Chests { get; set; } = new List<LevelChest>();
@@ -71,6 +72,19 @@ namespace ColorsAction.Configs
                 if (string.IsNullOrEmpty(Doors[i].Id))
                     Doors[i].Id = $"door_{Doors[i].X}_{Doors[i].Z}";
             }
+            KeyDoors ??= new List<LevelKeyDoor>();
+            foreach (var d in KeyDoors)
+            {
+                if (string.IsNullOrEmpty(d.Id))
+                    d.Id = $"keydoor_{d.X}_{d.Z}";
+            }
+
+            foreach (var e in Enemies)
+            {
+                if (string.IsNullOrEmpty(e.Key))
+                    e.Key = null;
+            }
+
             Bonfires ??= new List<LevelBonfire>();
             Crates ??= new List<LevelCrate>();
             foreach (var c in Crates)
@@ -223,6 +237,12 @@ namespace ColorsAction.Configs
 
         /// <summary>Зона агро, м: игрок ближе — враг замечает его (если может до него дойти).</summary>
         public float AggroRadius { get; set; } = DefaultAggroRadius;
+
+        /// <summary>
+        /// Id двери на ключ (<see cref="LevelKeyDoor"/>): при смерти враг роняет ключ от неё, ключ лежит, пока игрок его
+        /// не подберёт. null — без ключа.
+        /// </summary>
+        public string Key { get; set; }
     }
 
     /// <summary>
@@ -309,6 +329,22 @@ namespace ColorsAction.Configs
     public sealed class LevelDoor : LevelPoint
     {
         /// <summary>Id двери (для сохранения открытых срезок). Пусто — "door_x_z".</summary>
+        public string Id { get; set; }
+
+        /// <summary>Высота двери в метрах (кубах).</summary>
+        public float Height { get; set; } = 3f;
+    }
+
+    /// <summary>
+    /// Дверь на ключ в клетке (<see cref="ColorsAction.Level.KeyDoorRules"/>): плита поперёк прохода
+    /// (<see cref="LevelPoint.Yaw"/> 0 — плита вдоль X, проход по Z; 90 — вдоль Z). Открывается с любой стороны, если у игрока
+    /// есть ключ от неё (выпадает из врага с <see cref="LevelEnemy.Key"/> = <see cref="Id"/>); ключ тратится, дверь остаётся
+    /// открытой навсегда (<see cref="GameSession.OpenedKeyDoors"/>).
+    /// </summary>
+    [Preserve]
+    public sealed class LevelKeyDoor : LevelPoint
+    {
+        /// <summary>Id двери: на него ссылается ключ врага. Пусто — "keydoor_x_z".</summary>
         public string Id { get; set; }
 
         /// <summary>Высота двери в метрах (кубах).</summary>

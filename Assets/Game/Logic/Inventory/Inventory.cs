@@ -17,6 +17,9 @@ namespace ColorsAction.Inventory
         /// <summary>Сколько зарядов у полного предмета.</summary>
         public int MaxCharges => Config.Heal?.Charges ?? 0;
 
+        /// <summary>Ключ (<see cref="ItemKind.Key"/>): id двери на ключ, которую он открывает. У остальных предметов null.</summary>
+        public string KeyFor { get; set; }
+
         /// <summary>Сколько штук в стопке (ресурсы); у нескладываемых предметов всегда 1.</summary>
         public int Count { get; set; } = 1;
 
@@ -30,7 +33,8 @@ namespace ColorsAction.Inventory
             Charges = MaxCharges;
         }
 
-        public override string ToString() => Count > 1 ? $"{Id}#{Uid}x{Count}" : $"{Id}#{Uid}";
+        public override string ToString() =>
+            KeyFor != null ? $"{Id}#{Uid}->{KeyFor}" : Count > 1 ? $"{Id}#{Uid}x{Count}" : $"{Id}#{Uid}";
     }
 
     /// <summary>
@@ -252,6 +256,21 @@ namespace ColorsAction.Inventory
             grid[free] = item;
             Changed?.Invoke();
             return true;
+        }
+
+        /// <summary>Ключ от двери <paramref name="doorId"/> в сетке или в слотах, null — нет.</summary>
+        public Item FindKey(string doorId)
+        {
+            if (string.IsNullOrEmpty(doorId))
+                return null;
+            foreach (var slot in AllSlots())
+            {
+                var item = Get(slot);
+                if (item != null && item.Config.IsKey && item.KeyFor == doorId)
+                    return item;
+            }
+
+            return null;
         }
 
         /// <summary>Сколько всего штук предмета с этим id (сумма стопок).</summary>

@@ -54,6 +54,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         [SerializeField] private int barrierHeight = 2;
         [SerializeField] private int doorHeight = 3;
         [SerializeField] private int doorYaw;
+        [SerializeField] private int keyDoorYaw;
         [SerializeField] private int crateYaw;
         [SerializeField] private int crateHeight = CrateStackShape.DefaultHeight;
         [SerializeField] private int bridgeYaw;
@@ -179,6 +180,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             DrawToolSection();
             EditorGUILayout.Space();
             DrawSelectionSection();
+            EditorGUILayout.Space();
+            DrawCheckSection();
             EditorGUILayout.Space();
             DrawNavSection();
             EditorGUILayout.Space();
@@ -390,6 +393,15 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                                                 "Ставьте её в проём стены.", MessageType.None);
                     }
 
+                    if (objectKind == LevelObjectKind.KeyDoor)
+                    {
+                        keyDoorYaw = KeyDoorAxisPopup(keyDoorYaw);
+                        doorHeight = EditorGUILayout.IntSlider("Высота (клеток)", doorHeight, 1, 6);
+                        EditorGUILayout.HelpBox("Дверь на ключ открывается с любой стороны ключом, который выпадает из врага. " +
+                                                "Какой враг роняет ключ — выберите у двери («Ключ у врага») или у врага («Ключ от двери»). " +
+                                                "Ставьте её в проём стены.", MessageType.None);
+                    }
+
                     if (objectKind == LevelObjectKind.CrateStack)
                     {
                         crateYaw = EditorGUILayout.IntPopup(new GUIContent("Вторая клетка"), crateYaw == (int)CrateStackShape.AlongZ ? 270 : 0,
@@ -430,7 +442,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                         if (HasColor(objectKind))
                             DrawColorPicker(ref objectColor, false);
                         if (objectKind != LevelObjectKind.ShortcutDoor && objectKind != LevelObjectKind.CrateStack &&
-                            objectKind != LevelObjectKind.DrawBridge)
+                            objectKind != LevelObjectKind.DrawBridge && objectKind != LevelObjectKind.KeyDoor)
                             objectItem = EditorGUILayout.TextField(ItemLabel(objectKind), objectItem);
                     }
 
@@ -455,6 +467,43 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         private static int DoorSidePopup(float yaw) =>
             EditorGUILayout.IntPopup(new GUIContent("Открывается со стороны", "Стрелка на сцене показывает лицевую сторону"),
                 ((Mathf.RoundToInt(yaw / 90f) % 4 + 4) % 4) * 90, DoorSideLabels.Select(l => new GUIContent(l)).ToArray(), DoorSideYaws);
+
+        private static readonly string[] KeyDoorAxisLabels = { "Проход вдоль Z (↑↓)", "Проход вдоль X (←→)" };
+        private static readonly int[] KeyDoorAxisYaws = { 0, 90 };
+
+        /// <summary>Как дверь на ключ стоит в проёме: плита поперёк прохода, 0° — проход по Z, 90° — по X.</summary>
+        private static int KeyDoorAxisPopup(float yaw) =>
+            EditorGUILayout.IntPopup(new GUIContent("Поперёк прохода", "Дверь открывается с обеих сторон"),
+                (Mathf.RoundToInt(yaw / 90f) % 2 + 2) % 2 * 90, KeyDoorAxisLabels.Select(l => new GUIContent(l)).ToArray(), KeyDoorAxisYaws);
+
+        /// <summary>Враг, роняющий ключ от двери (выбор у двери): ключ переходит к нему, у остальных снимается.</summary>
+        private void DrawKeyHolderPopup(LevelObject door)
+        {
+            var enemies = session.Level.Objects.Where(VoxelLevelData.IsEnemy).ToList();
+            var holders = KeyDoorRules.Holders(session.Level, door.Id);
+            var current = holders.FirstOrDefault(VoxelLevelData.IsEnemy)?.Id;
+            var picked = IdPopup("Ключ у врага", current, enemies.Select(e => e.Id));
+            if (picked != current)
+            {
+                var changes = KeyDoorRules.AssignHolder(session.Level, door.Id, picked);
+                if (changes.Count > 0)
+                    session.Execute(MarkupCommand.PutObjects("Ключ от двери", changes));
+            }
+
+            if (holders.Count == 0)
+                EditorGUILayout.HelpBox("Ни у одного врага нет ключа от этой двери — её не открыть.", MessageType.Warning);
+        }
+
+        /// <summary>Предупреждения расстановки (двери на ключ без ключа и т.п.).</summary>
+        private void DrawCheckSection()
+        {
+            var warnings = KeyDoorRules.Warnings(session.Level);
+            if (warnings.Count == 0)
+                return;
+            EditorGUILayout.LabelField("Проверка", EditorStyles.boldLabel);
+            foreach (var w in warnings)
+                EditorGUILayout.HelpBox(w, MessageType.Warning);
+        }
 
         private static bool HasColor(LevelObjectKind kind) =>
             kind == LevelObjectKind.Barrier || kind == LevelObjectKind.WeaponPedestal;
@@ -563,6 +612,13 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 if (obj.Kind != LevelObjectKind.ShortcutDoor)
                     after.Height = doorHeight;
             }
+            else if (after.Kind == LevelObjectKind.KeyDoor)
+            {
+                after.Yaw = KeyDoorAxisPopup(obj.Yaw);
+                after.Height = EditorGUILayout.IntSlider("Высота", obj.Height, 1, 6);
+                if (obj.Kind != LevelObjectKind.KeyDoor)
+                    after.Height = doorHeight;
+            }
             else
                 after.Yaw = EditorGUILayout.IntPopup("Поворот", Mathf.RoundToInt(obj.Yaw), new[] { "0°", "90°", "180°", "270°" }, new[] { 0, 90, 180, 270 });
             if (after.Kind == LevelObjectKind.Barrier)
@@ -577,9 +633,13 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 after.Item = DrawEnemyPopup(obj.Item);
                 after.Color = null;
                 if (after.Item != VoxelPlayLayout.DummyType)
+                {
                     after.AggroRadius = AggroRadiusField(obj.AggroRadius, true);
+                    after.Key = IdPopup("Ключ от двери", obj.Key,
+                        session.Level.Objects.Where(o => o.IsKeyDoor).Select(o => o.Id));
+                }
             }
-            else if (after.Kind == LevelObjectKind.ShortcutDoor)
+            else if (after.Kind == LevelObjectKind.ShortcutDoor || after.Kind == LevelObjectKind.KeyDoor)
             {
                 after.Color = null;
                 after.Item = null;
@@ -594,8 +654,13 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 if (after.Kind == LevelObjectKind.Chest)
                     after.Count = Mathf.Max(1, EditorGUILayout.DelayedIntField("Количество", obj.Count));
             }
+            if (after.Kind != LevelObjectKind.EnemySpawn)
+                after.Key = null;
             if (EditorGUI.EndChangeCheck())
                 session.Execute(MarkupCommand.PutObject(obj, after));
+            // Отдельной командой после правки самой двери: ключ меняется у врагов.
+            if (obj.IsKeyDoor && after.IsKeyDoor)
+                DrawKeyHolderPopup(obj);
             if (GUILayout.Button("Удалить объект"))
                 DeleteSelection();
         }

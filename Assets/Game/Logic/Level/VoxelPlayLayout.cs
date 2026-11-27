@@ -6,7 +6,7 @@ namespace ColorsAction.Level
 {
     /// <summary>
     /// Воксельный уровень (формат веб-редактора, Configs/VoxelLevels) для игры: объекты переводятся в списки
-    /// <see cref="LevelConfig"/> (точка появления, оружие, враги, манекены, подсказки, двери, костры, ящики, сундуки, мосты) с высотой опоры
+    /// <see cref="LevelConfig"/> (точка появления, оружие, враги с ключами, манекены, подсказки, двери-срезки, двери на ключ, костры, ящики, сундуки, мосты) с высотой опоры
     /// <see cref="LevelPoint.Y"/>. Геометрию строит сам воксельный уровень. Барьеры и NPC игра пока не умеет — пропускаются.
     /// </summary>
     public static class VoxelPlayLayout
@@ -36,15 +36,27 @@ namespace ColorsAction.Level
                         break;
                     case LevelObjectKind.EnemySpawn:
                         if (string.IsNullOrEmpty(o.Item) || o.Item == DummyType)
+                        {
                             config.Dummies.Add(Point(new LevelPoint(), o, y));
+                            if (!string.IsNullOrEmpty(o.Key))
+                                skipped?.Add($"{o.Id}: манекен не роняет ключ от {o.Key}");
+                        }
                         else
-                            config.Enemies.Add(Point(new LevelEnemy { Type = o.Item, AggroRadius = o.AggroRadius }, o, y));
+                        {
+                            config.Enemies.Add(Point(new LevelEnemy
+                            {
+                                Type = o.Item, AggroRadius = o.AggroRadius, Key = string.IsNullOrEmpty(o.Key) ? null : o.Key
+                            }, o, y));
+                        }
                         break;
                     case LevelObjectKind.Hint:
                         config.Hints.Add(Point(new LevelHint { Id = o.Id, Action = string.IsNullOrEmpty(o.Item) ? "interact" : o.Item }, o, y));
                         break;
                     case LevelObjectKind.ShortcutDoor:
                         config.Doors.Add(Point(new LevelDoor { Id = o.Id, Height = Math.Max(1, o.Height) }, o, y));
+                        break;
+                    case LevelObjectKind.KeyDoor:
+                        config.KeyDoors.Add(Point(new LevelKeyDoor { Id = o.Id, Height = Math.Max(1, o.Height) }, o, y));
                         break;
                     case LevelObjectKind.Bonfire:
                         config.Bonfires.Add(Point(new LevelBonfire { Id = o.Id }, o, y));

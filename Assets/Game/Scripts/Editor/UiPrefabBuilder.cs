@@ -51,6 +51,15 @@ namespace ColorsAction.Unity.Editor
         [MenuItem("ColorsAction/UI/Rebuild Pickup Prefabs (overwrite)")]
         public static void RebuildPickups() => EnsurePickupPrefabs(true);
 
+        /// <summary>Префабы ключа (модель и на земле) и его иконка, если их ещё нет.</summary>
+        [MenuItem("ColorsAction/UI/Create Key Prefabs and Icon")]
+        public static void CreateKeyAssets()
+        {
+            EnsureKeyPrefabs(false);
+            EnsureItemIcons(false);
+            AssetDatabase.SaveAssets();
+        }
+
         [MenuItem("ColorsAction/UI/Generate Item Icons")]
         public static void GenerateIcons() => EnsureItemIcons(false);
 
@@ -223,6 +232,20 @@ namespace ColorsAction.Unity.Editor
                     boxes.Add(new Box(-6, -8, 6, -8 + blade, color));
                     boxes.Add(new Box(-17, -14, 17, -6, Dark));
                     boxes.Add(new Box(-4, -30, 4, -12, Dark));
+                    rotate = -45f;
+                    break;
+                case ItemKind.Key:
+                    // Ключ: квадратное кольцо, стержень и две бородки; тёмный контур, дырка в кольце прозрачная.
+                    boxes.Add(new Box(-16, 12, 16, 44, Dark));
+                    boxes.Add(new Box(-5, -42, 5, 14, Dark));
+                    boxes.Add(new Box(3, -42, 18, -30, Dark));
+                    boxes.Add(new Box(3, -26, 14, -16, Dark));
+                    boxes.Add(new Box(-11, 17, 11, 39, color));
+                    boxes.Add(new Box(-2, -39, 2, 17, color));
+                    boxes.Add(new Box(2, -39, 15, -33, color));
+                    boxes.Add(new Box(2, -23, 11, -19, color));
+                    boxes.Add(new Box(-6, 22, 6, 34, Dark));
+                    boxes.Add(new Box(-3, 25, 3, 31, Color.clear));
                     rotate = -45f;
                     break;
                 default:
@@ -544,10 +567,12 @@ namespace ColorsAction.Unity.Editor
             EnsureFolder(PickupsFolder);
             var configs = new ConfigService(new FileConfigSource(Path.Combine(Application.streamingAssetsPath, "Configs")),
                 new NewtonsoftConfigSerializer());
+            EnsureKeyPrefabs(overwrite);
             foreach (var pair in configs.LoadTable<ItemConfig>(ConfigKeys.Items))
             {
                 var held = pair.Value.Prefab;
-                if (string.IsNullOrEmpty(held))
+                // Ключ строится отдельно (EnsureKeyPrefabs): висит стоя и крутится вокруг вертикали.
+                if (string.IsNullOrEmpty(held) || pair.Value.IsKey)
                     continue;
                 var heldAsset = AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Game/Resources/{held}.prefab");
                 if (heldAsset == null)
@@ -579,6 +604,73 @@ namespace ColorsAction.Unity.Editor
                 PrefabUtility.SaveAsPrefabAsset(root, path);
                 Object.DestroyImmediate(root);
             }
+        }
+
+        /// <summary>
+        /// Ключ от двери: модель Resources/Items/Key (кубики: квадратное кольцо, стержень, бородки; тёмный металл —
+        /// ключ читается на белом полу) и префаб на земле Resources/Items/Pickups/Key — ключ висит стоя над полом,
+        /// покачивается и вращается вокруг вертикали, над ним тёплый свет. Существующие не перезаписываются без overwrite.
+        /// </summary>
+        public static void EnsureKeyPrefabs(bool overwrite)
+        {
+            EnsureFolder(PickupsFolder);
+            var modelPath = ItemsResources + "/Key.prefab";
+            var pickupPath = PickupsFolder + "/Key.prefab";
+            if (overwrite || !File.Exists(modelPath))
+            {
+                var metal = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Art/Materials/WeaponHandle.mat");
+                var key = new GameObject("Key");
+                void Bar(string name, float x0, float y0, float x1, float y1)
+                {
+                    var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    go.name = name;
+                    Object.DestroyImmediate(go.GetComponent<Collider>());
+                    go.transform.SetParent(key.transform, false);
+                    go.transform.localPosition = new Vector3((x0 + x1) * 0.5f, (y0 + y1) * 0.5f, 0f);
+                    go.transform.localScale = new Vector3(x1 - x0, y1 - y0, 0.07f);
+                    if (metal != null)
+                        go.GetComponent<MeshRenderer>().sharedMaterial = metal;
+                }
+
+                // Кольцо 0.3×0.3 из четырёх брусков, стержень вниз, две бородки справа.
+                Bar("BowTop", -0.15f, 0.27f, 0.15f, 0.35f);
+                Bar("BowBottom", -0.15f, 0.05f, 0.15f, 0.13f);
+                Bar("BowLeft", -0.15f, 0.13f, -0.07f, 0.27f);
+                Bar("BowRight", 0.07f, 0.13f, 0.15f, 0.27f);
+                Bar("Shaft", -0.035f, -0.35f, 0.035f, 0.05f);
+                Bar("ToothLow", 0.035f, -0.35f, 0.17f, -0.27f);
+                Bar("ToothHigh", 0.035f, -0.22f, 0.13f, -0.16f);
+                Save(key, modelPath);
+            }
+
+            if (!overwrite && File.Exists(pickupPath))
+                return;
+            var modelAsset = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
+            var root = new GameObject("KeyPickup");
+            var visual = root.AddComponent<PickupVisual>();
+            var model = (GameObject)PrefabUtility.InstantiatePrefab(modelAsset);
+            model.name = "Model";
+            model.transform.SetParent(root.transform, false);
+            model.transform.localPosition = Vector3.up * 0.6f;
+
+            var glow = new GameObject("Glow").AddComponent<Light>();
+            glow.transform.SetParent(root.transform, false);
+            glow.transform.localPosition = new Vector3(0f, 1f, 0.3f);
+            glow.type = LightType.Point;
+            glow.color = new Color(1f, 0.93f, 0.8f);
+            glow.range = 3f;
+            glow.intensity = 2.5f;
+            glow.shadows = LightShadows.None;
+
+            var so = new SerializedObject(visual);
+            so.FindProperty("model").objectReferenceValue = model.transform;
+            so.FindProperty("glow").objectReferenceValue = glow;
+            so.FindProperty("tintGlow").boolValue = false;
+            so.FindProperty("spinAxis").vector3Value = Vector3.up;
+            so.FindProperty("spinSpeed").floatValue = 70f;
+            so.FindProperty("bobHeight").floatValue = 0.08f;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            Save(root, pickupPath);
         }
 
         // ------------------------------------------------------------------ утилиты

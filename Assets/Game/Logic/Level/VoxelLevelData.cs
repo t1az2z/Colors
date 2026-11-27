@@ -59,6 +59,9 @@ namespace ColorsAction.Level
 
             /// <summary>Радиус агро врага, м. Пишется только у врагов; не задан — <see cref="LevelEnemy.DefaultAggroRadius"/>.</summary>
             public float? AggroRadius { get; set; }
+
+            /// <summary>Враг: id двери на ключ, ключ от которой он роняет. Пишется только у врагов с ключом.</summary>
+            public string Key { get; set; }
         }
 
         [Preserve]
@@ -121,7 +124,8 @@ namespace ColorsAction.Level
                 {
                     Id = o.Id, Kind = o.Kind, Cell = Int3.Parse(o.Cell), Yaw = o.Yaw, Color = o.Color,
                     Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = Math.Max(1, o.Count),
-                    AggroRadius = Math.Max(0f, o.AggroRadius ?? LevelEnemy.DefaultAggroRadius)
+                    AggroRadius = Math.Max(0f, o.AggroRadius ?? LevelEnemy.DefaultAggroRadius),
+                    Key = string.IsNullOrEmpty(o.Key) ? null : o.Key
                 }),
                 Points.Select(p => new InteractionPoint
                 {
@@ -145,7 +149,8 @@ namespace ColorsAction.Level
                 {
                     Id = o.Id, Kind = o.Kind, Cell = o.Cell.ToString(), Yaw = o.Yaw, Color = o.Color,
                     Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = o.Count,
-                    AggroRadius = IsEnemy(o) ? o.AggroRadius : (float?)null
+                    AggroRadius = IsEnemy(o) ? o.AggroRadius : (float?)null,
+                    Key = IsEnemy(o) && !string.IsNullOrEmpty(o.Key) ? o.Key : null
                 }).ToList(),
                 Points = level.Points.Select(p => new PointData
                 {
@@ -225,7 +230,7 @@ namespace ColorsAction.Level
                 level.PutObject(new LevelObject
                 {
                     Id = level.NewObjectId(LevelObjectKind.EnemySpawn), Kind = LevelObjectKind.EnemySpawn,
-                    Cell = StandCell(e.X, e.Z), Yaw = e.Yaw, Item = e.Type, AggroRadius = e.AggroRadius
+                    Cell = StandCell(e.X, e.Z), Yaw = e.Yaw, Item = e.Type, AggroRadius = e.AggroRadius, Key = e.Key
                 });
             }
 
@@ -244,6 +249,16 @@ namespace ColorsAction.Level
                 {
                     Id = string.IsNullOrEmpty(d.Id) ? level.NewObjectId(LevelObjectKind.ShortcutDoor) : d.Id,
                     Kind = LevelObjectKind.ShortcutDoor, Cell = StandCell(d.X, d.Z), Yaw = d.Yaw,
+                    Height = Math.Max(1, (int)Math.Ceiling(d.Height - 1e-3f))
+                });
+            }
+
+            foreach (var d in config.KeyDoors)
+            {
+                level.PutObject(new LevelObject
+                {
+                    Id = string.IsNullOrEmpty(d.Id) ? level.NewObjectId(LevelObjectKind.KeyDoor) : d.Id,
+                    Kind = LevelObjectKind.KeyDoor, Cell = StandCell(d.X, d.Z), Yaw = d.Yaw,
                     Height = Math.Max(1, (int)Math.Ceiling(d.Height - 1e-3f))
                 });
             }

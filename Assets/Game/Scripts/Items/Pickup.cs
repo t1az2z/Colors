@@ -1,5 +1,6 @@
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
+using ColorsAction.Level;
 using GameCore.DI;
 using UnityEngine;
 
@@ -9,12 +10,16 @@ namespace ColorsAction.Unity
     /// Предмет на земле. Лежит, слегка покачиваясь, подсвечен своим цветом.
     /// Вид — префаб Resources/Items/Pickups/&lt;имя префаба оружия&gt; (<see cref="PickupVisual"/>), без него — модель из рук.
     /// Игрок подбирает его на F / X (<see cref="PlayerInteractor"/>), предмет уходит в сетку инвентаря.
+    /// Ключ от двери (<see cref="InitKey"/>) выпадает из врага и подбирается так же.
     /// </summary>
     public sealed class Pickup : GameBehaviour, IInteractable
     {
         private static readonly System.Collections.Generic.List<Pickup> all = new System.Collections.Generic.List<Pickup>();
 
         [SerializeField] private string itemId;
+
+        /// <summary>Ключ: id двери, которую он открывает (<see cref="InitKey"/>); у остальных предметов null.</summary>
+        private string keyFor;
 
         private GameSession session;
         private ItemDatabase itemsDb;
@@ -34,6 +39,15 @@ namespace ColorsAction.Unity
         public void Interact(Vector3 from) => TryTake();
 
         public void Init(string id) => itemId = id;
+
+        /// <summary>Ключ от двери на ключ <paramref name="doorId"/> (выпал из врага): подбирается в сетку инвентаря.</summary>
+        public void InitKey(string doorId)
+        {
+            itemId = KeyDoorRules.KeyItemId;
+            keyFor = doorId;
+        }
+
+        public string KeyFor => keyFor;
 
         protected override void OnConstruct(IResolver resolver)
         {
@@ -181,7 +195,7 @@ namespace ColorsAction.Unity
         /// <summary>Подобрать. false — инвентарь полон.</summary>
         public bool TryTake()
         {
-            if (taken || !session.PickUp(itemId))
+            if (taken || !(keyFor != null ? session.PickUpKey(keyFor) : session.PickUp(itemId)))
                 return false;
             taken = true;
             all.Remove(this);

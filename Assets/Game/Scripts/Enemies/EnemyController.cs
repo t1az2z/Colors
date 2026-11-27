@@ -74,6 +74,12 @@ namespace ColorsAction.Unity
         public Vector3 HitPoint => transform.position + Vector3.up * (config != null ? config.Size * 0.6f : 0.5f);
         public bool Dead => brain != null && brain.State == EnemyState.Dead;
 
+        /// <summary>Id двери на ключ, ключ от которой враг роняет при смерти (задаёт <see cref="LevelBuilder"/>); null — без ключа.</summary>
+        public string KeyDoor { get; set; }
+
+        /// <summary>Враг погиб (до разлёта на осколки): позиция ещё на месте смерти.</summary>
+        public event System.Action<EnemyController> Died;
+
         /// <summary>Создать врага на сцене. Тело — тот же скруглённый куб с глазами, что у игрока, другого цвета и размера.</summary>
         /// <param name="aggroRadius">Радиус агро этого врага (из уровня).</param>
         /// <param name="reach">Проверка достижимости игрока; null — враг замечает игрока по одной дистанции.</param>
@@ -603,6 +609,7 @@ namespace ColorsAction.Unity
         private void Die()
         {
             marker.Hide();
+            Died?.Invoke(this);
             var size = config.Size;
             var center = transform.position + Vector3.up * size * 0.5f;
             var pieces = Debris.Burst(center, color, config.DeathPieces, 0.24f * size, 4.5f, 2.4f);

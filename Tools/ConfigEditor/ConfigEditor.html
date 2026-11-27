@@ -524,7 +524,7 @@ const SCHEMA = {
 const ITEM_FIELDS = [
   { k: 'name', l: 'Название', t: 'text', d: 'Как предмет называется в игре.' },
   { k: 'color', l: 'Цвет', t: 'colorRef', d: 'Сектор колеса оружия. Урон по врагу зависит от расстояния между цветами на круге (Бой → Круг цветов); оружие открывает проходы своего цвета.' },
-  { k: 'kind', l: 'Тип', t: 'enum', opts: [['Weapon', 'Оружие (колесо: атака ЛКМ/RT, парирование ПКМ/LT)'], ['Shield', 'Щит (вторая рука оружия)'], ['Consumable', 'Расходник (слоты 1–4)'], ['Resource', 'Ресурс (прокачка оружия, в сундуках)']], d: 'Рук и двуручности нет: каждое оружие — один сектор колеса.' },
+  { k: 'kind', l: 'Тип', t: 'enum', opts: [['Weapon', 'Оружие (колесо: атака ЛКМ/RT, парирование ПКМ/LT)'], ['Shield', 'Щит (вторая рука оружия)'], ['Consumable', 'Расходник (слоты 1–4)'], ['Resource', 'Ресурс (прокачка оружия, в сундуках)'], ['Key', 'Ключ (от одной двери, выпадает из врага)']], d: 'Рук и двуручности нет: каждое оружие — один сектор колеса.' },
   { k: 'maxStack', l: 'Стопка', t: 'int', u: 'шт.', min: 1, max: 999, step: 1, def: 99, d: 'Сколько штук помещается в одну клетку инвентаря.', onlyResource: true },
   { k: 'offhand', l: 'Вторая рука', t: 'itemRef', d: 'Предмет, который оружие держит во второй руке (меч — щит: одно синее оружие «меч и щит»). Отдельно не подбирается; его апгрейды — апгрейды этого оружия.', onlyWeapon: true },
   { k: 'damage', l: 'Базовый урон', d: 'Урон удара = базовый урон × множитель удара серии.', u: U.pts, min: 0, max: 200, step: 0.5, noResource: true },
@@ -1064,9 +1064,9 @@ function renderItems(main, f) {
     const isShield = it.kind === 'Shield';
     for (const fd of ITEM_FIELDS) {
       if (fd.onlyShield && !isShield) continue;
-      if (fd.onlyWeapon && (isShield || it.kind === 'Consumable' || it.kind === 'Resource')) continue;
+      if (fd.onlyWeapon && (isShield || it.kind === 'Consumable' || it.kind === 'Resource' || it.kind === 'Key')) continue;
       if (fd.onlyResource && it.kind !== 'Resource') continue;
-      if (fd.noResource && it.kind === 'Resource') continue;
+      if (fd.noResource && (it.kind === 'Resource' || it.kind === 'Key')) continue;
       if (fd.onlyWeapon && it.ranged) continue; // окно комбо, след и поворот клинка стрелковому не нужны
       card.fields.append(fieldRow(f, [id, fd.k], fd, () => { if (fd.k === 'kind' || fd.k === 'color' || fd.k === 'name') renderPage(); }));
     }
@@ -1088,7 +1088,8 @@ function renderItems(main, f) {
       for (const p of collectUnknown(it.shield, SHIELD_FIELDS.map(x => x.k))) card.fields.append(genericRow(f, [id, 'shield', ...p]));
     }
 
-    const weapon = !isShield && it.kind !== 'Consumable' && it.kind !== 'Resource';
+    const weapon = !isShield && it.kind !== 'Consumable' && it.kind !== 'Resource' && it.kind !== 'Key';
+    if (it.kind === 'Key') card.fields.append(el(`<div class="desc" style="margin:6px 0">Ключ: какую дверь он открывает, задаётся в редакторе уровней у врага (поле «Ключ от двери»). Враг роняет ключ при смерти, игрок подбирает его в инвентарь, ключ тратится на свою дверь. Префаб на земле — Resources/Items/Pickups/Key.</div>`));
     if (it.kind === 'Resource') {
       const users = Object.entries(S.files.Upgrades?.data || {}).filter(([, u]) => u?.resource === id).map(([w]) => itemsData()[w]?.name || w);
       card.fields.append(el(`<div class="desc" style="margin:6px 0">Ресурс складывается стопками в инвентарь, лежит в сундуках (тип и количество задаются в редакторе уровней). Иконка — Assets/Game/Art/UI/Icons. ${users.length ? 'Нужен для прокачки: ' + esc(users.join(', ')) + '.' : 'Пока ни одно оружие его не требует (Upgrades.json).'}</div>`));

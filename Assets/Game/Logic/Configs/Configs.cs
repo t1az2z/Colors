@@ -339,7 +339,13 @@ namespace ColorsAction.Configs
         Consumable,
 
         /// <summary>Ресурс для прокачки оружия (металл, шестерёнки): складывается в стопки, лежит только в сетке.</summary>
-        Resource
+        Resource,
+
+        /// <summary>
+        /// Ключ от одной двери на ключ (какой — <c>Item.KeyFor</c>): выпадает из врага, лежит только в сетке, не складывается,
+        /// тратится, когда открывает дверь.
+        /// </summary>
+        Key
     }
 
     public enum AttackMotion
@@ -612,12 +618,16 @@ namespace ColorsAction.Configs
         public bool IsWeapon => Kind == ItemKind.Weapon || Kind == ItemKind.Shield;
         public bool IsRanged => Ranged != null;
         public bool IsResource => Kind == ItemKind.Resource;
+        public bool IsKey => Kind == ItemKind.Key;
         public bool IsStackable => MaxStack > 1;
 
         public void OnConfigLoaded()
         {
             if (MaxStack <= 0)
                 MaxStack = Kind == ItemKind.Resource ? 99 : 1;
+            // Каждый ключ — от своей двери: в одну клетку не складываются.
+            if (Kind == ItemKind.Key)
+                MaxStack = 1;
             Combo ??= new List<AttackStepConfig>();
             // Окно попадания должно идти вперёд по времени: перепутанные границы меняем местами,
             // иначе удар молча перестаёт наносить урон.

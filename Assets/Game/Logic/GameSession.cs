@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
+using ColorsAction.Level;
 using ColorsAction.Progression;
 using ColorsAction.Status;
 using GameCore.Config;
@@ -116,6 +117,15 @@ namespace ColorsAction
         /// <summary>Id опущенных разводных мостов: цепь порвана, створка лежит, проход открыт навсегда (позже уйдёт в сохранение).</summary>
         public HashSet<string> OpenedBridges { get; } = new HashSet<string>();
 
+        /// <summary>Id открытых дверей на ключ: ключ потрачен, дверь открыта навсегда (позже уйдёт в сохранение).</summary>
+        public HashSet<string> OpenedKeyDoors { get; } = new HashSet<string>();
+
+        /// <summary>
+        /// Id дверей, ключ от которых уже выпал из врага (лежит на земле, у игрока или потрачен): возрождённый враг его
+        /// больше не носит. Позже уйдёт в сохранение вместе с лежащими ключами.
+        /// </summary>
+        public HashSet<string> DroppedKeys { get; } = new HashSet<string>();
+
         /// <summary>Id костра, у которого игрок отдыхал последним (точка возрождения), null — ещё нигде.</summary>
         public string LastBonfire { get; set; }
 
@@ -161,6 +171,9 @@ namespace ColorsAction
         /// <summary>Подбор предмета с земли. false — инвентарь полон, предмет остаётся лежать.</summary>
         public bool PickUp(string itemId)
         {
+            // Ключ без двери ничего не открывает: ключи подбираются через PickUpKey.
+            if (items.Exists(itemId) && items.Get(itemId).IsKey)
+                return false;
             // Вторая рука другого оружия (щит меча) отдельным оружием не бывает: приходит только вместе с ним.
             if (items.IsOffhandOnly(itemId))
                 return false;
@@ -183,13 +196,57 @@ namespace ColorsAction
         }
 
         /// <summary>
+        /// Подбор ключа от двери <paramref name="doorId"/> (выпал из врага): ключ — отдельный предмет в сетке инвентаря.
+        /// false — инвентарь полон (<see cref="InventoryFull"/>) или в Items.json нет предмета-ключа; ключ остаётся лежать.
+        /// </summary>
+        public bool PickUpKey(string doorId)
+        {
+            if (string.IsNullOrEmpty(doorId) || !items.Exists(KeyDoorRules.KeyItemId))
+                return false;
+            if (Inventory.FindKey(doorId) != null || OpenedKeyDoors.Contains(doorId))
+                return true;
+            var key = items.Create(KeyDoorRules.KeyItemId);
+            key.KeyFor = doorId;
+            if (!Inventory.TryAdd(key))
+            {
+                events.Publish(new InventoryFull(key.Id));
+                return false;
+            }
+
+            events.Publish(new ItemPickedUp(key));
+            return true;
+        }
+
+        /// <summary>Есть ли у игрока ключ от двери.</summary>
+        public bool HasKey(string doorId) => Inventory.FindKey(doorId) != null;
+
+        /// <summary>
+        /// Открыть дверь на ключ: ключ уходит из инвентаря, дверь запоминается открытой. false — ключа нет
+        /// (уже открытая дверь — true, ключ не нужен).
+        /// </summary>
+        public bool TryOpenKeyDoor(string doorId)
+        {
+            if (string.IsNullOrEmpty(doorId))
+                return false;
+            if (OpenedKeyDoors.Contains(doorId))
+                return true;
+            var key = Inventory.FindKey(doorId);
+            if (key == null)
+                return false;
+            Inventory.Remove(key);
+            OpenedKeyDoors.Add(doorId);
+            return true;
+        }
+
+        /// <summary>
         /// Выдать предмет без подбора (стартовое снаряжение): в инвентарь (оружие — на колесо) и, если <paramref name="equip"/>,
         /// в руки, когда они пусты.
         /// Неизвестный id, вторая рука другого оружия (щит) или полный инвентарь — false, событий не публикует.
         /// </summary>
         public bool GiveItem(string itemId, bool equip)
         {
-            if (string.IsNullOrEmpty(itemId) || !items.Exists(itemId) || items.IsOffhandOnly(itemId))
+            // Ключ без двери ничего не открывает — выдаётся только через PickUpKey.
+            if (string.IsNullOrEmpty(itemId) || !items.Exists(itemId) || items.IsOffhandOnly(itemId) || items.Get(itemId).IsKey)
                 return false;
             var item = items.Create(itemId);
             if (!Inventory.TryAdd(item))

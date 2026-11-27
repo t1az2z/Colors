@@ -196,7 +196,14 @@ namespace ColorsAction.Level
         /// и открывает проход.
         /// Параметры — Configs/Bridges.json.
         /// </summary>
-        DrawBridge
+        DrawBridge,
+
+        /// <summary>
+        /// Дверь на ключ (<see cref="KeyDoorRules"/>): плита поперёк клетки (<see cref="LevelObject.Yaw"/> 0 — плита вдоль X,
+        /// проход по Z; 90 — вдоль Z), <see cref="LevelObject.Height"/> клеток в высоту. Открывается с любой стороны ключом,
+        /// который выпадает из врага с <see cref="LevelObject.Key"/> = id этой двери, и дальше остаётся открытой.
+        /// </summary>
+        KeyDoor
     }
 
     /// <summary>Тип цветного барьера (раздел 8 GDD).</summary>
@@ -232,18 +239,23 @@ namespace ColorsAction.Level
         /// <summary>Враг: радиус агро в метрах (свой у каждого размещённого врага).</summary>
         public float AggroRadius { get; set; } = ColorsAction.Configs.LevelEnemy.DefaultAggroRadius;
 
+        /// <summary>Враг: id двери на ключ (<see cref="LevelObjectKind.KeyDoor"/>), ключ от которой выпадает из него. null — без ключа.</summary>
+        public string Key { get; set; }
+
         public bool IsBarrier => Kind == LevelObjectKind.Barrier;
 
         public bool IsChest => Kind == LevelObjectKind.Chest;
 
         public bool IsDoor => Kind == LevelObjectKind.ShortcutDoor;
 
+        public bool IsKeyDoor => Kind == LevelObjectKind.KeyDoor;
+
         public bool IsCrate => Kind == LevelObjectKind.CrateStack;
 
         public bool IsBridge => Kind == LevelObjectKind.DrawBridge;
 
-        /// <summary>Перекрывает ли проход, пока не открыт (барьер, дверь-срезка, неразбитые ящики, поднятый мост).</summary>
-        public bool BlocksPath => IsBarrier || IsDoor || IsCrate || IsBridge;
+        /// <summary>Перекрывает ли проход, пока не открыт (барьер, дверь-срезка, дверь на ключ, неразбитые ящики, поднятый мост).</summary>
+        public bool BlocksPath => IsBarrier || IsDoor || IsKeyDoor || IsCrate || IsBridge;
 
         public LevelObject Clone() => (LevelObject)MemberwiseClone();
 
