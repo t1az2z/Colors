@@ -38,6 +38,16 @@ namespace ColorsAction.Unity.Editor
             BuildUiPrefabs(icons, true);
         }
 
+        /// <summary>Пересобрать только экран инвентаря (HUD и остальные префабы не трогаются).</summary>
+        [MenuItem("ColorsAction/UI/Rebuild Inventory Screen (overwrite)")]
+        public static void RebuildInventoryScreen()
+        {
+            var icons = EnsureItemIcons(false);
+            var slot = AssetDatabase.LoadAssetAtPath<SlotView>(UiResources + "/InventorySlot.prefab");
+            Save(BuildInventory(icons, slot), UiResources + "/InventoryScreen.prefab");
+            AssetDatabase.SaveAssets();
+        }
+
         [MenuItem("ColorsAction/UI/Rebuild Pickup Prefabs (overwrite)")]
         public static void RebuildPickups() => EnsurePickupPrefabs(true);
 
