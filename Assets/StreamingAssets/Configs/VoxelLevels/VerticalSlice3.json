@@ -15614,7 +15614,7 @@
       "yaw": 90,
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_3",
@@ -15623,7 +15623,7 @@
       "yaw": 135,
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_4",
@@ -15632,7 +15632,7 @@
       "yaw": 180,
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_5",
@@ -15640,7 +15640,7 @@
       "cell": "12,2,12",
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_6",
@@ -15649,7 +15649,7 @@
       "yaw": 180,
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_7",
@@ -15658,7 +15658,7 @@
       "yaw": 180,
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_8",
@@ -15667,7 +15667,7 @@
       "yaw": 180,
       "height": 2,
       "item": "club_cube",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "weaponpedestal_2",
@@ -15684,7 +15684,7 @@
       "yaw": 135,
       "height": 2,
       "item": "elite_sword",
-      "aggroRadius": 7,
+      "aggroRadius": 10.5,
       "key": "keydoor_1"
     },
     {
@@ -15701,7 +15701,7 @@
       "yaw": 135,
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_11",
@@ -15710,7 +15710,7 @@
       "yaw": 180,
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_12",
@@ -15719,7 +15719,7 @@
       "yaw": 180,
       "height": 2,
       "item": "elite_sword",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_13",
@@ -15728,7 +15728,7 @@
       "yaw": 180,
       "height": 2,
       "item": "elite_sword",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_14",
@@ -15737,7 +15737,7 @@
       "yaw": 90,
       "height": 2,
       "item": "club_cube_red",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_15",
@@ -15746,7 +15746,7 @@
       "yaw": 90,
       "height": 2,
       "item": "club_cube",
-      "aggroRadius": 7
+      "aggroRadius": 10.5
     },
     {
       "id": "enemyspawn_1",
@@ -15755,7 +15755,7 @@
       "yaw": -180,
       "height": 2,
       "item": "club_cube",
-      "aggroRadius": 4.5
+      "aggroRadius": 6.75
     },
     {
       "id": "cratestack_1b",
