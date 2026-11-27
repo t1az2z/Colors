@@ -416,8 +416,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                         bridgeYaw = EditorGUILayout.IntPopup(new GUIContent("Мост тянется"), DrawBridgeShape.SnapYaw(bridgeYaw),
                             new[] { new GUIContent("→ +X"), new GUIContent("↓ −Z"), new GUIContent("← −X"), new GUIContent("↑ +Z") },
                             new[] { 0, 90, 180, 270 });
-                        EditorGUILayout.HelpBox("Разводной мост 4×2: щелчок — ближняя клетка опущенной створки, мост тянется по стрелке " +
-                                                "на 4 клетки, вторая клетка ширины — слева по ходу. Дальняя створка поднята на цепи; " +
+                        EditorGUILayout.HelpBox($"Разводной мост {DrawBridgeShape.Length}×{DrawBridgeShape.Width}: щелчок — ближняя клетка опущенной створки, мост тянется по стрелке " +
+                                                $"на {DrawBridgeShape.Length} клеток, ширина — {DrawBridgeShape.Width} клетки слева по ходу. Под дальнюю половину обычно оставляют пропасть. Дальняя створка поднята на цепи; " +
                                                 "выстрел из дробовика её опускает (Configs/Bridges.json).", MessageType.None);
                     }
 

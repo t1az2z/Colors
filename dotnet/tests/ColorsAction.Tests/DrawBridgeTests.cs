@@ -8,7 +8,7 @@ using NUnit.Framework;
 
 namespace ColorsAction.Tests
 {
-    /// <summary>Разводной мост 4×2×2: форма по повороту, стена поднятой створки, конфиг, загрузка из карты.</summary>
+    /// <summary>Разводной мост 8×3, створка 4 в высоту: форма по повороту, стена поднятой створки, конфиг, загрузка из карты.</summary>
     public class DrawBridgeTests
     {
         [TestCase(0f, 1, 0, 0, 1)]
@@ -19,8 +19,8 @@ namespace ColorsAction.Tests
         {
             var anchor = new Int3(10, 3, 10);
             Assert.That(DrawBridgeShape.Cell(anchor, yaw, 0, 0), Is.EqualTo(anchor));
-            Assert.That(DrawBridgeShape.Cell(anchor, yaw, 3, 0), Is.EqualTo(new Int3(10 + 3 * ax, 3, 10 + 3 * az)));
-            Assert.That(DrawBridgeShape.Cell(anchor, yaw, 0, 1), Is.EqualTo(new Int3(10 + cx, 3, 10 + cz)));
+            Assert.That(DrawBridgeShape.Cell(anchor, yaw, 7, 0), Is.EqualTo(new Int3(10 + 7 * ax, 3, 10 + 7 * az)));
+            Assert.That(DrawBridgeShape.Cell(anchor, yaw, 0, 2), Is.EqualTo(new Int3(10 + 2 * cx, 3, 10 + 2 * cz)));
             // Ширина — слева по ходу: поворот направления «вдоль» на 90° против часовой (вид сверху, +Z вверх).
             Assert.That((cx, cz), Is.EqualTo((-az, ax)));
         }
@@ -28,22 +28,23 @@ namespace ColorsAction.Tests
         [Test]
         public void Center_IsMiddleOfFootprint()
         {
-            Assert.That(DrawBridgeShape.Center(0, 0, 0f), Is.EqualTo((2f, 1f)));
-            Assert.That(DrawBridgeShape.Center(0, 0, 270f), Is.EqualTo((0f, 2f)));
+            Assert.That((DrawBridgeShape.Length, DrawBridgeShape.Width, DrawBridgeShape.Height), Is.EqualTo((8, 3, 4)));
+            Assert.That(DrawBridgeShape.Center(0, 0, 0f), Is.EqualTo((4f, 1.5f)));
+            Assert.That(DrawBridgeShape.Center(0, 0, 270f), Is.EqualTo((-0.5f, 4f)));
         }
 
         [Test]
-        public void RaisedLeaf_BlocksOnlyItsColumn_TwoHigh()
+        public void RaisedLeaf_BlocksOnlyItsColumn_FourHigh()
         {
-            var o = new LevelObject { Kind = LevelObjectKind.DrawBridge, Cell = new Int3(2, 1, 2), Yaw = 0f, Height = 2 };
+            var o = new LevelObject { Kind = LevelObjectKind.DrawBridge, Cell = new Int3(2, 1, 2), Yaw = 0f, Height = 4 };
             Assert.That(o.BlocksPath, Is.True);
-            Assert.That(o.Covers(new Int3(5, 1, 2)), Is.True, "raised leaf at the far end, near row");
-            Assert.That(o.Covers(new Int3(5, 2, 3)), Is.True, "raised leaf, far row, top");
-            Assert.That(o.Covers(new Int3(5, 3, 2)), Is.False, "above the leaf");
+            Assert.That(o.Covers(new Int3(9, 1, 2)), Is.True, "raised leaf at the far end, near row");
+            Assert.That(o.Covers(new Int3(9, 4, 4)), Is.True, "raised leaf, far row, top");
+            Assert.That(o.Covers(new Int3(9, 5, 2)), Is.False, "above the leaf");
             Assert.That(o.Covers(new Int3(2, 1, 2)), Is.False, "lowered leaf is walkable");
-            Assert.That(o.Covers(new Int3(4, 1, 2)), Is.False, "the gap in front of the raised leaf");
-            Assert.That(o.Covers(new Int3(6, 1, 2)), Is.False, "behind the bridge");
-            Assert.That(o.Covers(new Int3(4, 1, 4)), Is.False, "beside the bridge");
+            Assert.That(o.Covers(new Int3(8, 1, 3)), Is.False, "the gap in front of the raised leaf");
+            Assert.That(o.Covers(new Int3(10, 1, 2)), Is.False, "behind the bridge");
+            Assert.That(o.Covers(new Int3(9, 1, 5)), Is.False, "beside the bridge");
         }
 
         [Test]
@@ -63,10 +64,10 @@ namespace ColorsAction.Tests
             var level = new VoxelLevel();
             var cells = new List<KeyValuePair<Int3, Block?>>();
             for (int x = 0; x < 2; x++)
-            for (int z = 0; z < 3; z++)
+            for (int z = 0; z < 4; z++)
                 cells.Add(new KeyValuePair<Int3, Block?>(new Int3(x, 0, z), Block.Cube()));
             level.SetMany(cells);
-            level.PutObject(new LevelObject { Id = "drawbridge_1", Kind = LevelObjectKind.DrawBridge, Cell = new Int3(0, 1, 1), Yaw = 0f, Height = 2 });
+            level.PutObject(new LevelObject { Id = "drawbridge_1", Kind = LevelObjectKind.DrawBridge, Cell = new Int3(0, 1, 1), Yaw = 0f, Height = 4 });
 
             var skipped = new List<string>();
             var config = VoxelPlayLayout.ToLevelConfig(level, skipped);
@@ -74,7 +75,7 @@ namespace ColorsAction.Tests
             Assert.That(config.Bridges, Has.Count.EqualTo(1));
             var b = config.Bridges[0];
             Assert.That((b.Id, b.X, b.Z, b.Y), Is.EqualTo(("drawbridge_1", 0, 1, (float?)1f)));
-            Assert.That(level.BarrierAt(new Int3(3, 1, 2))?.Id, Is.EqualTo("drawbridge_1"), "raised leaf at the far end");
+            Assert.That(level.BarrierAt(new Int3(7, 1, 3))?.Id, Is.EqualTo("drawbridge_1"), "raised leaf at the far end");
 
             var round = VoxelLevelData.From(level).ToLevel();
             Assert.That(round.FindObject("drawbridge_1").Kind, Is.EqualTo(LevelObjectKind.DrawBridge));

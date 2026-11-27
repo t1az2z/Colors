@@ -190,8 +190,8 @@ namespace ColorsAction.Level
         Chest,
 
         /// <summary>
-        /// Разводной мост (<see cref="DrawBridgeShape"/>): 4 клетки в длину от <see cref="LevelObject.Cell"/> в сторону
-        /// <see cref="LevelObject.Yaw"/>, 2 в ширину (вторая — слева по ходу), 2 в высоту. Ближняя створка опущена,
+        /// Разводной мост (<see cref="DrawBridgeShape"/>): 8 клеток в длину от <see cref="LevelObject.Cell"/> в сторону
+        /// <see cref="LevelObject.Yaw"/>, 3 в ширину (слева по ходу), поднятая створка — 4 в высоту. Ближняя створка опущена,
         /// дальняя поднята у дальнего края и держится на красных цепях; выстрел из дробовика рвёт цепи, створка падает
         /// и открывает проход.
         /// Параметры — Configs/Bridges.json.

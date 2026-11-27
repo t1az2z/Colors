@@ -6,7 +6,7 @@ using GameCore.Config;
 namespace ColorsAction.Configs
 {
     /// <summary>
-    /// Configs/Bridges.json — разводной мост 4×2×2 (<see cref="ColorsAction.Level.DrawBridgeShape"/>): ближняя створка
+    /// Configs/Bridges.json — разводной мост 8×3 (створка 4 в высоту) (<see cref="ColorsAction.Level.DrawBridgeShape"/>): ближняя створка
     /// опущена, дальняя поднята и держится на двух цепях к раме. Цепи рвутся только оружием из <see cref="BreakableBy"/>
     /// (дробовик), створка падает и открывает проход. Шестерни и цепи — цвета <see cref="Color"/>, остальное — в цвете мира.
     /// </summary>
@@ -41,15 +41,15 @@ namespace ColorsAction.Configs
         public float RaisedAngle { get; set; } = 72f;
 
         /// <summary>Радиус больших шестерён у шарнира поднятой створки, метры.</summary>
-        public float GearRadius { get; set; } = 0.72f;
+        public float GearRadius { get; set; } = 0.9f;
 
-        /// <summary>Высота П-образных рам на концах моста (к дальней крепятся цепи), метры.</summary>
-        public float GantryHeight { get; set; } = 2.8f;
+        /// <summary>Высота П-образных рам на концах моста (к дальней крепятся цепи), метры. Выше края поднятой створки.</summary>
+        public float GantryHeight { get; set; } = 4.6f;
 
         /// <summary>Сколько оборотов шестерни на один оборот створки (шестерни крутятся, пока створка падает).</summary>
         public float GearRatio { get; set; } = 2.5f;
 
-        /// <summary>Множитель силы тяжести при падении створки (1 — как настоящая доска длиной 2 м).</summary>
+        /// <summary>Множитель силы тяжести при падении створки (1 — как настоящая доска длиной в створку).</summary>
         public float FallGravity { get; set; } = 1f;
 
         /// <summary>Отскок створки при ударе о землю (доля скорости) и сколько раз она подпрыгивает.</summary>
@@ -67,7 +67,7 @@ namespace ColorsAction.Configs
         public int LandDust { get; set; } = 14;
 
         /// <summary>Звеньев в цепи.</summary>
-        public int ChainLinks { get; set; } = 11;
+        public int ChainLinks { get; set; } = 15;
 
         /// <summary>Скорость разлёта звеньев при разрыве, м/с, и время до их исчезновения, с.</summary>
         public float ChainBreakForce { get; set; } = 3f;

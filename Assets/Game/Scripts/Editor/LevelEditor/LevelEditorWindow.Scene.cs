@@ -467,25 +467,29 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             }
             else if (o.IsBridge)
             {
-                // Разводной мост: ближняя створка лежит (половина 4×2), дальняя поднята стенкой у дальнего края,
+                // Разводной мост: ближняя створка лежит (половина моста), дальняя поднята стенкой у дальнего края,
                 // от её верха к раме за мостом — цепи.
+                const float leafLength = DrawBridgeShape.LeafLength;
+                const float width = DrawBridgeShape.Width;
+                const float height = DrawBridgeShape.Height;
+                const float halfLength = DrawBridgeShape.Length * 0.5f;
                 top = o.Cell.Y + DrawBridgeShape.Height;
                 var rot = Quaternion.Euler(0, DrawBridgeShape.SnapYaw(o.Yaw), 0);
                 var (cx, cz) = DrawBridgeShape.Center(o.Cell.X, o.Cell.Z, o.Yaw);
                 var center = new Vector3(cx, pos.y + 0.03f, cz);
-                var deck = rot * new Vector3(DrawBridgeShape.LeafLength, 0f, DrawBridgeShape.Width);
+                var deck = rot * new Vector3(leafLength, 0f, width);
                 Handles.color = new Color(0.85f, 0.85f, 0.85f, 0.45f);
-                DrawSolidBox(center - rot * new Vector3(1f, 0f, 0f), new Vector3(Mathf.Abs(deck.x), 0.06f, Mathf.Abs(deck.z)));
-                var leafCenter = center + rot * new Vector3(1.7f, DrawBridgeShape.Height * 0.5f, 0f);
-                var leaf = rot * new Vector3(0.4f, 0f, DrawBridgeShape.Width);
-                var leafSize = new Vector3(Mathf.Abs(leaf.x), DrawBridgeShape.Height, Mathf.Abs(leaf.z));
+                DrawSolidBox(center - rot * new Vector3(leafLength * 0.5f, 0f, 0f), new Vector3(Mathf.Abs(deck.x), 0.06f, Mathf.Abs(deck.z)));
+                var leafCenter = center + rot * new Vector3(halfLength - 0.3f, height * 0.5f, 0f);
+                var leaf = rot * new Vector3(0.4f, 0f, width);
+                var leafSize = new Vector3(Mathf.Abs(leaf.x), height, Mathf.Abs(leaf.z));
                 Handles.color = new Color(0.85f, 0.85f, 0.85f, 0.55f);
                 DrawSolidBox(leafCenter, leafSize);
                 Handles.color = c;
                 Handles.DrawWireCube(leafCenter, leafSize);
-                foreach (var side in new[] { -0.8f, 0.8f })
-                    Handles.DrawLine(center + rot * new Vector3(1.5f, DrawBridgeShape.Height - 0.1f, side),
-                        center + rot * new Vector3(2.8f, 2.55f, side * 1.5f), 3f);
+                foreach (var side in new[] { -1f, 1f })
+                    Handles.DrawLine(center + rot * new Vector3(halfLength - 0.5f, height - 0.1f, side * (width * 0.5f - 0.2f)),
+                        center + rot * new Vector3(halfLength + 0.8f, height + 0.35f, side * (width * 0.5f + 0.2f)), 3f);
             }
             else if (o.IsKeyDoor)
             {

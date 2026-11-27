@@ -9,7 +9,7 @@ using UnityEngine;
 namespace ColorsAction.Unity
 {
     /// <summary>
-    /// Разводной мост 4×2×2 (<see cref="DrawBridgeShape"/>), как на референсе: две створки по 2 клетки, каждая на шарнире
+    /// Разводной мост 8×3 (<see cref="DrawBridgeShape"/>), как на референсе: две створки по 4 клетки, каждая на шарнире
     /// у своего берега. Ближняя опущена и лежит на каменных опорах; дальняя поднята (с наклоном к игроку) и держится
     /// на двух красных цепях (<see cref="BridgeChain"/>), идущих от её края к П-образной раме за шарниром. У шарнира
     /// дальней створки по бокам — большие красные шестерни; рамы, опоры и настил — в цвете мира.
@@ -183,12 +183,13 @@ namespace ColorsAction.Unity
         private static readonly float[] Sides = { -1f, 1f };
 
         /// <summary>
-        /// Створка от шарнира по локальной +X на 2 м, ширина симметрично вокруг Z = 0: доски поперёк хода с узкими щелями,
+        /// Створка от шарнира по локальной +X на <see cref="LeafLength"/> м, ширина симметрично вокруг Z = 0: доски поперёк хода с узкими щелями,
         /// бортики-балки по краям, поперечины снизу.
         /// </summary>
         private static void BuildLeaf(Transform parent, Material plankA, Material plankB, Material beam)
         {
-            const int planks = 8;
+            // Четыре доски на метр, как было у створки в 2 м.
+            const int planks = (int)(LeafLength * 4f);
             const float gap = 0.016f;
             var plankLength = (LeafLength - (planks + 1) * gap) / planks;
             for (int i = 0; i < planks; i++)
@@ -201,9 +202,9 @@ namespace ColorsAction.Unity
             // Бортики: невысокие балки вдоль краёв, чуть выше настила.
             foreach (var s in Sides)
                 Part(parent, beam, new Vector3(LeafLength * 0.5f, DeckTop + 0.02f, s * (HalfWidth - 0.07f)), new Vector3(LeafLength, 0.2f, 0.14f));
-            // Поперечины под настилом.
-            foreach (var x in new[] { 0.12f, LeafLength * 0.5f, LeafLength - 0.12f })
-                Part(parent, beam, new Vector3(x, DeckTop - PlankThickness - 0.05f, 0f), new Vector3(0.14f, 0.1f, 2f * HalfWidth));
+            // Поперечины под настилом: по краям и через каждый метр.
+            for (int i = 0; i <= (int)LeafLength; i++)
+                Part(parent, beam, new Vector3(Mathf.Clamp(i, 0.12f, LeafLength - 0.12f), DeckTop - PlankThickness - 0.05f, 0f), new Vector3(0.14f, 0.1f, 2f * HalfWidth));
         }
 
         private static void AddDeckCollider(GameObject go)

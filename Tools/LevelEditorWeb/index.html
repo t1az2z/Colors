@@ -220,8 +220,9 @@ function warningsBox() {
   const w = keyWarnings();
   return w.length ? h('div', { class: 'note warn' }, w.map(t => h('div', {}, '⚠ ' + t))) : null;
 }
-// Разводной мост 4×2×2 (DrawBridgeShape в Unity): от клетки по стрелке на 4 клетки, вторая клетка ширины — слева по ходу.
-// Ближняя створка опущена, дальняя (клетки 3–4) поднята у дальнего края на цепях к раме — её опускает выстрел из дробовика.
+// Разводной мост 8×3 (DrawBridgeShape в Unity): от клетки по стрелке на 8 клеток, ширина 3 клетки — слева по ходу.
+// Ближняя створка опущена, дальняя (клетки 5–8) поднята у дальнего края на цепях к раме — её опускает выстрел из дробовика.
+const BRIDGE_LEN = 8, BRIDGE_W = 3, BRIDGE_LEAF = BRIDGE_LEN / 2, BRIDGE_H = BRIDGE_LEAF;
 const BRIDGE_DIRS = [[0, '→ +X'], [90, '↓ −Z'], [180, '← −X'], [270, '↑ +Z']];
 // Стопка ящиков 2×1×N (CrateStackShape в Unity): вторая клетка по повороту — 0° → +X, 270° → +Z.
 const CRATE_DIRS = [[0, '→ +X'], [270, '↑ +Z']];
@@ -829,7 +830,7 @@ function objectPanel() {
     row('Вторая клетка', chips(CRATE_DIRS, st.crateYaw, v => { st.crateYaw = v; renderPanel(); })),
     row('Ящиков в высоту', stepper(st.crateHeight, v => st.crateHeight = v, 1, 3)));
   if (st.objKind === 'DrawBridge') out.push(
-    desc('Разводной мост 4×2: ближняя створка опущена, дальняя поднята у дальнего края на двух красных цепях и не пускает дальше (2 куба в высоту). Выстрел из дробовика рвёт цепи — створка падает и открывает проход навсегда. Рамы и шестерни стоят по бокам, чуть за краями моста. Тап — ближняя клетка, мост тянется по стрелке на 4 клетки, вторая клетка ширины — слева по ходу. Под дальнюю створку (клетки 3–4) обычно оставляют пропасть.'),
+    desc('Разводной мост 8×3: ближняя створка опущена, дальняя поднята у дальнего края на двух красных цепях и не пускает дальше (4 куба в высоту). Выстрел из дробовика рвёт цепи — створка падает и открывает проход навсегда. Рамы и шестерни стоят по бокам, чуть за краями моста. Тап — ближняя клетка, мост тянется по стрелке на 8 клеток, ещё 2 клетки ширины — слева по ходу. Под дальнюю створку (клетки 5–8) обычно оставляют пропасть.'),
     row('Мост тянется', chips(BRIDGE_DIRS, st.bridgeYaw, v => { st.bridgeYaw = v; renderPanel(); requestRender(); })));
   if (st.objKind === 'Chest') out.push(
     desc('Сундук в одной клетке: игрок открывает его (F / X), ресурс вылетает и летит к нему. На значке сундука подписано, что внутри.'),
@@ -843,7 +844,7 @@ function objectPanel() {
       // Дверь стоит строго поперёк прохода: поворот только по 90°, высота по умолчанию — как у стены.
       if (v === 'ShortcutDoor' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
       if (v === 'CrateStack' && o.kind !== v) { o.yaw = crateDir(o.yaw); o.height = st.crateHeight; o.color = null; o.item = null; }
-      if (v === 'DrawBridge' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = 2; o.color = null; o.item = null; }
+      if (v === 'DrawBridge' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = BRIDGE_H; o.color = null; o.item = null; }
       if (v === 'KeyDoor' && o.kind !== v) { o.yaw = keyDoorAxis(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
       if (v !== 'EnemySpawn') o.key = null;
       if (v === 'Chest' && o.kind !== v) { o.color = null; o.item = st.objResource; o.count = st.chestCount; }
@@ -1357,19 +1358,21 @@ function addBridgeMesh(o) {
   const parts = [];
   const add = (parent, m) => { parent.add(m); parts.push(m); return m; };
   const box = (parent, c, x, y, z, sx, sy, sz, rz) => { const m = add(parent, new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat(c))); m.position.set(x, y, z); if (rz) m.rotation.z = rz; return m; };
+  const LEAF = BRIDGE_LEAF, HW = BRIDGE_W / 2; // длина створки, половина ширины
   // Створка от шарнира по +X, ширина вокруг z = 0.
   const leafParts = parent => {
-    const deck = box(parent, DECK, 1, 0, 0, 2, 0.1, 1.84);
+    const deck = box(parent, DECK, LEAF / 2, 0, 0, LEAF, 0.1, 2 * HW - 0.16);
     const e = add(parent, new THREE.LineSegments(new THREE.EdgesGeometry(deck.geometry), line(EDGE))); e.position.copy(deck.position);
-    for (let i = 1; i < 8; i++) box(parent, EDGE, i * 0.25, 0.001, 0, 0.02, 0.102, 1.84);
-    for (const z of [-0.93, 0.93]) box(parent, BEAM, 1, 0.02, z, 2, 0.2, 0.14);
+    for (let i = 1; i < LEAF * 4; i++) box(parent, EDGE, i * 0.25, 0.001, 0, 0.02, 0.102, 2 * HW - 0.16);
+    for (const z of [-(HW - 0.07), HW - 0.07]) box(parent, BEAM, LEAF / 2, 0.02, z, LEAF, 0.2, 0.14);
   };
-  const W = 0.5; // середина ширины (локально)
+  const W = (BRIDGE_W - 1) / 2; // середина ширины (локально)
+  const FAR = BRIDGE_LEN - 0.5; // шарнир дальней створки
   const near = new THREE.Group(); near.position.set(-0.5, 0, W); g.add(near); leafParts(near);
-  const far = new THREE.Group(); far.position.set(3.5, 0, W); far.rotation.set(0, Math.PI, 72 * Math.PI / 180, 'YXZ'); g.add(far); leafParts(far);
-  box(far, RED, 1.94, -0.03, 0, 0.12, 0.18, 1.9);
+  const far = new THREE.Group(); far.position.set(FAR, 0, W); far.rotation.set(0, Math.PI, 72 * Math.PI / 180, 'YXZ'); g.add(far); leafParts(far);
+  box(far, RED, LEAF - 0.06, -0.03, 0, 0.12, 0.18, 2 * HW - 0.1);
   // Каменные опоры у шарнира ближней створки.
-  for (const s of [-1, 1]) { const z = W + s * 1.16; box(g, STONE, -0.28, -0.08, z, 0.5, 0.16, 0.26); box(g, STONE, -0.28, 0.1, z, 0.3, 0.3, 0.2); }
+  for (const s of [-1, 1]) { const z = W + s * (HW + 0.16); box(g, STONE, -0.28, -0.08, z, 0.5, 0.16, 0.26); box(g, STONE, -0.28, 0.1, z, 0.3, 0.3, 0.2); }
   // Большие шестерни у шарнира дальней створки.
   const gear = (x, z, r) => {
     const disk = add(g, new THREE.Mesh(new THREE.CylinderGeometry(r * 0.84, r * 0.84, 0.12, 20), mat(RED)));
@@ -1378,24 +1381,25 @@ function addBridgeMesh(o) {
     for (let i = 0; i < n; i++) { const a = 2 * Math.PI * (i + 0.5) / n; box(g, RED, x + Math.cos(a) * (r - 0.08), Math.sin(a) * (r - 0.08), z, 0.16, 0.12, 0.12, a); }
     box(g, '#8a2420', x, 0, z, 0.26, 0.26, 0.2, Math.PI / 4);
   };
-  for (const s of [-1, 1]) gear(3.5, W + s * 1.08, 0.72);
-  // П-образные рамы на концах: тумбы, столбы, поперечина.
-  const H = 2.8;
+  const GEAR_R = 0.9;
+  for (const s of [-1, 1]) gear(FAR, W + s * (HW + 0.08), GEAR_R);
+  // П-образные рамы на концах: тумбы, столбы, поперечина (выше края поднятой створки — Bridges.json gantryHeight).
+  const H = 4.6;
   const gantry = x => {
     for (const s of [-1, 1]) {
-      const z = W + s * 1.2;
+      const z = W + s * (HW + 0.2);
       box(g, STONE, x, 0.3, z, 0.44, 0.6, 0.4); box(g, BEAM, x, 0.65, z, 0.48, 0.1, 0.44);
       box(g, BEAM, x, (0.6 + H) / 2, z, 0.22, H - 0.6, 0.22); box(g, BEAM, x, H - 0.12, z, 0.34, 0.36, 0.16);
     }
-    box(g, BEAM, x, H - 0.18, W, 0.16, 0.16, 2.6);
+    box(g, BEAM, x, H - 0.18, W, 0.16, 0.16, 2 * HW + 0.6);
   };
-  const farX = 3.5 + 0.72 + 0.3;
+  const farX = FAR + GEAR_R + 0.3;
   gantry(-0.95); gantry(farX);
   // Цепи: от углов края поднятой створки к верхушкам столбов дальней рамы.
   const k = 72 * Math.PI / 180;
-  const tipX = 3.5 - (1.9 * Math.cos(k) - 0.1 * Math.sin(k)), tipY = 1.9 * Math.sin(k) + 0.1 * Math.cos(k);
+  const tipX = FAR - ((LEAF - 0.1) * Math.cos(k) - 0.1 * Math.sin(k)), tipY = (LEAF - 0.1) * Math.sin(k) + 0.1 * Math.cos(k);
   for (const s of [-1, 1]) {
-    const a = new THREE.Vector3(tipX, tipY, W + s * 0.82), b = new THREE.Vector3(farX - 0.13, H - 0.25, W + s * 1.2);
+    const a = new THREE.Vector3(tipX, tipY, W + s * (HW - 0.18)), b = new THREE.Vector3(farX - 0.13, H - 0.25, W + s * (HW + 0.2));
     const c = add(g, new THREE.Mesh(new THREE.BoxGeometry(0.07, a.distanceTo(b), 0.07), mat(RED)));
     c.position.copy(a).add(b).multiplyScalar(0.5);
     c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
@@ -1813,7 +1817,7 @@ function objectTap(px, py) {
   const o = {
     id: kind === 'PlayerSpawn' && !L.objects.some(o => o.id === 'spawn') ? 'spawn' : newId(kind.toLowerCase() + '_', L.objects),
     kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : kind === 'KeyDoor' ? st.keyDoorYaw : kind === 'CrateStack' ? st.crateYaw : kind === 'DrawBridge' ? st.bridgeYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
-    height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' || kind === 'KeyDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : 2,
+    height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' || kind === 'KeyDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : kind === 'DrawBridge' ? BRIDGE_H : 2,
     item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : kind === 'Chest' ? st.objResource : null,
     count: kind === 'Chest' ? st.chestCount : 1,
     aggroRadius: kind === 'EnemySpawn' ? st.enemyAggro : null,
