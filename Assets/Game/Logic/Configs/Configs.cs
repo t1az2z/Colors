@@ -833,17 +833,23 @@ namespace ColorsAction.Configs
         /// <summary>Ступень прокачки, с которой выстрел после парирования — полностью заряженный (0 — всегда).</summary>
         public int ChargedParryUpgrade { get; set; } = 3;
 
+        /// <summary>
+        /// Пауза между парированием и выстрелом, секунды игрового времени: враг успевает отшатнуться,
+        /// персонаж — вскинуть дробовик на прицел. 0 — выстрел в момент парирования.
+        /// </summary>
+        public float ParryShotDelay { get; set; } = 0.35f;
+
         /// <summary>Поза в руках при блоке: поднято перед собой.</summary>
         public GunHoldConfig Hold { get; set; } = new GunHoldConfig
         {
             Side = 0f, Height = 0.72f, Forward = 0.7f, Pitch = 0f,
-            ModelPosition = new[] { -0.35f, 0f, 0f }, ModelRotation = new[] { 0f, -90f, 0f }
+            ModelPosition = new[] { 0.24f, 0f, 0f }, ModelRotation = new[] { 0f, -90f, 0f }
         };
 
         public void Validate(string id)
         {
             Hold ??= new GunHoldConfig();
-            if (Angle <= 0f || Angle > 360f || Absorb < 0f || Absorb > 1f || ParryShotStaminaCost < 0f || ChargedParryUpgrade < 0)
+            if (Angle <= 0f || Angle > 360f || Absorb < 0f || Absorb > 1f || ParryShotStaminaCost < 0f || ChargedParryUpgrade < 0 || ParryShotDelay < 0f)
                 throw new InvalidOperationException(
                     $"ranged weapon '{id}': block angle in 0..360, absorb in 0..1, parryShotStaminaCost >= 0, chargedParryUpgrade >= 0");
         }

@@ -35,6 +35,17 @@ namespace ColorsAction.Unity
         // Плавный подъём оружия в блок (0 — нет, 1 — поднято перед собой).
         private float gunBlockRaise;
 
+        // Выстрел после парирования ждёт паузу (GunBlockConfig.ParryShotDelay): рука, цель, остаток паузы.
+        private HandState parryShotHand;
+        private EnemyController parryShotTarget;
+        private float parryShotTimer;
+        private float parryShotWait;
+        // Подъём ствола на прицел во время паузы перед выстрелом после парирования (0..1).
+        private float parryAim;
+
+        /// <summary>Выстрел после парирования ждёт паузу (для автотестов).</summary>
+        public bool GunParryShotPending => parryShotHand != null;
+
         /// <summary>Заряженных выстрелов и парирований блоком дробовика за игру (для автотестов).</summary>
         public int ChargedShotCount { get; private set; }
         public int GunParryCount { get; private set; }
@@ -63,6 +74,7 @@ namespace ColorsAction.Unity
         /// </summary>
         private void UpdateGun(bool control, float dt)
         {
+            UpdateParryShot(dt);
             foreach (var hand in hands)
             {
                 hand.ShotTime += dt;
@@ -103,7 +115,7 @@ namespace ColorsAction.Unity
                     continue;
                 }
 
-                var canShoot = control && attacking == null && !Blocking;
+                var canShoot = control && attacking == null && !Blocking && parryShotHand == null;
                 if (!hand.Gun.Tick(dt, canShoot && pressed, config) || !canShoot)
                     continue;
                 if (CanChargeShot(hand.Item))
@@ -300,6 +312,8 @@ namespace ColorsAction.Unity
             var charging = gunChargeHand == hand && gunCharge.Active;
             gunRaise = Mathf.MoveTowards(gunRaise, charging ? 1f : 0f, Time.deltaTime * 8f);
             var aim = Mathf.Max(gunRaise, 1f - Mathf.Clamp01((hand.ShotTime - 0.45f) / 0.3f));
+            if (parryShotHand == hand)
+                aim = Mathf.Max(aim, parryAim);
             // Блок: оружие вскидывается быстро; выстрел после парирования на миг уводит его на прицел.
             var blocking = ranged.Block != null && GunBlocking && GunBlockHand == hand;
             gunBlockRaise = Mathf.MoveTowards(gunBlockRaise, blocking ? 1f : 0f, Time.deltaTime * 14f);
@@ -361,13 +375,67 @@ namespace ColorsAction.Unity
         private static Vector3 HoldPosition(GunHoldConfig hold, float side) => new Vector3(hold.Side * side, hold.Height, hold.Forward);
 
         /// <summary>
-        /// Парирование блоком дробовика удалось (оружие врага встретило ствол): дробовик сразу стреляет в парированного
-        /// врага, без паузы курка. С апгрейдом <see cref="GunBlockConfig.ChargedParryUpgrade"/> — полностью заряженным
-        /// залпом (<see cref="RangedConfig.ChargedShot"/> с множителями заряда).
+        /// Парирование блоком дробовика удалось (оружие врага встретило ствол): после паузы
+        /// <see cref="GunBlockConfig.ParryShotDelay"/> (враг отшатывается, персонаж разворачивается к нему и вскидывает
+        /// дробовик на прицел) дробовик стреляет в парированного врага, без паузы курка. С апгрейдом
+        /// <see cref="GunBlockConfig.ChargedParryUpgrade"/> — полностью заряженным залпом
+        /// (<see cref="RangedConfig.ChargedShot"/> с множителями заряда).
         /// </summary>
         private void GunParryShot(HandState hand, EnemyController enemy)
         {
             if (this == null || hand?.Item?.Ranged?.Block == null || hand.Visual == null)
+                return;
+            if (gunChargeHand == hand)
+                CancelGunCharge();
+            parryShotHand = hand;
+            parryShotTarget = enemy;
+            parryShotWait = hand.Item.Ranged.Block.ParryShotDelay;
+            parryShotTimer = parryShotWait;
+            if (parryShotTimer <= 0f)
+                FireParryShot();
+        }
+
+        /// <summary>Пауза перед выстрелом после парирования: ствол идёт на прицел, персонаж смотрит на врага.</summary>
+        private void UpdateParryShot(float dt)
+        {
+            var hand = parryShotHand;
+            if (hand == null)
+            {
+                parryAim = 0f;
+                return;
+            }
+
+            // Сменил оружие или умер — выстрел отменяется.
+            if (hand.Item?.Ranged?.Block == null || hand.Visual == null || session.Vitals.Health.IsDead)
+            {
+                parryShotHand = null;
+                parryShotTarget = null;
+                return;
+            }
+
+            parryShotTimer -= dt;
+            // Ствол на прицеле к ~70% паузы — остаток игрок видит готовый к выстрелу дробовик.
+            parryAim = Mathf.Clamp01((parryShotWait - parryShotTimer) / Mathf.Max(0.001f, parryShotWait * 0.7f));
+            if (parryShotTarget != null && !parryShotTarget.Dead)
+            {
+                var to = parryShotTarget.transform.position - transform.position;
+                to.y = 0f;
+                if (to.sqrMagnitude > 0.0001f)
+                    controller.FaceNow(Vector3.Slerp(controller.Forward, to.normalized, Mathf.Clamp01(dt * 18f)));
+            }
+
+            if (parryShotTimer <= 0f)
+                FireParryShot();
+        }
+
+        private void FireParryShot()
+        {
+            var hand = parryShotHand;
+            var enemy = parryShotTarget;
+            parryShotHand = null;
+            parryShotTarget = null;
+            parryAim = 0f;
+            if (hand?.Item?.Ranged?.Block == null || hand.Visual == null)
                 return;
             var item = hand.Item;
             var config = item.Ranged;
