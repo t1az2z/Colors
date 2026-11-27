@@ -335,10 +335,11 @@ def make_key():
     box(bm, (0.0, 0.0, 0.035), (0.085, 0.08, 0.04))      # neck under the collar
     box(bm, (0.0, 0.0, -0.13), (0.06, 0.06, 0.32))       # shaft
     box(bm, (0.0, 0.0, -0.3), (0.075, 0.075, 0.03))      # tip
-    # Bit: top bar, outer bar and a short lower tooth leave a notch open towards the shaft.
-    box(bm, (0.105, 0.0, -0.165), (0.16, t * 0.8, 0.05))
-    box(bm, (0.16, 0.0, -0.235), (0.05, t * 0.8, 0.14))
-    box(bm, (0.06, 0.0, -0.285), (0.06, t * 0.8, 0.04))
+    # Bit as on the reference: a plate along the shaft with two teeth pointing away from it, the notch between them
+    # opens outwards.
+    box(bm, (0.055, 0.0, -0.225), (0.05, t * 0.8, 0.19))   # plate along the shaft
+    box(bm, (0.13, 0.0, -0.155), (0.11, t * 0.8, 0.05))    # upper tooth
+    box(bm, (0.13, 0.0, -0.295), (0.11, t * 0.8, 0.05))    # lower tooth
     bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
     obj = new_object("Key", bm, [material("KeyMetal", (0.72, 0.55, 0.33, 1))])
