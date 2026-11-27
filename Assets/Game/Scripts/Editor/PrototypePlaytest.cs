@@ -11,7 +11,8 @@ namespace ColorsAction.Unity.Editor
     /// <summary>
     /// Автопрогон прототипа в Play Mode через скриптовый ввод: ступени 0.25/0.5/0.75, прыжок, перекат,
     /// подбор, инвентарь, удары по манекену, блок. Работает и без фокуса окна (через <see cref="PlayModeStepper"/>).
-    /// Меню: ColorsAction → Debug → Run Prototype Playtest (в Play Mode). Итог — в консоли.
+    /// Меню: ColorsAction → Debug → Run Prototype Playtest (в Play Mode). Итог — в <c>Logs/playtest_result.txt</c>
+    /// (первая строка PASS/FAIL N/M, дальше только упавшие проверки с ожидаемым и фактом) и в консоли.
     /// </summary>
     public static class PrototypePlaytest
     {
@@ -19,7 +20,7 @@ namespace ColorsAction.Unity.Editor
         private static int lastFrame;
         private static int waitUntil;
         private static readonly StringBuilder report = new StringBuilder();
-        private static int failures;
+        private static readonly PlaytestResultFile result = new PlaytestResultFile("PrototypePlaytest", "playtest_result.txt");
 
         public static string LastReport { get; private set; } = "not run";
         public static bool Running => routine != null;
@@ -36,7 +37,7 @@ namespace ColorsAction.Unity.Editor
             if (!UnityEditorInternal.InternalEditorUtility.isApplicationActive)
                 PlayModeStepper.Enable();
             report.Clear();
-            failures = 0;
+            result.Begin();
             LastReport = "running";
             routine = Sequence();
             lastFrame = -1;
@@ -49,6 +50,12 @@ namespace ColorsAction.Unity.Editor
         {
             if (routine == null || !EditorApplication.isPlaying)
             {
+                if (routine != null)
+                {
+                    result.Abort("play mode exited before the playtest finished");
+                    LastReport = "aborted";
+                }
+
                 EditorApplication.update -= Tick;
                 routine = null;
                 return;
@@ -65,7 +72,7 @@ namespace ColorsAction.Unity.Editor
             catch (System.Exception e)
             {
                 Debug.LogException(e);
-                Check(false, "exception: " + e.Message);
+                Check(false, "exception: " + e.Message, "no exception");
                 more = false;
             }
 
@@ -77,7 +84,10 @@ namespace ColorsAction.Unity.Editor
                 EditorApplication.update -= Tick;
                 var input = Object.FindAnyObjectByType<GameInput>();
                 input?.ClearScripted();
-                LastReport = (failures == 0 ? "PLAYTEST PASSED\n" : $"PLAYTEST FAILED ({failures})\n") + report;
+                result.Finish();
+                var failures = result.Failures;
+                LastReport = (failures == 0 ? $"PLAYTEST PASSED {result.Total}/{result.Total}\n" : $"PLAYTEST FAILED ({failures}/{result.Total})\n")
+                             + report + $"result file: {result.Path}\n";
                 if (failures == 0)
                     Debug.Log(LastReport);
                 else
@@ -85,10 +95,10 @@ namespace ColorsAction.Unity.Editor
             }
         }
 
-        private static void Check(bool ok, string what)
+        /// <param name="expected">Что ожидалось — пишется в файл итога у упавшей проверки (факт — в <paramref name="what"/> после «: »).</param>
+        private static void Check(bool ok, string what, string expected = null)
         {
-            if (!ok)
-                failures++;
+            result.Add(ok, what, expected);
             report.AppendLine((ok ? "  ok   " : "  FAIL ") + what);
         }
 
@@ -122,7 +132,7 @@ namespace ColorsAction.Unity.Editor
             input.ScriptedMove = null;
             yield return 20;
             Check(Mathf.Abs(player.transform.position.y - 0.25f) < 0.03f && player.Grounded,
-                $"0.25 step walkable: y={player.transform.position.y:F3}");
+                $"0.25 step walkable: y={player.transform.position.y:F3}", "y = 0.25 ± 0.03, grounded");
 
             // 2. Ступень 1.0 без прыжка — упор.
             player.Teleport(new Vector3(12.5f, 0f, 18.2f), 0f);
@@ -131,7 +141,7 @@ namespace ColorsAction.Unity.Editor
             input.ScriptedMove = Dir(Vector3.forward);
             yield return 45;
             Check(player.transform.position.y < 0.05f && player.transform.position.z < 19.6f,
-                $"1.0 step blocks walking: y={player.transform.position.y:F3} z={player.transform.position.z:F2}");
+                $"1.0 step blocks walking: y={player.transform.position.y:F3} z={player.transform.position.z:F2}", "y < 0.05 and z < 19.6");
 
             // 3. Ступень 1.0 с прыжком.
             input.ClearScripted();
@@ -149,7 +159,7 @@ namespace ColorsAction.Unity.Editor
             }
 
             Check(Mathf.Abs(player.transform.position.y - 1f) < 0.03f,
-                $"1.0 step reachable with a jump: y={player.transform.position.y:F3}");
+                $"1.0 step reachable with a jump: y={player.transform.position.y:F3}", "y = 1.0 ± 0.03");
 
             // 4. Высота прыжка на ровном месте.
             player.Teleport(new Vector3(10.5f, 0f, 5.5f), 0f);
@@ -163,7 +173,7 @@ namespace ColorsAction.Unity.Editor
                 yield return 1;
             }
 
-            Check(Mathf.Abs(peak - pc.JumpHeight) < 0.05f, $"jump apex ~{pc.JumpHeight}: {peak:F3}");
+            Check(Mathf.Abs(peak - pc.JumpHeight) < 0.05f, $"jump apex ~{pc.JumpHeight}: {peak:F3}", $"apex = {pc.JumpHeight} ± 0.05");
 
             // 5. Ступень 2.0 — не запрыгнуть.
             player.Teleport(new Vector3(17.5f, 0f, 18.6f), 0f);
@@ -178,7 +188,7 @@ namespace ColorsAction.Unity.Editor
                 yield return 1;
             }
 
-            Check(player.transform.position.y < 0.05f, $"2.0 step not jumpable: y={player.transform.position.y:F3}");
+            Check(player.transform.position.y < 0.05f, $"2.0 step not jumpable: y={player.transform.position.y:F3}", "y < 0.05");
 
             // 6. Отскок (первый шаг серии) с неуязвимостью, затем серия: 2-й шаг и перекат через верх.
             player.Teleport(new Vector3(8.5f, 0f, 5.5f), 90f);
@@ -198,12 +208,12 @@ namespace ColorsAction.Unity.Editor
 
             var dodge1 = pc.Dodge.Steps[0];
             var rolled = Vector3.Distance(start, player.transform.position);
-            Check(Mathf.Abs(rolled - dodge1.Distance) < 0.2f, $"dodge step 1 distance ~{dodge1.Distance}: {rolled:F2}");
-            Check(invuln, "dodge has i-frames");
-            Check(lowest <= stamina - dodge1.StaminaCost + 0.5f, $"dodge spends stamina: {stamina:F0} -> {lowest:F0}");
+            Check(Mathf.Abs(rolled - dodge1.Distance) < 0.2f, $"dodge step 1 distance ~{dodge1.Distance}: {rolled:F2}", $"distance = {dodge1.Distance} ± 0.2");
+            Check(invuln, "dodge has i-frames", "player invulnerable during the dodge");
+            Check(lowest <= stamina - dodge1.StaminaCost + 0.5f, $"dodge spends stamina: {stamina:F0} -> {lowest:F0}", $"lowest <= {stamina - dodge1.StaminaCost + 0.5f:F0}");
 
             // 6б. Серии перекатов нет (GDD: один шаг): повторное нажатие снова даёт тот же перекат.
-            Check(pc.Dodge.Steps.Count == 1, $"dodge has a single step (no dodge combo): {pc.Dodge.Steps.Count}");
+            Check(pc.Dodge.Steps.Count == 1, $"dodge has a single step (no dodge combo): {pc.Dodge.Steps.Count}", "1 step");
             player.Teleport(new Vector3(8.5f, 0f, 5.5f), 90f);
             session.Stamina.Restore();
             yield return 20;
@@ -220,7 +230,7 @@ namespace ColorsAction.Unity.Editor
             }
 
             Check(repeatSteps.Count == 2 && repeatSteps[0] == 0 && repeatSteps[1] == 0,
-                $"repeated roll is the same single step: {string.Join(",", repeatSteps)}");
+                $"repeated roll is the same single step: {string.Join(",", repeatSteps)}", "0,0");
             session.Stamina.Restore();
 
             // 7. Подбор меча и щита на F.
@@ -236,25 +246,25 @@ namespace ColorsAction.Unity.Editor
             yield return 30;
             var inv = session.Inventory;
             Check(inv.Active?.Id == "sword" && !inv.HasWeapon("shield"),
-                $"picked up: sword in hands, shield comes with it: active={inv.Active?.Id} wheel={inv.Weapons.Count}");
+                $"picked up: sword in hands, shield comes with it: active={inv.Active?.Id} wheel={inv.Weapons.Count}", "active=sword, no separate shield on the wheel");
 
             // 8. Инвентарь (I / Select): только предметы и превью персонажа, оружие здесь не меняется.
             input.ScriptPress(GameAction.Inventory);
             yield return 5;
-            Check(fsm.Current is InventoryState, "I opens inventory");
-            Check(!session.PlayerControl.Value, "player control is off while inventory is open");
+            Check(fsm.Current is InventoryState, "I opens inventory", "state InventoryState");
+            Check(!session.PlayerControl.Value, "player control is off while inventory is open", "PlayerControl = false");
             var screen = ((InventoryState)fsm.Current).Screen;
-            Check(screen.WeaponCaption.Value.Contains(inv.Active.Config.Name), $"preview caption shows the weapon: {screen.WeaponCaption.Value}");
+            Check(screen.WeaponCaption.Value.Contains(inv.Active.Config.Name), $"preview caption shows the weapon: {screen.WeaponCaption.Value}", $"caption contains \"{inv.Active.Config.Name}\"");
             var view = Object.FindAnyObjectByType<InventoryView>();
-            Check(view != null && view.Preview != null, "character preview is built");
+            Check(view != null && view.Preview != null, "character preview is built", "InventoryView.Preview != null");
             var yaw0 = view != null && view.Preview != null ? view.Preview.Yaw : 0f;
             input.ScriptedAim = new Vector2(1f, 0f);
             yield return 10;
             input.ScriptedAim = null;
-            Check(view != null && view.Preview != null && Mathf.Abs(Mathf.DeltaAngle(yaw0, view.Preview.Yaw)) > 1f, "right stick turns the preview");
+            Check(view != null && view.Preview != null && Mathf.Abs(Mathf.DeltaAngle(yaw0, view.Preview.Yaw)) > 1f, "right stick turns the preview", "preview yaw changes by > 1°");
             input.ScriptPress(GameAction.Inventory);
             yield return 5;
-            Check(fsm.Current is PlayState && session.PlayerControl.Value, "I closes inventory");
+            Check(fsm.Current is PlayState && session.PlayerControl.Value, "I closes inventory", "state PlayState, PlayerControl = true");
 
             // 9. Удары по манекену: серия, урон, наклон, вспышка.
             var dummy = Object.FindAnyObjectByType<TrainingDummy>();
@@ -284,8 +294,8 @@ namespace ColorsAction.Unity.Editor
                 yield return 1;
             }
 
-            Check(dummy.TotalDamage > damageBeforeChop + 0.5f, $"third swing (chop) deals damage: {dummy.TotalDamage - damageBeforeChop:F0}");
-            Check(clip < 0.02f, $"sword never passes through the cube during the combo and recovery: max depth {clip:F3}");
+            Check(dummy.TotalDamage > damageBeforeChop + 0.5f, $"third swing (chop) deals damage: {dummy.TotalDamage - damageBeforeChop:F0}", "damage > 0.5");
+            Check(clip < 0.02f, $"sword never passes through the cube during the combo and recovery: max depth {clip:F3}", "max depth < 0.02");
 
             // Ожидаемый урон серии — по цветовому кругу: цвет меча против цвета манекена (прокачка и заряд только добавляют).
             var rules = bootstrap.Resolver.Resolve<ColorsAction.Combat.DamageRules>();
@@ -294,9 +304,9 @@ namespace ColorsAction.Unity.Editor
             for (int i = 0; i < Mathf.Min(3, swordConfig.Combo.Count); i++)
                 expectedCombo += rules.Calculate(swordConfig, swordConfig.Combo[i], dummy.ColorId).Damage;
             Check(dummy.TotalDamage >= expectedCombo * 0.95f - 0.5f,
-                $"full 3-hit sword combo lands (chained through the hold window): total damage {dummy.TotalDamage:F0}, expected >= {expectedCombo:F0} ({swordConfig.Color} vs {dummy.ColorId})");
-            Check(sawHold, "each swing holds its final pose (combo window)");
-            Check(Time.timeScale == 1f, "hit stop restores time scale");
+                $"full 3-hit sword combo lands (chained through the hold window): total damage {dummy.TotalDamage:F0}, expected >= {expectedCombo:F0} ({swordConfig.Color} vs {dummy.ColorId})", $"total damage >= {expectedCombo * 0.95f - 0.5f:F0}");
+            Check(sawHold, "each swing holds its final pose (combo window)", "hold pose seen");
+            Check(Time.timeScale == 1f, $"hit stop restores time scale: Time.timeScale={Time.timeScale}", "Time.timeScale = 1");
 
             // 9б. Во время удара перекат запрещён (окно RollLockFrom..RollLockTo, по умолчанию весь удар).
             yield return 60;
@@ -310,7 +320,7 @@ namespace ColorsAction.Unity.Editor
                 yield return 1;
             }
 
-            Check(!rolledDuringAttack, "no roll during an attack (roll lock window)");
+            Check(!rolledDuringAttack, "no roll during an attack (roll lock window)", "no roll started while attacking");
             yield return 30;
 
             // 10. Блок щитом (левая рука, ПКМ).
@@ -318,10 +328,10 @@ namespace ColorsAction.Unity.Editor
             stamina = session.Stamina.Current.Value;
             input.ScriptHold(GameAction.Secondary, true);
             yield return 15;
-            Check(combat.Blocking, "shield blocks while RMB is held");
+            Check(combat.Blocking, "shield blocks while RMB is held", "Blocking = true");
             input.ScriptHold(GameAction.Secondary, false);
             yield return 5;
-            Check(!combat.Blocking, "block released");
+            Check(!combat.Blocking, "block released", "Blocking = false");
 
             // 10б. Фиксация на цели (СКМ / R3): лицом к цели, камера за спину, перекат вбок — через бок.
             var lockOn = player.LockOn;
@@ -337,11 +347,11 @@ namespace ColorsAction.Unity.Editor
                 return v.normalized;
             }
 
-            Check(lockOn != null && lockOn.Target == dummy, $"lock-on picks the dummy: {(lockOn != null && lockOn.Target != null ? lockOn.Target.name : "none")}");
+            Check(lockOn != null && lockOn.Target == dummy, $"lock-on picks the dummy: {(lockOn != null && lockOn.Target != null ? lockOn.Target.name : "none")}", $"target = {dummy.name}");
             var lockError = Vector3.Angle(player.Forward, ToDummy());
-            Check(lockError < 10f, $"locked player faces the target: error {lockError:F1}");
+            Check(lockError < 10f, $"locked player faces the target: error {lockError:F1}", "error < 10°");
             var camLockError = Mathf.Abs(Mathf.DeltaAngle(cam.eulerAngles.y, Mathf.Atan2(ToDummy().x, ToDummy().z) * Mathf.Rad2Deg));
-            Check(camLockError < 15f, $"free camera turns behind the player towards the target: error {camLockError:F1}");
+            Check(camLockError < 15f, $"free camera turns behind the player towards the target: error {camLockError:F1}", "error < 15°");
 
             var toTarget = ToDummy();
             var side = Vector3.Cross(Vector3.up, toTarget);
@@ -376,12 +386,12 @@ namespace ColorsAction.Unity.Editor
             var rollMove = rollEnd - rollStart;
             rollMove.y = 0f;
             Check(sideways && facingDrift < 5f,
-                $"locked side roll goes over the cube's side, facing kept: local dir x>0.9 {sideways}, facing drift {facingDrift:F1}");
+                $"locked side roll goes over the cube's side, facing kept: local dir x>0.9 {sideways}, facing drift {facingDrift:F1}", "local dir x > 0.9, facing drift < 5°");
             Check(rollMove.magnitude > 1f && Mathf.Abs(Vector3.Dot(rollMove, toTarget)) < rollMove.magnitude * 0.3f,
-                $"locked side roll moves sideways relative to the target: {rollMove.magnitude:F2} m, towards target {Vector3.Dot(rollMove, toTarget):F2}");
+                $"locked side roll moves sideways relative to the target: {rollMove.magnitude:F2} m, towards target {Vector3.Dot(rollMove, toTarget):F2}", "> 1 m, towards target < 30% of the move");
             yield return 30;
             lockError = Vector3.Angle(player.Forward, ToDummy());
-            Check(lockError < 10f, $"after the roll the player turns back to the target: error {lockError:F1}");
+            Check(lockError < 10f, $"after the roll the player turns back to the target: error {lockError:F1}", "error < 10°");
             input.ScriptPress(GameAction.LockOn);
             yield return 3;
             // Диагональный ввод — перекат всё равно через грань (вперёд/назад/вбок), не через ребро.
@@ -404,11 +414,11 @@ namespace ColorsAction.Unity.Editor
             }
 
             input.ScriptedMove = null;
-            Check(sawDiagonalRoll && axisRoll, "locked diagonal input rolls over a face, never over an edge");
+            Check(sawDiagonalRoll && axisRoll, "locked diagonal input rolls over a face, never over an edge", "diagonal roll seen and it went along an axis");
             yield return 30;
             input.ScriptPress(GameAction.LockOn);
             yield return 3;
-            Check(!lockOn.Active, "second press releases the lock");
+            Check(!lockOn.Active, "second press releases the lock", "lock-on inactive");
 
             // 11. Вторая схема: 4 угла камеры на Q/E (LB/RB), правый стик задаёт взгляд.
             session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FixedAngles;
@@ -416,7 +426,7 @@ namespace ColorsAction.Unity.Editor
             input.ClearScripted();
             yield return 30;
             var fixedYaw = Mathf.DeltaAngle(45f, cam.eulerAngles.y);
-            Check(Mathf.Abs(Mathf.Repeat(fixedYaw + 45f, 90f) - 45f) < 1f, $"scheme B snaps camera to an iso angle: {cam.eulerAngles.y:F1}");
+            Check(Mathf.Abs(Mathf.Repeat(fixedYaw + 45f, 90f) - 45f) < 1f, $"scheme B snaps camera to an iso angle: {cam.eulerAngles.y:F1}", "yaw = 45° + k·90° (± 1°)");
             var yawBefore = cam.eulerAngles.y;
             input.ScriptPress(GameAction.CameraRight);
             yield return 8;
@@ -424,20 +434,20 @@ namespace ColorsAction.Unity.Editor
             yield return 10;
             var turned = Mathf.Abs(Mathf.DeltaAngle(yawBefore, cam.eulerAngles.y));
             Check(midTurn > 20f && midTurn < 80f && Mathf.Abs(turned - 90f) < 1f,
-                $"Q/E (LB/RB) turns the camera 90 in ~0.25 s: half-way {midTurn:F0}, after 0.3 s {turned:F1}");
+                $"Q/E (LB/RB) turns the camera 90 in ~0.25 s: half-way {midTurn:F0}, after 0.3 s {turned:F1}", "half-way 20..80°, after 0.3 s 90 ± 1°");
             // Идём "вперёд" по экрану, а смотрим вправо по стику.
             input.ScriptedMove = new Vector2(0f, 1f);
             input.ScriptedAim = new Vector2(1f, 0f);
             yield return 30;
             var expected = Quaternion.Euler(0, cam.eulerAngles.y, 0) * Vector3.right;
             var aimError = Vector3.Angle(player.Forward, expected);
-            Check(aimError < 10f, $"right stick sets facing independent of movement: error {aimError:F1}");
+            Check(aimError < 10f, $"right stick sets facing independent of movement: error {aimError:F1}", "error < 10°");
             input.ClearScripted();
 
             // 12. Переключение схем в игре (F1 / Start).
             input.ScriptPress(GameAction.SwitchScheme);
             yield return 3;
-            Check(session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FreeOrbit, "F1 switches back to scheme A");
+            Check(session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FreeOrbit, $"F1 switches back to scheme A: {session.ControlScheme.Value}", "FreeOrbit");
 
             // 13. Слоп из ступенек по 0.25: подъём без рывков (высота меняется плавно каждый кадр).
             session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FreeOrbit;
@@ -458,7 +468,7 @@ namespace ColorsAction.Unity.Editor
 
             input.ClearScripted();
             Check(lastY > 2.5f && maxJump < 0.06f,
-                $"0.25 staircase is a smooth slope: reached y={lastY:F2}, max height change per frame {maxJump:F3}");
+                $"0.25 staircase is a smooth slope: reached y={lastY:F2}, max height change per frame {maxJump:F3}", "y > 2.5, max change per frame < 0.06");
 
             // 14. Враги: агро с "!", замах, удар по игроку, айфреймы; атакует только один из трёх.
             var director = bootstrap.Resolver.Resolve<ColorsAction.Combat.CombatDirector>();
@@ -467,7 +477,7 @@ namespace ColorsAction.Unity.Editor
             foreach (var e in EnemyController.All)
                 if (e != null && e.transform.position.z < 63f)
                     enemies.Add(e);
-            Check(enemies.Count == 3, $"three enemies on the main area: {enemies.Count}");
+            Check(enemies.Count == 3, $"three enemies on the main area: {enemies.Count}", "3");
             if (enemies.Count > 0)
             {
                 session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FreeOrbit;
@@ -510,15 +520,15 @@ namespace ColorsAction.Unity.Editor
                     yield return 1;
                 }
 
-                Check(sawAlert, "enemy notices the player and shows the alert");
+                Check(sawAlert, "enemy notices the player and shows the alert", "alert seen");
                 if (minChaseDistance < float.MaxValue)
                     Check(minChaseDistance >= first.Brain.Config.ApproachDistance - 0.35f,
-                        $"chasing enemy stops at a short distance, not point-blank: min {minChaseDistance:F2} (approach {first.Brain.Config.ApproachDistance:F2})");
-                Check(sawWindup && windupFrames >= 60, $"attack has a long readable wind-up: {windupFrames / 60f:F1} s of wind-up seen");
-                Check(maxStriking <= 1, $"two enemies never strike at the same time: {maxStriking}");
-                Check(hitFrame >= 0, $"enemy hits the player: hp {hpBefore:F0} -> {session.Vitals.Health.Current.Value:F0}");
+                        $"chasing enemy stops at a short distance, not point-blank: min {minChaseDistance:F2} (approach {first.Brain.Config.ApproachDistance:F2})", $"min >= {first.Brain.Config.ApproachDistance - 0.35f:F2}");
+                Check(sawWindup && windupFrames >= 60, $"attack has a long readable wind-up: {windupFrames / 60f:F1} s of wind-up seen", "wind-up seen, >= 1.0 s");
+                Check(maxStriking <= 1, $"two enemies never strike at the same time: {maxStriking}", "<= 1");
+                Check(hitFrame >= 0, $"enemy hits the player: hp {hpBefore:F0} -> {session.Vitals.Health.Current.Value:F0}", "player hp drops");
                 if (hitFrame >= 0)
-                    Check(invulnerableAfterHit, "player gets ~2 s of i-frames after a hit");
+                    Check(invulnerableAfterHit, "player gets ~2 s of i-frames after a hit", "player invulnerable after the hit");
 
                 // 15. Бьём врага мечом до смерти: цифры урона, осколки летят к игроку как опыт.
                 // Игрок не должен умереть: иначе враги возрождаются, цель исчезает и проверка проходила бы ложно.
@@ -539,9 +549,9 @@ namespace ColorsAction.Unity.Editor
                 }
 
                 Check(!playerDied && (target == null || target.Dead),
-                    $"enemy dies from sword hits ({inv.Active?.Config.Color} sword vs {first.Brain.Config.Color} enemy){(playerDied ? ": player died first" : "")}");
+                    $"enemy dies from sword hits ({inv.Active?.Config.Color} sword vs {first.Brain.Config.Color} enemy){(playerDied ? ": player died first" : "")}", "enemy dead, player alive");
                 yield return 150;
-                Check(session.Experience.Value > xpBefore, $"shards fly to the player as experience: {xpBefore} -> {session.Experience.Value}");
+                Check(session.Experience.Value > xpBefore, $"shards fly to the player as experience: {xpBefore} -> {session.Experience.Value}", $"experience > {xpBefore}");
 
                 // 16. Парирование: блок щитом в окно парирования — вспышка, оружие отскакивает, враг стоит ~1 с.
                 EnemyController foe = null;
@@ -592,14 +602,14 @@ namespace ColorsAction.Unity.Editor
                     }
 
                     input.ScriptHold(GameAction.Secondary, false);
-                    Check(parried && combat.ParryCount > parriesBefore, $"block in the parry window parries the attack: {foe.Brain.State}");
-                    Check(flashSeen, "parry shows a flash");
+                    Check(parried && combat.ParryCount > parriesBefore, $"block in the parry window parries the attack: {foe.Brain.State}", "enemy state Parried, ParryCount grows");
+                    Check(flashSeen, "parry shows a flash", "flash seen");
                     if (parried)
                     {
                         yield return 35;
-                        Check(foe.Brain.State == ColorsAction.Combat.EnemyState.Parried, "parried enemy stands with the weapon lowered");
+                        Check(foe.Brain.State == ColorsAction.Combat.EnemyState.Parried, $"parried enemy stands with the weapon lowered: {foe.Brain.State}", "Parried");
                         yield return Mathf.CeilToInt(foe.Brain.Config.ParriedDuration * 60f);
-                        Check(foe.Brain.State != ColorsAction.Combat.EnemyState.Parried, "after the stun the enemy fights again");
+                        Check(foe.Brain.State != ColorsAction.Combat.EnemyState.Parried, $"after the stun the enemy fights again: {foe.Brain.State}", "state != Parried");
                     }
                 }
             }
