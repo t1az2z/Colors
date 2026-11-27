@@ -102,12 +102,6 @@ namespace ColorsAction.Configs
         /// <summary>Радиус удара вокруг точки приземления, блоки.</summary>
         public float Radius { get; set; } = 1.8f;
 
-        /// <summary>
-        /// Размер эффекта удара о землю (кольцо, вспышка, обломки) относительно <see cref="Radius"/>:
-        /// 1 — край кольца ровно по радиусу урона, больше — эффект шире зоны урона.
-        /// </summary>
-        public float FxScale { get; set; } = 1f;
-
         /// <summary>Множитель урона (от базового урона оружия).</summary>
         public float DamageMultiplier { get; set; } = 1.5f;
 
@@ -128,8 +122,8 @@ namespace ColorsAction.Configs
 
         public void Validate(string id)
         {
-            if (Radius <= 0f || FxScale <= 0f)
-                throw new InvalidOperationException($"weapon '{id}': plunge radius and fxScale must be positive");
+            if (Radius <= 0f)
+                throw new InvalidOperationException($"weapon '{id}': plunge radius must be positive");
             if (Hang < 0f || MinHeight < 0f || LandHold < 0f || Recovery < 0f || StaminaCost < 0f || DamageMultiplier < 0f || Knockback < 0f)
                 throw new InvalidOperationException($"weapon '{id}': plunge values must not be negative");
         }

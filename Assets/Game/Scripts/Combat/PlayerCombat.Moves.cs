@@ -308,7 +308,7 @@ namespace ColorsAction.Unity
             controller.Deformer.SetSquash(-0.45f, -3f);
             controller.Deformer.Impulse(-1.5f);
             ParticleFx.Play(ParticleFx.GroundSlam, origin, Quaternion.LookRotation(controller.Forward),
-                Color.Lerp(color, Color.white, 0.3f), config.Radius * config.FxScale);
+                Color.Lerp(color, Color.white, 0.3f), config.Radius);
             if (impulse != null && combatConfig.HitShake > 0f)
                 impulse.GenerateImpulseWithVelocity((Vector3.down + controller.Forward * 0.3f) * (combatConfig.HitShake * 2f));
             if (hits > 0 && combatConfig.HitStop > 0f)
