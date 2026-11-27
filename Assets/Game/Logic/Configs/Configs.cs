@@ -325,7 +325,7 @@ namespace ColorsAction.Configs
     public sealed class CurvedWorldConfig
     {
         /// <summary>Кривизна, 1/м. 0 — мир плоский.</summary>
-        public float Curvature { get; set; } = 0.015f;
+        public float Curvature { get; set; } = 0.01f;
 
         /// <summary>Радиус вокруг игрока, где мир не изгибается (зона боя: картинка совпадает с физикой), м.</summary>
         public float FlatRadius { get; set; } = 6f;

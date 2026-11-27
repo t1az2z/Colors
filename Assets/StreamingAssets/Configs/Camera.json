@@ -17,7 +17,7 @@
   "snapStep": 45,
   "followDamping": 0.15,
   "curvedWorld": {
-    "curvature": 0.015,
+    "curvature": 0.01,
     "flatRadius": 6,
     "cullingExtraAngle": 25
   }
