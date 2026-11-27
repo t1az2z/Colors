@@ -81,22 +81,43 @@ namespace ColorsAction.Unity
         /// Луч от камеры по изогнутой картинке: в плоском мире он превращается в кривую (каждая точка поднята
         /// на <see cref="Drop"/>), её и проверяем короткими отрезками.
         /// </summary>
-        public static bool Raycast(Ray ray, float maxDistance, int mask, out RaycastHit hit)
+        /// <param name="ignore">Коллайдеры, сквозь которые луч проходит (например, невидимые стены края карты).</param>
+        public static bool Raycast(Ray ray, float maxDistance, int mask, out RaycastHit hit, Func<Collider, bool> ignore = null)
         {
             if (!Active)
-                return Physics.Raycast(ray, out hit, maxDistance, mask, QueryTriggerInteraction.Ignore);
+                return Cast(ray.origin, ray.direction, maxDistance, mask, ignore, out hit);
             const float step = 1f;
             var prev = Unbend(ray.origin);
             for (var t = step; t <= maxDistance; t += step)
             {
                 var next = Unbend(ray.GetPoint(t));
                 var seg = next - prev;
-                if (Physics.Raycast(prev, seg, out hit, seg.magnitude, mask, QueryTriggerInteraction.Ignore))
+                if (Cast(prev, seg, seg.magnitude, mask, ignore, out hit))
                     return true;
                 prev = next;
             }
             hit = default;
             return false;
+        }
+
+        private static readonly RaycastHit[] Hits = new RaycastHit[16];
+
+        /// <summary>Ближайшее попадание отрезка, кроме коллайдеров из <paramref name="ignore"/>.</summary>
+        private static bool Cast(Vector3 origin, Vector3 direction, float distance, int mask, Func<Collider, bool> ignore, out RaycastHit hit)
+        {
+            if (ignore == null)
+                return Physics.Raycast(origin, direction, out hit, distance, mask, QueryTriggerInteraction.Ignore);
+            var count = Physics.RaycastNonAlloc(origin, direction, Hits, distance, mask, QueryTriggerInteraction.Ignore);
+            hit = default;
+            var best = float.MaxValue;
+            for (var i = 0; i < count; i++)
+            {
+                if (Hits[i].distance >= best || ignore(Hits[i].collider))
+                    continue;
+                best = Hits[i].distance;
+                hit = Hits[i];
+            }
+            return best < float.MaxValue;
         }
 
         /// <summary>Пересечение изогнутого луча с горизонтальной плоскостью плоского мира на высоте <paramref name="height"/>.</summary>

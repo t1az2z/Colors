@@ -604,6 +604,7 @@ namespace ColorsAction.Unity
                 var go = new GameObject($"Wall{i++}");
                 go.transform.SetParent(walls, false);
                 go.isStatic = true;
+                go.AddComponent<EdgeWall>();
                 var box = go.AddComponent<BoxCollider>();
                 box.center = offset + new Vector3(w.CenterX, w.CenterY, w.CenterZ);
                 box.size = new Vector3(w.SizeX, w.SizeY, w.SizeZ);

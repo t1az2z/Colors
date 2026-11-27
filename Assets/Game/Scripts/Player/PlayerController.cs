@@ -324,7 +324,8 @@ namespace ColorsAction.Unity
             Vector3 point;
             // Сначала по геометрии уровня (маркер ложится на ступени), иначе — плоскость на высоте игрока.
             // Луч идёт по изогнутой картинке мира (CurvedWorld), а проверяется в плоском.
-            if (CurvedWorld.Raycast(ray, 200f, motor.CollisionMask, out var hit))
+            // Невидимые стены по краю карты курсор не ловят: камера часто стоит за ними.
+            if (CurvedWorld.Raycast(ray, 200f, motor.CollisionMask, out var hit, EdgeWall.Is))
                 point = hit.point;
             else if (!CurvedWorld.RaycastPlane(ray, transform.position.y, 200f, out point))
                 return null;
