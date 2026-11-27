@@ -260,10 +260,22 @@ namespace ColorsAction.Unity.Voxel
                 Quad(P(1, 0, 0), P(1, low, 0), P(1, high, 1), P(1, 0, 1), right, tris);
         }
 
-        /// <summary>Четырёхугольник; нормаль считается из вершин, порядок обхода выправляется под лицевую сторону.</summary>
+        /// <summary>
+        /// Четырёхугольник; нормаль считается из вершин, порядок обхода выправляется под лицевую сторону.
+        /// Четырёхугольник может быть вырожден в треугольник (бок слопа, у которого низ на полу: две вершины совпадают),
+        /// поэтому нормаль берётся по обеим диагоналям, а не по первым трём вершинам: иначе она нулевая,
+        /// шейдер получает NaN и bloom раздувает грань в чёрное пятно с белым ореолом.
+        /// </summary>
         private static void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 expected, List<int> tris)
         {
-            var normal = Vector3.Cross(b - a, c - a).normalized;
+            var normal = Vector3.Cross(c - a, d - b).normalized;
+            if (normal == Vector3.zero)
+            {
+                if (expected == Vector3.zero)
+                    return; // Грань нулевой площади: рисовать нечего.
+                normal = expected.normalized;
+            }
+
             if (expected != Vector3.zero && Vector3.Dot(normal, expected) < 0)
             {
                 (b, d) = (d, b);
