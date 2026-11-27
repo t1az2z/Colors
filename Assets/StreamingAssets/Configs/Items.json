@@ -196,7 +196,7 @@
     "color": "green",
     "kind": "Consumable",
     "damage": 0,
-    "prefab": "",
+    "prefab": "Items/Flask",
     "heal": { "charges": 2, "healFraction": 0.25, "cooldown": 0.6 }
   },
   "metal": {

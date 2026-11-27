@@ -217,9 +217,14 @@ namespace ColorsAction.Unity.Editor
             Object.DestroyImmediate(go);
         }
 
-        /// <summary>Дубина врага (Resources/Items/Club): серая, без ItemVisual — красить не нужно.</summary>
+        /// <summary>
+        /// Дубина врага (Resources/Items/Club), без ItemVisual — красить не нужно. Готовый префаб (по концепту его
+        /// собирает ItemPrefabBuilder) не трогается.
+        /// </summary>
         public static void CreateClubPrefab()
         {
+            if (File.Exists($"{ItemsResources}/Club.prefab"))
+                return;
             var head = Lit("ClubHead", Hex("#7E7F84"), 0.25f);
             var grip = Lit("ClubGrip", Hex("#3E3D42"), 0.3f);
             var go = new GameObject("Club");

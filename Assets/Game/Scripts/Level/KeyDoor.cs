@@ -116,8 +116,20 @@ namespace ColorsAction.Unity
             key.localPosition = new Vector3(0f, LockHeight, side * (Thickness * 0.5f + 0.1f));
             keyBase = Quaternion.LookRotation(new Vector3(0f, 0f, -side));
             key.localRotation = keyBase;
-            Part("Shaft", key, new Vector3(0f, 0f, 0.05f), new Vector3(0.04f, 0.04f, 0.2f), IronTint);
-            Part("Bow", key, new Vector3(0f, 0f, -0.1f), new Vector3(0.16f, 0.16f, 0.04f), IronTint);
+            // Модель ключа (Resources/Items/Key, по концепту): стержнем в замок, кольцом наружу; без неё — из кубиков.
+            var model = Resources.Load<GameObject>("Items/Key");
+            if (model != null)
+            {
+                var view = Instantiate(model, key, false).transform;
+                view.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                view.localPosition = new Vector3(0f, 0f, 0.02f);
+                view.localScale = Vector3.one * 0.6f;
+            }
+            else
+            {
+                Part("Shaft", key, new Vector3(0f, 0f, 0.05f), new Vector3(0.04f, 0.04f, 0.2f), IronTint);
+                Part("Bow", key, new Vector3(0f, 0f, -0.1f), new Vector3(0.16f, 0.16f, 0.04f), IronTint);
+            }
             openTimer = 0f;
         }
 

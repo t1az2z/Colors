@@ -37,6 +37,27 @@ namespace ColorsAction.Configs
         /// <summary>Сжатие перед открытием, секунды (как у куба перед прыжком).</summary>
         public float SquashTime { get; set; } = 0.12f;
 
+        /// <summary>Глубина сжатия перед открытием: доля высоты (0.2 — сундук ниже на 20%).</summary>
+        public float SquashDepth { get; set; } = 0.22f;
+
+        /// <summary>Панч после сжатия: скорость, с которой сундук вытягивается вверх (дальше пружина возвращает форму).</summary>
+        public float Punch { get; set; } = 9f;
+
+        /// <summary>Подскок при открытии: высота, метры, и время в воздухе, секунды. 0 — без подскока.</summary>
+        public float HopHeight { get; set; } = 0.22f;
+
+        public float HopTime { get; set; } = 0.3f;
+
+        /// <summary>Пружинка при приземлении после подскока (скорость сжатия).</summary>
+        public float LandSquash { get; set; } = 3.5f;
+
+        /// <summary>Золотое свечение в открытом сундуке: цвет (hex), частота пульса, рад/с, и его размах (доля размера).</summary>
+        public string GlowColor { get; set; } = "#FFC23A";
+
+        public float GlowPulseSpeed { get; set; } = 3f;
+
+        public float GlowPulse { get; set; } = 0.25f;
+
         /// <summary>Сколько открывается крышка, секунды.</summary>
         public float OpenTime { get; set; } = 0.35f;
 
@@ -73,6 +94,11 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException("chests: piecesPerResource and maxPieces must be >= 1");
             Prompt ??= string.Empty;
             Tint ??= string.Empty;
+            GlowColor ??= string.Empty;
+            if (SquashDepth < 0f || SquashDepth > 0.6f)
+                throw new InvalidOperationException("chests: squashDepth must be in 0..0.6");
+            if (HopHeight < 0f || HopTime < 0f)
+                throw new InvalidOperationException("chests: hopHeight and hopTime must be >= 0");
         }
     }
 }

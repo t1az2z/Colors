@@ -7,16 +7,22 @@ using UnityEngine;
 namespace ColorsAction.Unity
 {
     /// <summary>
-    /// Сундук в одной клетке (Configs/Chests.json, содержимое — из уровня). На E / X сжимается, как куб перед прыжком,
-    /// подпрыгивает с покачиванием и открывает крышку; ресурс вылетает кусочками своего цвета и летит к игроку, как
+    /// Сундук в одной клетке (Configs/Chests.json, содержимое — из уровня). На E / X сначала сжимается по вертикали,
+    /// потом панчем вытягивается и подпрыгивает, открывая крышку в прыжке, на приземлении пружинит; в открытом сундуке
+    /// пульсирует золотое свечение (частицы Body/Glow и свет Body/GlowLight префаба); ресурс вылетает кусочками своего цвета и летит к игроку, как
     /// осколки врагов. Ресурс засчитывается, когда долетел последний кусочек (или через <see cref="ChestConfig.GrantTimeout"/>).
     /// Открытый сундук запоминается в <see cref="GameSession.OpenedChests"/> и после возрождения стоит открытым и пустым.
     /// Если ресурс не помещается в инвентарь, сундук не открывается («Инвентарь полон»).
+    /// Вид — префаб <see cref="PrefabPath"/> (модель по концепту: корпус Body и крышка Body/Lid на шарнире,
+    /// его собирает ItemPrefabBuilder из Art/Models/Chest.fbx); без префаба — сундук из кубиков по размерам Chests.json.
     /// </summary>
     public sealed class Chest : GameBehaviour, IInteractable
     {
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");
+
+        /// <summary>Префаб вида сундука в Resources.</summary>
+        public const string PrefabPath = "Props/Chest";
 
         private string id;
         private string itemId;
@@ -43,6 +49,13 @@ namespace ColorsAction.Unity
         // Пружина деформации (сжатие/растяжение по вертикали), как у кубов.
         private float squash;
         private float squashVelocity;
+
+        // Золотое свечение открытого сундука (префаб: Body/Glow — частицы, Body/GlowLight — свет).
+        private ParticleSystem glow;
+        private Light glowLight;
+        private Vector3 glowScale = Vector3.one;
+        private float glowLightIntensity;
+        private float glowPhase;
 
         public string Id => id;
 
@@ -85,6 +98,7 @@ namespace ColorsAction.Unity
                 opened = true;
                 granted = true;
                 lid.localRotation = Quaternion.Euler(-config.LidAngle, 0f, 0f);
+                StartGlow();
             }
         }
 
@@ -137,26 +151,47 @@ namespace ColorsAction.Unity
                 var openEnd = squashEnd + config.OpenTime;
                 if (openTime < squashEnd)
                 {
-                    // Сжатие перед «прыжком».
-                    squash = Mathf.Lerp(0f, -0.18f, openTime / Mathf.Max(0.01f, squashEnd));
+                    // 1. Вертикальное сжатие перед прыжком (быстро в начале, плавно к концу).
+                    var s = openTime / Mathf.Max(0.01f, squashEnd);
+                    squash = -config.SquashDepth * (1f - (1f - s) * (1f - s));
                     squashVelocity = 0f;
                 }
                 else if (before < squashEnd)
                 {
-                    // Выпрыгнул: растяжение с покачиванием, вылет ресурса.
-                    squashVelocity = 7f;
+                    // 2. Панч: резко вытягивается вверх и подпрыгивает, крышка открывается в прыжке, вылетает ресурс.
+                    squashVelocity = config.Punch;
                     Burst();
+                    StartGlow();
                 }
+
+                // Подскок: парабола за HopTime, на приземлении — пружинка.
+                var hopEnd = squashEnd + config.HopTime;
+                var hop = 0f;
+                if (config.HopTime > 0f && openTime > squashEnd && openTime < hopEnd)
+                {
+                    var h = (openTime - squashEnd) / config.HopTime;
+                    hop = 4f * config.HopHeight * h * (1f - h);
+                }
+                else if (config.HopTime > 0f && before < hopEnd && openTime >= hopEnd)
+                {
+                    squashVelocity -= config.LandSquash;
+                }
+
+                body.localPosition = new Vector3(0f, hop, 0f);
 
                 var t = Mathf.Clamp01((openTime - squashEnd) / Mathf.Max(0.01f, config.OpenTime));
                 var k = 1f - (1f - t) * (1f - t) * (1f - t);
                 var overshoot = Mathf.Sin(t * Mathf.PI) * 12f * (1f - t);
                 lid.localRotation = Quaternion.Euler(-(config.LidAngle * k + overshoot), 0f, 0f);
 
-                if (openTime > openEnd && !granted && openTime > squashEnd + config.GrantTimeout)
+                var animEnd = Mathf.Max(openEnd, hopEnd);
+                if (openTime > animEnd && !granted && openTime > squashEnd + config.GrantTimeout)
                     Grant();
-                if (openTime > openEnd && granted)
+                if (openTime > animEnd && granted)
+                {
                     openTime = -1f;
+                    body.localPosition = Vector3.zero;
+                }
             }
 
             // Пружина деформации: сжатие/растяжение по вертикали с сохранением объёма.
@@ -169,6 +204,41 @@ namespace ColorsAction.Unity
             var y = 1f + squash;
             var xz = 1f / Mathf.Sqrt(Mathf.Max(0.3f, y));
             body.localScale = new Vector3(xz, y, xz);
+            PulseGlow(dt);
+        }
+
+        // ------------------------------------------------------------------ свечение
+
+        private void StartGlow()
+        {
+            if (glow == null)
+                return;
+            var color = !string.IsNullOrEmpty(config.GlowColor) ? Palette.Parse(config.GlowColor) : new Color(1f, 0.76f, 0.23f);
+            foreach (var ps in glow.GetComponentsInChildren<ParticleSystem>(true))
+            {
+                var main = ps.main;
+                var c = main.startColor.color;
+                main.startColor = new Color(color.r, color.g, color.b, c.a);
+            }
+
+            if (glowLight != null)
+                glowLight.color = color;
+            glow.gameObject.SetActive(true);
+            glow.Play(true);
+            if (glowLight != null)
+                glowLight.gameObject.SetActive(true);
+        }
+
+        /// <summary>Пульс свечения открытого сундука: размер частиц и яркость света.</summary>
+        private void PulseGlow(float dt)
+        {
+            if (glow == null || !glow.gameObject.activeSelf)
+                return;
+            glowPhase += dt * config.GlowPulseSpeed;
+            var k = 1f + config.GlowPulse * Mathf.Sin(glowPhase);
+            glow.transform.localScale = glowScale * k;
+            if (glowLight != null)
+                glowLight.intensity = glowLightIntensity * k;
         }
 
         /// <summary>Кусочки ресурса вылетают из сундука и после разлёта летят к игроку.</summary>
@@ -221,6 +291,39 @@ namespace ColorsAction.Unity
 
         private void Build()
         {
+            var prefab = Resources.Load<GameObject>(PrefabPath);
+            var view = prefab != null ? Instantiate(prefab, transform, false).transform : null;
+            body = view != null ? view.Find("Body") : null;
+            lid = body != null ? body.Find("Lid") : null;
+            glow = body != null ? body.Find("Glow")?.GetComponent<ParticleSystem>() : null;
+            glowLight = body != null ? body.Find("GlowLight")?.GetComponent<Light>() : null;
+            if (glow != null)
+            {
+                glowScale = glow.transform.localScale;
+                glow.gameObject.SetActive(false);
+            }
+
+            if (glowLight != null)
+            {
+                glowLightIntensity = glowLight.intensity;
+                glowLight.gameObject.SetActive(false);
+            }
+            if (lid == null)
+            {
+                if (view != null)
+                    Destroy(view.gameObject);
+                BuildPrimitives();
+            }
+
+            // Один ровный коллайдер на корпус: деформация не толкает игрока.
+            var box = gameObject.AddComponent<BoxCollider>();
+            box.center = new Vector3(0f, (config.BodyHeight + config.LidHeight) * 0.5f, 0f);
+            box.size = new Vector3(config.Width, config.BodyHeight + config.LidHeight, config.Depth);
+        }
+
+        /// <summary>Сундук из кубиков (если нет префаба): корпус, окантовка, крышка с полосой цвета ресурса, замок.</summary>
+        private void BuildPrimitives()
+        {
             var tint = !string.IsNullOrEmpty(config.Tint) ? Palette.Parse(config.Tint) : new Color(0.6f, 0.62f, 0.66f);
             var trim = Color.Lerp(Color.black, tint, Mathf.Clamp01(config.TrimShade));
             bodyMaterial = CreateMaterial("ChestBody", tint);
@@ -255,11 +358,6 @@ namespace ColorsAction.Unity
             }
 
             Piece(lid, trimMaterial, new Vector3(0f, -0.02f, d + 0.025f), new Vector3(0.12f, 0.14f, 0.05f));
-
-            // Один ровный коллайдер на корпус: деформация не толкает игрока.
-            var box = gameObject.AddComponent<BoxCollider>();
-            box.center = new Vector3(0f, (h + lh) * 0.5f, 0f);
-            box.size = new Vector3(w, h + lh, d);
         }
 
         private Transform Piece(Transform parent, Material material, Vector3 position, Vector3 size)

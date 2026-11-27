@@ -49,8 +49,9 @@ namespace ColorsAction.Unity.Editor
             AssetDatabase.SaveAssets();
         }
 
+        /// <summary>Предметы на земле и ключ теперь по концепту — их пересобирает <see cref="ItemPrefabBuilder"/>.</summary>
         [MenuItem("ColorsAction/UI/Rebuild Pickup Prefabs (overwrite)")]
-        public static void RebuildPickups() => EnsurePickupPrefabs(true);
+        public static void RebuildPickups() => ItemPrefabBuilder.Build();
 
         /// <summary>Префабы ключа (модель и на земле) и его иконка, если их ещё нет.</summary>
         [MenuItem("ColorsAction/UI/Create Key Prefabs and Icon")]
@@ -63,11 +64,7 @@ namespace ColorsAction.Unity.Editor
 
         /// <summary>Пересобрать префабы ключа (после новой модели Art/Models/Key.fbx из Tools/Blender/make_models.py).</summary>
         [MenuItem("ColorsAction/UI/Rebuild Key Prefabs (overwrite)")]
-        public static void RebuildKeyPrefabs()
-        {
-            EnsureKeyPrefabs(true);
-            AssetDatabase.SaveAssets();
-        }
+        public static void RebuildKeyPrefabs() => ItemPrefabBuilder.Build();
 
         [MenuItem("ColorsAction/UI/Generate Item Icons")]
         public static void GenerateIcons() => EnsureItemIcons(false);
