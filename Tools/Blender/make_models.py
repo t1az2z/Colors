@@ -17,6 +17,9 @@ Material slots are named; Unity maps them by submesh order:
     Shield: 0 Face (weapon colour), 1 Rim
     Dummy:  0 Body (red), 1 Base
     Club:   0 Head, 1 Grip
+    Key:    0 Metal
+
+Only some models: pass their names after "--", e.g. ... --python Tools/Blender/make_models.py -- key
 """
 
 import math
@@ -300,10 +303,65 @@ def make_dummy():
     return body, base
 
 
+# --------------------------------------------------------------------------- key
+
+def ring(bm, center, outer, inner, thickness, sides=8, mat_index=0):
+    """Flat polygonal ring in the XZ plane (faces look along -Y), one flat side on top."""
+    cx, cy, cz = center
+    half = thickness / 2
+    offset = math.pi / sides  # a flat edge on top, like the octagonal bow of the reference
+    rows = []
+    for i in range(sides):
+        a = offset + 2 * math.pi * i / sides
+        ca, sa = math.cos(a), math.sin(a)
+        rows.append([bm.verts.new((cx + r * ca, cy + y, cz + r * sa))
+                     for r, y in ((outer, -half), (outer, half), (inner, half), (inner, -half))])
+    for i in range(sides):
+        a, b = rows[i], rows[(i + 1) % sides]
+        for k in range(4):
+            f = bm.faces.new((a[k], b[k], b[(k + 1) % 4], a[(k + 1) % 4]))
+            f.material_index = mat_index
+
+
+def make_key():
+    """
+    Door key after the user's reference: chunky octagonal bow with a hole, a collar under it, a square shaft and
+    a notched bit to the side. Points up (+Z), flat side faces the camera (-Y). Origin in the middle of the shaft.
+    """
+    bm = bmesh.new()
+    t = 0.07  # thickness of the bow and the bit
+    ring(bm, (0.0, 0.0, 0.25), 0.165, 0.09, t)
+    box(bm, (0.0, 0.0, 0.08), (0.11, 0.095, 0.05))       # collar
+    box(bm, (0.0, 0.0, 0.035), (0.085, 0.08, 0.04))      # neck under the collar
+    box(bm, (0.0, 0.0, -0.13), (0.06, 0.06, 0.32))       # shaft
+    box(bm, (0.0, 0.0, -0.3), (0.075, 0.075, 0.03))      # tip
+    # Bit: top bar, outer bar and a short lower tooth leave a notch open towards the shaft.
+    box(bm, (0.105, 0.0, -0.165), (0.16, t * 0.8, 0.05))
+    box(bm, (0.16, 0.0, -0.235), (0.05, t * 0.8, 0.14))
+    box(bm, (0.06, 0.0, -0.285), (0.06, t * 0.8, 0.04))
+    bmesh.ops.remove_doubles(bm, verts=bm.verts[:], dist=1e-5)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+    obj = new_object("Key", bm, [material("KeyMetal", (0.72, 0.55, 0.33, 1))])
+    bevel_all(obj, 0.008, 2)
+    smooth(obj, 35)
+    return obj
+
+
 # --------------------------------------------------------------------------- main
 
 def main():
     os.makedirs(OUT_BLEND, exist_ok=True)
+    only = [a.lower() for a in sys.argv[sys.argv.index("--") + 1:]] if "--" in sys.argv else []
+    if only:
+        builders = {"key": lambda: [make_key()]}
+        for name in only:
+            reset_scene()
+            objs = builders[name]()
+            title = name.capitalize()
+            export(objs, title + ".fbx")
+            bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_BLEND, title + ".blend"))
+        print("done")
+        return
 
     reset_scene()
     player = make_player()
@@ -329,6 +387,11 @@ def main():
     body, base = make_dummy()
     export([body, base], "Dummy.fbx")
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_BLEND, "Dummy.blend"))
+
+    reset_scene()
+    key = make_key()
+    export([key], "Key.fbx")
+    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(OUT_BLEND, "Key.blend"))
 
     print("done")
 

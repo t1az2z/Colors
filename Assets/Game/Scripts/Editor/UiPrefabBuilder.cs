@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using ColorsAction.Configs;
 using GameCore.Config;
 using GameCore.Newtonsoft;
@@ -57,6 +58,14 @@ namespace ColorsAction.Unity.Editor
         {
             EnsureKeyPrefabs(false);
             EnsureItemIcons(false);
+            AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>Пересобрать префабы ключа (после новой модели Art/Models/Key.fbx из Tools/Blender/make_models.py).</summary>
+        [MenuItem("ColorsAction/UI/Rebuild Key Prefabs (overwrite)")]
+        public static void RebuildKeyPrefabs()
+        {
+            EnsureKeyPrefabs(true);
             AssetDatabase.SaveAssets();
         }
 
@@ -607,16 +616,25 @@ namespace ColorsAction.Unity.Editor
         }
 
         /// <summary>
-        /// Ключ от двери: модель Resources/Items/Key (кубики: квадратное кольцо, стержень, бородки; тёмный металл —
-        /// ключ читается на белом полу) и префаб на земле Resources/Items/Pickups/Key — ключ висит стоя над полом,
-        /// покачивается и вращается вокруг вертикали, над ним тёплый свет. Существующие не перезаписываются без overwrite.
+        /// Ключ от двери: модель Resources/Items/Key (меш Art/Models/Key.fbx из Blender — восьмигранное кольцо, муфта,
+        /// стержень и бородка, бронзовый металл Art/Materials/KeyMetal; без FBX — запасной ключ из кубиков) и префаб
+        /// на земле Resources/Items/Pickups/Key — ключ висит стоя над полом, покачивается и вращается вокруг вертикали,
+        /// над ним тёплый свет. Существующие не перезаписываются без overwrite.
         /// </summary>
         public static void EnsureKeyPrefabs(bool overwrite)
         {
             EnsureFolder(PickupsFolder);
             var modelPath = ItemsResources + "/Key.prefab";
             var pickupPath = PickupsFolder + "/Key.prefab";
-            if (overwrite || !File.Exists(modelPath))
+            var keyMesh = AssetDatabase.LoadAllAssetsAtPath(KeyModelPath).OfType<Mesh>().FirstOrDefault();
+            if ((overwrite || !File.Exists(modelPath)) && keyMesh != null)
+            {
+                var key = new GameObject("Key");
+                key.AddComponent<MeshFilter>().sharedMesh = keyMesh;
+                key.AddComponent<MeshRenderer>().sharedMaterial = KeyMetal();
+                Save(key, modelPath);
+            }
+            else if (overwrite || !File.Exists(modelPath))
             {
                 var metal = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Art/Materials/WeaponHandle.mat");
                 var key = new GameObject("Key");
@@ -671,6 +689,28 @@ namespace ColorsAction.Unity.Editor
             so.FindProperty("bobHeight").floatValue = 0.08f;
             so.ApplyModifiedPropertiesWithoutUndo();
             Save(root, pickupPath);
+        }
+
+        private const string KeyModelPath = "Assets/Game/Art/Models/Key.fbx";
+        private const string KeyMetalPath = "Assets/Game/Art/Materials/KeyMetal.mat";
+
+        /// <summary>Бронзовый металл ключа (как у образца): копия материала рукояти оружия со своим цветом.</summary>
+        private static Material KeyMetal()
+        {
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(KeyMetalPath);
+            if (mat != null)
+                return mat;
+            var source = AssetDatabase.LoadAssetAtPath<Material>("Assets/Game/Art/Materials/WeaponHandle.mat");
+            mat = source != null ? new Material(source) : new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            var bronze = new Color(0.72f, 0.55f, 0.33f);
+            mat.SetColor("_BaseColor", bronze);
+            mat.SetColor("_Color", bronze);
+            if (mat.HasProperty("_Metallic"))
+                mat.SetFloat("_Metallic", 0.55f);
+            if (mat.HasProperty("_Smoothness"))
+                mat.SetFloat("_Smoothness", 0.45f);
+            AssetDatabase.CreateAsset(mat, KeyMetalPath);
+            return mat;
         }
 
         // ------------------------------------------------------------------ утилиты
