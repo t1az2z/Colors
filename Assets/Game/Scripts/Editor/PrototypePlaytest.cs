@@ -202,31 +202,25 @@ namespace ColorsAction.Unity.Editor
             Check(invuln, "dodge has i-frames");
             Check(lowest <= stamina - dodge1.StaminaCost + 0.5f, $"dodge spends stamina: {stamina:F0} -> {lowest:F0}");
 
-            // 6б. Серия: нажатия сразу после приземления (в окне комбо) ведут к следующим шагам,
-            // пауза дольше окна — серия начинается заново.
+            // 6б. Серии перекатов нет (GDD: один шаг): повторное нажатие снова даёт тот же перекат.
+            Check(pc.Dodge.Steps.Count == 1, $"dodge has a single step (no dodge combo): {pc.Dodge.Steps.Count}");
             player.Teleport(new Vector3(8.5f, 0f, 5.5f), 90f);
             session.Stamina.Restore();
             yield return 20;
-            var comboSteps = new List<int>();
-            for (int n = 0; n < Mathf.Min(3, pc.Dodge.Steps.Count); n++)
+            var repeatSteps = new List<int>();
+            for (int n = 0; n < 2; n++)
             {
                 input.ScriptPress(GameAction.Roll);
                 for (int i = 0; i < 5 && !player.Rolling; i++)
                     yield return 1;
-                comboSteps.Add(player.Rolling ? player.DodgeStepIndex : -1);
+                repeatSteps.Add(player.Rolling ? player.DodgeStepIndex : -1);
                 for (int i = 0; i < 120 && player.Rolling; i++)
                     yield return 1;
+                yield return Mathf.CeilToInt((dodge1.Cooldown + 0.05f) * 60f);
             }
 
-            Check(comboSteps.Count == 3 && comboSteps[0] == 0 && comboSteps[1] == 1 && comboSteps[2] == 2,
-                $"dodge combo goes through steps 1-2-3 when pressed in the window: {string.Join(",", comboSteps)}");
-            yield return Mathf.CeilToInt((pc.Dodge.ComboWindow + 0.4f) * 60f);
-            input.ScriptPress(GameAction.Roll);
-            for (int i = 0; i < 5 && !player.Rolling; i++)
-                yield return 1;
-            Check(player.Rolling && player.DodgeStepIndex == 0, $"dodge combo restarts after the window: step {player.DodgeStepIndex}");
-            for (int i = 0; i < 120 && player.Rolling; i++)
-                yield return 1;
+            Check(repeatSteps.Count == 2 && repeatSteps[0] == 0 && repeatSteps[1] == 0,
+                $"repeated roll is the same single step: {string.Join(",", repeatSteps)}");
             session.Stamina.Restore();
 
             // 7. Подбор меча и щита на F.
@@ -293,7 +287,14 @@ namespace ColorsAction.Unity.Editor
             Check(dummy.TotalDamage > damageBeforeChop + 0.5f, $"third swing (chop) deals damage: {dummy.TotalDamage - damageBeforeChop:F0}");
             Check(clip < 0.02f, $"sword never passes through the cube during the combo and recovery: max depth {clip:F3}");
 
-            Check(dummy.TotalDamage >= 30f, $"full 3-hit sword combo lands (chained through the hold window): total damage {dummy.TotalDamage:F0}");
+            // Ожидаемый урон серии — по цветовому кругу: цвет меча против цвета манекена (прокачка и заряд только добавляют).
+            var rules = bootstrap.Resolver.Resolve<ColorsAction.Combat.DamageRules>();
+            var swordConfig = inv.Active.Config;
+            var expectedCombo = 0f;
+            for (int i = 0; i < Mathf.Min(3, swordConfig.Combo.Count); i++)
+                expectedCombo += rules.Calculate(swordConfig, swordConfig.Combo[i], dummy.ColorId).Damage;
+            Check(dummy.TotalDamage >= expectedCombo * 0.95f - 0.5f,
+                $"full 3-hit sword combo lands (chained through the hold window): total damage {dummy.TotalDamage:F0}, expected >= {expectedCombo:F0} ({swordConfig.Color} vs {dummy.ColorId})");
             Check(sawHold, "each swing holds its final pose (combo window)");
             Check(Time.timeScale == 1f, "hit stop restores time scale");
 
@@ -520,10 +521,16 @@ namespace ColorsAction.Unity.Editor
                     Check(invulnerableAfterHit, "player gets ~2 s of i-frames after a hit");
 
                 // 15. Бьём врага мечом до смерти: цифры урона, осколки летят к игроку как опыт.
+                // Игрок не должен умереть: иначе враги возрождаются, цель исчезает и проверка проходила бы ложно.
+                // Свой цвет режет урон меча (цветовой круг), поэтому ударов нужно больше.
                 var xpBefore = session.Experience.Value;
                 var target = first;
-                for (int i = 0; i < 40 && target != null && !target.Dead; i++)
+                var playerDamage = player.GetComponent<PlayerDamageReceiver>();
+                var playerDied = false;
+                for (int i = 0; i < 150 && target != null && !target.Dead && !playerDied; i++)
                 {
+                    session.Vitals.Health.Restore();
+                    playerDied |= playerDamage != null && playerDamage.Dead;
                     var to = target.transform.position - player.transform.position;
                     to.y = 0;
                     player.Teleport(target.transform.position - to.normalized * 1.3f, Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg);
@@ -531,7 +538,8 @@ namespace ColorsAction.Unity.Editor
                     yield return 20;
                 }
 
-                Check(target == null || target.Dead, "enemy dies from sword hits");
+                Check(!playerDied && (target == null || target.Dead),
+                    $"enemy dies from sword hits ({inv.Active?.Config.Color} sword vs {first.Brain.Config.Color} enemy){(playerDied ? ": player died first" : "")}");
                 yield return 150;
                 Check(session.Experience.Value > xpBefore, $"shards fly to the player as experience: {xpBefore} -> {session.Experience.Value}");
 
