@@ -40,6 +40,7 @@ namespace ColorsAction.Unity
         private EnemyReach reach;
         private Palette palette;
         private GameConfig game;
+        private WaterConfig water;
         private GameBootstrap bootstrap;
         private GameInput input;
         private GameSession session;
@@ -55,6 +56,7 @@ namespace ColorsAction.Unity
         {
             var configs = resolver.Resolve<ConfigService>();
             game = configs.Load<GameConfig>(ConfigKeys.Game);
+            water = configs.Load<WaterConfig>(WaterConfig.Key);
             var launch = resolver.TryResolve<LaunchOptions>(out var l) ? l : LaunchOptions.None;
             var key = launch.LevelKey(game);
             palette = resolver.Resolve<Palette>();
@@ -595,11 +597,13 @@ namespace ColorsAction.Unity
                 offset = new Vector3(min.X, 0f, min.Z);
                 boxes = LevelEdgeWalls.Build(max.X - min.X + 1, max.Z - min.Z + 1, min.Y - 2f, max.Y + 1 + LevelEdgeWalls.Headroom);
                 killHeight = LevelEdgeWalls.KillHeight(min.Y);
+                killHeight = BuildWater(min.X, min.Z, max.X + 1, max.Z + 1, min.Y, killHeight);
             }
             else
             {
                 boxes = LevelEdgeWalls.Build(config);
                 killHeight = LevelEdgeWalls.KillHeight(config);
+                killHeight = BuildWater(0f, 0f, config.Width, config.Length, -config.Depth, killHeight);
             }
 
             // Провалился в дыру ниже дна мира — смерть и возрождение у костра.
@@ -617,6 +621,21 @@ namespace ColorsAction.Unity
                 box.center = offset + new Vector3(w.CenterX, w.CenterY, w.CenterZ);
                 box.size = new Vector3(w.SizeX, w.SizeY, w.SizeZ);
             }
+        }
+
+/// <summary>
+        /// Вода вокруг карты (<see cref="Water"/>, Configs/Water.json). Возвращает высоту смерти с учётом воды:
+        /// упавший в воду тонет, как только скрылся под поверхностью (<see cref="WaterLayout.KillHeight"/>).
+        /// </summary>
+        private float BuildWater(float minX, float minZ, float maxX, float maxZ, float bottom, float killHeight)
+        {
+            if (water == null || !water.Enabled)
+                return killHeight;
+            var layout = WaterLayout.Build(water, minX, minZ, maxX, maxZ, bottom);
+            var go = new GameObject("Water");
+            go.transform.SetParent(root, false);
+            go.AddComponent<Water>().Init(water, layout, player != null ? player.transform : null);
+            return WaterLayout.KillHeight(killHeight, layout);
         }
 
 #if UNITY_EDITOR

@@ -151,7 +151,7 @@
    Описания параметров — в SCHEMA ниже. Неописанные ключи показываются как есть.
    ===================================================================== */
 
-const FILE_ORDER = ['Player', 'Camera', 'Items', 'Upgrades', 'Enemies', 'StatusEffects', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Movement', 'Game'];
+const FILE_ORDER = ['Player', 'Camera', 'Items', 'Upgrades', 'Enemies', 'StatusEffects', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Water', 'Movement', 'Game'];
 const S = { dir: null, files: {}, current: null, levels: [], mode: 'none' };
 
 /* ---------- утилиты ---------- */
@@ -501,6 +501,39 @@ const SCHEMA = {
         { k: 'flyDelay', l: 'Задержка полёта', u: U.s, min: 0, max: 3, step: 0.05, d: 'Через сколько после вылета кусочки летят к игроку.' },
         { k: 'flyStagger', l: 'Шаг между кусочками', u: U.s, min: 0, max: 0.5, step: 0.01, d: '' },
         { k: 'grantTimeout', l: 'Засчитать не позже', u: U.s, min: 0.5, max: 10, step: 0.1, d: 'Ресурс засчитывается, когда долетел последний кусочек; если что-то помешало — не позже этого времени.' },
+      ] },
+    ],
+  },
+
+  Water: {
+    title: 'Вода', desc: 'Лоу-поли вода вокруг уровня, чтобы карта не висела в пустоте. Плоскость из треугольников под всей картой и далеко за краем, волны — в шейдере, изгибается вместе с миром. Упавший в воду игрок тонет (погибает, как при падении ниже дна).',
+    sections: [
+      { title: 'Где', fields: [
+        { k: 'enabled', l: 'Вода есть', t: 'bool', def: true, d: '' },
+        { k: 'surfaceAboveBottom', l: 'Поверхность над дном', u: U.bl, min: -5, max: 0.95, step: 0.05, d: 'Высота воды над низом самого нижнего блока уровня. Меньше 1 — нижние блоки остаются сушей.' },
+        { k: 'drownDepth', l: 'Глубина «утонул»', u: U.bl, min: 0, max: 5, step: 0.1, d: 'Насколько игрок уходит под воду до смерти.' },
+        { k: 'extent', l: 'Вода за краем карты', u: U.bl, min: 0, max: 400, step: 5, d: 'Изгиб мира уводит дальнюю воду за горизонт.' },
+        { k: 'splash', l: 'Брызги', t: 'bool', def: true, d: 'Брызги, когда игрок падает в воду.' },
+      ] },
+      { title: 'Сетка', fields: [
+        { k: 'cellSize', l: 'Размер треугольника', u: U.bl, min: 0.25, max: 8, step: 0.1, d: 'Крупнее — грубее грани и меньше вершин.' },
+        { k: 'jitter', l: 'Неровность сетки', u: U.frac, min: 0, max: 0.45, step: 0.01, d: 'Случайный сдвиг вершин: 0 — ровная решётка.' },
+        { k: 'facets', l: 'Резкость граней', u: U.frac, min: 0, max: 1, step: 0.05, d: '0 — ровная заливка, 1 — сильный перепад света между треугольниками.' },
+      ] },
+      { title: 'Цвет', fields: [
+        { k: 'shallowColor', l: 'Мелководье', t: 'color', d: 'У берега.' },
+        { k: 'deepColor', l: 'Глубина', t: 'color', d: 'Вдали от берега.' },
+        { k: 'foamColor', l: 'Пена', t: 'color', d: '' },
+        { k: 'opacity', l: 'Непрозрачность', u: U.frac, min: 0, max: 1, step: 0.05, d: 'Меньше 1 — у берега просвечивают блоки.' },
+        { k: 'depthFade', l: 'Переход в глубину', u: U.bl, min: 0.1, max: 20, step: 0.1, d: 'На какой глубине цвет полностью глубокий.' },
+        { k: 'foamWidth', l: 'Ширина пены', u: U.bl, min: 0, max: 2, step: 0.05, d: '0 — без пены.' },
+        { k: 'specular', l: 'Блик солнца', u: U.frac, min: 0, max: 1, step: 0.05, d: '' },
+      ] },
+      { title: 'Волны', fields: [
+        { k: 'waveHeight', l: 'Высота', u: U.bl, min: 0, max: 1, step: 0.01, d: 'Амплитуда.' },
+        { k: 'waveLength', l: 'Длина', u: U.bl, min: 0.5, max: 40, step: 0.5, d: '' },
+        { k: 'waveSpeed', l: 'Скорость', u: U.bls, min: 0, max: 10, step: 0.1, d: '' },
+        { k: 'waveDirection', l: 'Направление', u: U.deg, min: 0, max: 360, step: 5, d: '0° — вдоль +X.' },
       ] },
     ],
   },
