@@ -28,6 +28,12 @@ namespace ColorsAction
 
         public List<StartWeapon> Weapons { get; set; } = new List<StartWeapon>();
 
+        /// <summary>
+        /// Всё оружие (и стартовое, и подобранное потом) сразу с полной прокачкой — все <see cref="Progression.WeaponUpgrades.MaxTier"/>
+        /// ступени. Выключено — оружие начинает с базового уровня (кроме уровня, заданного у стартового оружия).
+        /// </summary>
+        public bool FullWeaponUpgrades { get; set; }
+
         /// <summary>Опыт на старте. Меньше нуля — не трогать.</summary>
         public int Experience { get; set; } = -1;
 
@@ -36,7 +42,7 @@ namespace ColorsAction
         /// <summary>Какой уровень грузить.</summary>
         public string LevelKey(GameConfig game) => Enabled && !string.IsNullOrEmpty(Level) ? Level : game.Level;
 
-        /// <summary>Выдаёт стартовое оружие (на колесо; первое — в руки), ставит апгрейды и опыт.</summary>
+        /// <summary>Выдаёт стартовое оружие (на колесо; первое — в руки), ставит апгрейды (или полную прокачку всего оружия) и опыт.</summary>
         public void Apply(GameSession session)
         {
             if (!Enabled || session == null)
@@ -50,6 +56,9 @@ namespace ColorsAction
                     continue;
                 session.Upgrades.Set(w.Item, Math.Max(0, Math.Min(Progression.WeaponUpgrades.MaxTier, w.Upgrade)));
             }
+
+            if (FullWeaponUpgrades)
+                session.UpgradeAllWeapons(Progression.WeaponUpgrades.MaxTier);
 
             if (Experience >= 0)
                 session.Experience.Value = Experience;

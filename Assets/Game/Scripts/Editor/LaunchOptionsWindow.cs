@@ -12,7 +12,7 @@ using UnityEngine;
 namespace ColorsAction.Unity.Editor
 {
     /// <summary>
-    /// Окно «Параметры запуска»: какую карту грузить, стартовое оружие с уровнем апгрейда и опыт. Сохраняется в
+    /// Окно «Параметры запуска»: какую карту грузить, стартовое оружие с уровнем апгрейда, полную прокачку всего оружия и опыт. Сохраняется в
     /// UserSettings/ColorsActionLaunch.json (<see cref="LaunchOptionsStore"/>), игра читает его при входе в Play Mode.
     /// </summary>
     public sealed class LaunchOptionsWindow : EditorWindow
@@ -142,6 +142,11 @@ namespace ColorsAction.Unity.Editor
         private void DrawWeapons()
         {
             EditorGUILayout.LabelField("Стартовое оружие", EditorStyles.boldLabel);
+            options.FullWeaponUpgrades = EditorGUILayout.ToggleLeft(
+                new GUIContent("Оружие с полной прокачкой",
+                    $"Всё оружие — стартовое и подобранное в мире — сразу со всеми {WeaponUpgrades.MaxTier} ступенями. " +
+                    "Выключено — оружие начинает с базового уровня."),
+                options.FullWeaponUpgrades);
             if (weapons.Count == 0)
             {
                 EditorGUILayout.HelpBox("В Items.json нет оружия.", MessageType.Warning);
@@ -168,7 +173,14 @@ namespace ColorsAction.Unity.Editor
                     }
 
                     EditorGUILayout.LabelField("Апгрейд", GUILayout.Width(52));
-                    w.Upgrade = EditorGUILayout.IntSlider(w.Upgrade, 0, WeaponUpgrades.MaxTier, GUILayout.MinWidth(110));
+                    using (new EditorGUI.DisabledScope(options.FullWeaponUpgrades))
+                    {
+                        var shown = options.FullWeaponUpgrades ? WeaponUpgrades.MaxTier : w.Upgrade;
+                        var value = EditorGUILayout.IntSlider(shown, 0, WeaponUpgrades.MaxTier, GUILayout.MinWidth(110));
+                        if (!options.FullWeaponUpgrades)
+                            w.Upgrade = value;
+                    }
+
                     if (GUILayout.Button("✕", GUILayout.Width(22)))
                         remove = i;
                 }
@@ -188,7 +200,7 @@ namespace ColorsAction.Unity.Editor
             }
 
             EditorGUILayout.HelpBox("Всё оружие встаёт на колесо (TAB / Y), первое по списку — сразу в руках. " +
-                                    "Апгрейд заменяет debugWeaponUpgrades из Game.json.",
+                                    "Апгрейд заменяет debugWeaponUpgrades из Game.json; «полная прокачка» ставит максимум всему оружию.",
                 MessageType.None);
         }
 

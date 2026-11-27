@@ -67,6 +67,42 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void FullWeaponUpgrades_Off_WeaponsStartAtBaseLevel()
+        {
+            var options = new LaunchOptions
+            {
+                Enabled = true,
+                Weapons = new List<StartWeapon> { new StartWeapon { Item = "sword" } }
+            };
+            Assert.That(options.FullWeaponUpgrades, Is.False, "по умолчанию выключено");
+            using var host = CreateHost(options);
+            host.Start<BootState>();
+
+            var session = host.Container.Resolve<GameSession>();
+            Assert.That(session.Upgrades.Level("sword"), Is.EqualTo(0));
+            Assert.That(session.Upgrades.Level("shotgun"), Is.EqualTo(0), "подобранное потом оружие — тоже с базы");
+        }
+
+        [Test]
+        public void FullWeaponUpgrades_On_MaxesEveryWeapon_IncludingNotYetPickedUp()
+        {
+            var options = new LaunchOptions
+            {
+                Enabled = true,
+                FullWeaponUpgrades = true,
+                Weapons = new List<StartWeapon> { new StartWeapon { Item = "sword", Upgrade = 1 } }
+            };
+            using var host = CreateHost(options);
+            host.Start<BootState>();
+
+            var session = host.Container.Resolve<GameSession>();
+            var configs = new ConfigService(new FileConfigSource(TestPaths.ConfigsRoot()), new NewtonsoftConfigSerializer());
+            foreach (var item in configs.LoadTable<ItemConfig>(ConfigKeys.Items).Values)
+                if (item.Kind == ItemKind.Weapon)
+                    Assert.That(session.Upgrades.Level(item.Id), Is.EqualTo(Progression.WeaponUpgrades.MaxTier), item.Id);
+        }
+
+        [Test]
         public void Disabled_KeepsDefaults()
         {
             var game = new GameConfig { Level = "Levels/Test" };

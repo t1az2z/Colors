@@ -256,6 +256,14 @@ namespace ColorsAction
             return true;
         }
 
+        /// <summary>Поставить уровень прокачки <paramref name="level"/> всему оружию из Items.json (параметры запуска).</summary>
+        public void UpgradeAllWeapons(int level)
+        {
+            foreach (var pair in items.Table)
+                if (pair.Value.Kind == ItemKind.Weapon)
+                    Upgrades.Set(pair.Key, level);
+        }
+
         /// <summary>
         /// Выдать <paramref name="count"/> штук ресурса (сундук): досыпается в стопки инвентаря.
         /// Не помещается целиком — <see cref="InventoryFull"/> и false, ничего не выдаётся.
