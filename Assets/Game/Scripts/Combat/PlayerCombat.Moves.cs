@@ -297,7 +297,8 @@ namespace ColorsAction.Unity
                     Direction = direction,
                     Point = target.HitPoint,
                     Knockback = config.Knockback,
-                    WeaponId = weapon.Id
+                    WeaponId = weapon.Id,
+                    Poise = Poise.HitAmount(combatConfig.Poise, weapon, step.Poise)
                 });
                 if (HitGate.ShowsDamage(target))
                     events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.Effect, color));

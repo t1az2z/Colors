@@ -124,7 +124,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             try
             {
                 foreach (var kv in configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies))
-                    Enemies.Add((kv.Key, string.IsNullOrEmpty(kv.Value.Name) ? kv.Key : kv.Value.Name, kv.Value.Color));
+                    Enemies.Add((kv.Key, (kv.Value.Elite ? "★ " : "") + (string.IsNullOrEmpty(kv.Value.Name) ? kv.Key : kv.Value.Name),
+                        kv.Value.Color));
             }
             catch (Exception e)
             {

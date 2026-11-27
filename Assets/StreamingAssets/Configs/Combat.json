@@ -16,5 +16,6 @@
   "lockOnSwitchStick": 0.7,
   "lockOnSwitchMouse": 120,
   "parryHitStop": 0.12,
-  "parryShake": 0.35
+  "parryShake": 0.35,
+  "poise": { "hit": 25, "parry": 100, "decayDelay": 3, "decayRate": 10 }
 }

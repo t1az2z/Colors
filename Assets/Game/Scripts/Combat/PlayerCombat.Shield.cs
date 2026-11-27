@@ -23,6 +23,7 @@ namespace ColorsAction.Unity
         private readonly ShieldBashTrigger bashTrigger = new ShieldBashTrigger();
         private readonly HashSet<IHittable> bashHits = new HashSet<IHittable>();
         private HandState bashHand;
+        private float bashSpent;
         private float bashTime;
         private bool bashHitDone;
         private float bashLungeDone;
@@ -87,8 +88,9 @@ namespace ColorsAction.Unity
         /// <summary>
         /// Блок поставлен: враги в окне парирования (с учётом апгрейда щита) перед блоком — парированы.
         /// Блок стрелковым оружием в момент столкновения сразу стреляет (<see cref="GunParryShot"/>, один выстрел на блок).
+        /// Удачное парирование выносливость не тратит: цена подъёма блока <paramref name="spent"/> возвращается.
         /// </summary>
-        private void TryParry()
+        private void TryParry(float spent)
         {
             var shieldHand = ShieldHand;
             var gunHand = shieldHand == null ? GunBlockHand : null;
@@ -125,6 +127,7 @@ namespace ColorsAction.Unity
             if (count == 0)
                 return;
             ParryCount += count;
+            session.Stamina.Refund(spent);
             // Щит рывком навстречу удару; отдача — в момент столкновения.
             controller.Deformer.Impulse(-0.3f, new Vector2(0f, 1.2f));
         }
@@ -170,8 +173,10 @@ namespace ColorsAction.Unity
                 return;
             if (bashHand != null || attacking != null || !control || !HasShieldUpgrade(hand, config.BashUpgrade))
                 return;
+            var before = session.Stamina.Current.Value;
             if (!session.Stamina.TrySpend(config.BashStaminaCost))
                 return;
+            bashSpent = before - session.Stamina.Current.Value;
 
             bashHand = hand;
             bashTime = 0f;
@@ -236,7 +241,12 @@ namespace ColorsAction.Unity
                     // Удар щитом навстречу вражескому удару: атака парирована, урон и отбрасывание сильнее.
                     multiplier = config.BashParryMultiplier;
                     if (enemy.TryParry(transform.position, widen, OnParryContact))
+                    {
                         ParryCount++;
+                        // Удачное парирование выносливость не тратит.
+                        session.Stamina.Refund(bashSpent);
+                        bashSpent = 0f;
+                    }
                 }
 
                 var result = StatusDamage.Scale(session.PlayerStatus, target,
@@ -251,7 +261,8 @@ namespace ColorsAction.Unity
                     Direction = direction,
                     Point = target.HitPoint,
                     Knockback = config.BashKnockback * multiplier,
-                    WeaponId = shield.Id
+                    WeaponId = shield.Id,
+                    Poise = Poise.HitAmount(combatConfig.Poise, shield, config.BashPoise)
                 });
                 if (HitGate.ShowsDamage(target))
                     events.Publish(new DamageDealt(target.HitPoint, damage, result.Effect, color));

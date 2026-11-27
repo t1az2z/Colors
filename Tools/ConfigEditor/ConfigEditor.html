@@ -348,6 +348,12 @@ const SCHEMA = {
         { k: 'hitShake', l: 'Тряска камеры', d: 'Сила толчка камеры при попадании (0 — выключено).', u: U.bl, min: 0, max: 1, step: 0.01 },
         { k: 'heldWeaponGlow', l: 'Свечение оружия', d: 'Доля эмиссии цвета оружия в руках, чтобы оно читалось издалека.', u: U.frac, min: 0, max: 2, step: 0.05 },
       ] },
+      { title: 'Шкала выносливости врагов (poise)', fields: [
+        { k: 'poise.hit', l: 'Удар', d: 'Сколько шкалы над головой врага заполняет один удар оружием. Одинаково для всех врагов; объём шкалы — у каждого типа врага (Враги → «Шкала выносливости»). Умножается на множитель оружия (Оружие → «Ошеломление») и удара. Пример: шкала 100 и удар 25 — враг ошеломлён с 4 ударов.', u: U.pts, min: 0, max: 500, step: 1, def: 25 },
+        { k: 'poise.parry', l: 'Парирование', d: 'Сколько шкалы заполняет парирование. Шкала заполнилась — враг ошеломлён; нет — парирование только поглощает удар (урона нет). Пример: 100 — обычный враг (шкала 100) ошеломлён с 1 парирования, элитный (300) — с 3.', u: U.pts, min: 0, max: 1000, step: 5, def: 100 },
+        { k: 'poise.decayDelay', l: 'Пауза перед спадом', d: 'Через сколько секунд без ударов и парирований шкала начинает спадать.', u: U.s, min: 0, max: 20, step: 0.1, def: 3 },
+        { k: 'poise.decayRate', l: 'Скорость спада', d: 'Сколько единиц шкалы спадает в секунду после паузы (0 — не спадает). Заполненная шкала не спадает: она пустеет, когда ошеломление кончится.', u: '/с', min: 0, max: 200, step: 1, def: 10 },
+      ] },
       { title: 'Очередь атак врагов', fields: [
         { k: 'maxAttackers', l: 'Врагов в атаке', t: 'int', d: 'Сколько врагов одновременно в атаке (замах + удар). Удары всё равно никогда не совпадают: следующий в очереди замахивается заранее и бьёт сразу после текущего.', u: 'шт.', min: 1, max: 6, step: 1, def: 3 },
         { k: 'attackerGap', l: 'Пауза между ударами', d: 'Сколько проходит от конца удара одного врага до удара следующего.', u: U.s, min: 0, max: 2, step: 0.05, def: 0.25 },
@@ -528,6 +534,7 @@ const ITEM_FIELDS = [
   { k: 'maxStack', l: 'Стопка', t: 'int', u: 'шт.', min: 1, max: 999, step: 1, def: 99, d: 'Сколько штук помещается в одну клетку инвентаря.', onlyResource: true },
   { k: 'offhand', l: 'Вторая рука', t: 'itemRef', d: 'Предмет, который оружие держит во второй руке (меч — щит: одно синее оружие «меч и щит»). Отдельно не подбирается; его апгрейды — апгрейды этого оружия.', onlyWeapon: true },
   { k: 'damage', l: 'Базовый урон', d: 'Урон удара = базовый урон × множитель удара серии.', u: U.pts, min: 0, max: 200, step: 0.5, noResource: true },
+  { k: 'poise', l: 'Ошеломление', d: 'Множитель заполнения шкалы выносливости врага ударами этим оружием: удар заполняет «Бой → Шкала выносливости → Удар» × это × множитель удара. Больше 1 — оружие быстрее ошеломляет.', u: U.x, min: 0, max: 10, step: 0.05, def: 1, noResource: true },
   { k: 'prefab', l: 'Префаб', t: 'text', d: 'Путь в Resources, например Items/Sword. Пусто — без модели.' },
   { k: 'comboWindow', l: 'Доп. окно комбо', d: 'Дополнительное время после возврата в стойку, когда нажатие ещё продолжает серию. 0 — серию продолжает только нажатие во время фиксации финальной позы.', u: U.s, min: 0, max: 1.5, step: 0.01, def: 0, onlyWeapon: true },
   { k: 'trailRange', l: 'Дальность эффекта', d: 'Как далеко от центра куба тянется след клинка. 0 — как дальность поражения удара, чтобы эффект не был длиннее зоны урона.', u: U.bl, min: 0, max: 4, step: 0.05, def: 0, onlyWeapon: true },
@@ -596,6 +603,7 @@ const SHIELD_FIELDS = [
   { k: 'bashMaxGap', l: 'Пауза для удара щитом', u: U.s, min: 0.05, max: 0.6, step: 0.01, def: 0.25, d: 'Отпустить блок и нажать снова не позже чем через столько — удар щитом.' },
   { k: 'bashStaminaCost', l: 'Удар щитом: выносливость', u: U.pts, min: 0, max: 100, step: 1, def: 12, d: '' },
   { k: 'bashDamage', l: 'Удар щитом: урон', u: U.pts, min: 0, max: 100, step: 0.5, def: 8, d: '' },
+  { k: 'bashPoise', l: 'Удар щитом: ошеломление', u: U.x, min: 0, max: 10, step: 0.05, def: 1, d: 'Множитель заполнения шкалы выносливости врага ударом щитом (поверх множителя щита). Если удар щитом пришёлся в окно парирования, шкала ещё заполняется и парированием.' },
   { k: 'bashKnockback', l: 'Удар щитом: отбрасывание', u: U.x, min: 0, max: 8, step: 0.1, def: 2.5, d: '' },
   { k: 'bashRange', l: 'Удар щитом: дальность', u: U.bl, min: 0.5, max: 4, step: 0.05, def: 1.7, d: '' },
   { k: 'bashArc', l: 'Удар щитом: сектор', u: U.deg, min: 10, max: 360, step: 5, def: 110, d: '' },
@@ -614,6 +622,7 @@ const STEP_FIELDS = [
   { k: 'hitTo', l: 'Урон до', u: U.frac, min: 0, max: 1, step: 0.05, def: 1, d: 'Конец окна урона, доля фазы удара.' },
   { k: 'recovery', l: 'Возврат', u: U.s, min: 0, max: 1, step: 0.01, def: 0.14, d: 'Возврат в стойку после фиксации позы.' },
   { k: 'damageMultiplier', l: 'Множитель урона', u: U.x, min: 0, max: 5, step: 0.05, def: 1, d: '' },
+  { k: 'poise', l: 'Ошеломление', u: U.x, min: 0, max: 10, step: 0.05, def: 1, d: 'Множитель заполнения шкалы выносливости врага этим ударом (поверх множителя оружия).' },
   { k: 'lunge', l: 'Выпад', u: U.bl, min: -1, max: 3, step: 0.05, def: 0.25, d: 'Насколько куб продвигается вперёд при ударе. Меньше нуля — шаг назад.' },
   { k: 'range', l: 'Дальность', u: U.bl, min: 0.2, max: 6, step: 0.05, def: 1.3, d: 'Дальность поражения от центра куба.' },
   { k: 'arc', l: 'Сектор', u: U.deg, min: 5, max: 360, step: 5, def: 150, d: 'Ширина сектора поражения.' },
@@ -651,6 +660,7 @@ const PLUNGE_FIELDS = [
   { k: 'hang', l: 'Замах в воздухе', u: U.s, min: 0, max: 0.6, step: 0.01, def: 0.1, d: 'Меч поднимается над головой. Прыжок не прерывается: куб долетает туда же, куда и без удара, удар — при приземлении.' },
   { k: 'radius', l: 'Радиус удара', u: U.bl, min: 0.2, max: 6, step: 0.05, def: 1.8, d: 'Вокруг точки приземления.' },
   { k: 'damageMultiplier', l: 'Множитель урона', u: U.x, min: 0, max: 5, step: 0.05, def: 1.5, d: '' },
+  { k: 'poise', l: 'Ошеломление', u: U.x, min: 0, max: 10, step: 0.05, def: 1.5, d: 'Множитель заполнения шкалы выносливости врага ударом в прыжке (поверх множителя оружия).' },
   { k: 'knockback', l: 'Отбрасывание', u: U.x, min: 0, max: 8, step: 0.1, def: 2.5, d: '' },
   { k: 'staminaCost', l: 'Выносливость', u: U.pts, min: 0, max: 100, step: 1, def: 18, d: '' },
   { k: 'landHold', l: 'Поза после приземления', u: U.s, min: 0, max: 1, step: 0.01, def: 0.25, d: '' },
@@ -1363,12 +1373,13 @@ function renderMovement(main, f) {
 }
 
 /* ---------- Enemies ---------- */
-const ENEMY_MOTIONS = [['Sweep', 'Размашистый горизонтальный'], ['Overhead', 'Сверху вниз (дальше, но уже)']];
+const ENEMY_MOTIONS = [['Sweep', 'Размашистый горизонтальный'], ['Overhead', 'Сверху вниз (дальше, но уже)'], ['Slam', 'Тяжёлый сверху в землю (замах из-за головы)'], ['DiagonalRight', 'Косой из-за правого плеча (накрест 1)'], ['DiagonalLeft', 'Косой из-за левого плеча (накрест 2)']];
 const ENEMY_FIELDS = [
   { k: 'name', l: 'Название', t: 'text', d: 'Как тип врага называется в игре и в редакторе карт.' },
-  { k: 'color', l: 'Цвет', t: 'colorRef', def: 'blue', d: 'Оружие того же цвета бьёт этого врага с бонусом.' },
+  { k: 'color', l: 'Цвет', t: 'colorRef', def: 'blue', d: 'Урон по врагу зависит от расстояния между цветом оружия и цветом врага на круге (Бой → Круг цветов).' },
   { k: 'size', l: 'Размер', u: U.x, min: 0.3, max: 3, step: 0.05, def: 0.8, d: 'Размер куба относительно куба игрока (1 — как игрок).' },
   { k: 'maxHealth', l: 'Здоровье', u: U.pts, min: 1, max: 1000, step: 1, def: 40, d: '' },
+  { k: 'elite', l: 'Элитный', t: 'bool', def: false, d: 'В редакторах уровней помечен звездой ★.' },
   { k: 'weaponPrefab', l: 'Оружие (префаб)', t: 'text', def: 'Items/Club', d: 'Модель в руке из Resources, например Items/Club.' },
   { k: 'experience', l: 'Опыт за победу', t: 'int', u: U.pts, min: 0, max: 500, step: 1, def: 10, d: '' },
 ];
@@ -1384,7 +1395,10 @@ const ENEMY_AI_FIELDS = [
   { k: 'attackCooldown', l: 'Пауза между атаками', u: U.s, min: 0, max: 5, step: 0.05, def: 0.8, d: 'После своей атаки, прежде чем снова попросить право атаковать.' },
 ];
 const ENEMY_HIT_FIELDS = [
-  { k: 'parriedDuration', l: 'Оглушение после парирования', u: U.s, min: 0, max: 4, step: 0.05, def: 1, d: 'Сколько враг стоит с опущенным оружием после того, как его удар парировали щитом.' },
+  { k: 'poise', l: 'Шкала выносливости', u: U.pts, min: 0, max: 2000, step: 5, def: 100, d: 'Объём шкалы над головой. Удары и парирования заполняют её одинаково у всех врагов (Бой → Шкала выносливости: удар 25, парирование 100). Заполнилась — враг ошеломлён. 100 — 4 удара или 1 парирование; 300 — 3 парирования. 0 — шкалы нет, враг не ошеломляется.' },
+  { k: 'parriedDuration', l: 'Ошеломление', u: U.s, min: 0, max: 6, step: 0.05, def: 1, d: 'Сколько враг стоит с опущенным оружием, когда шкала выносливости заполнилась (парированием или ударами). Потом шкала пустеет.' },
+  { k: 'deflectDuration', l: 'Удар поглощён', u: U.s, min: 0, max: 2, step: 0.01, def: 0.4, d: 'Парирование при незаполненной шкале только поглощает удар: оружие отскакивает, и через столько секунд враг продолжает серию ударов или погоню.' },
+  { k: 'hyperArmor', l: 'Стойкость', t: 'bool', def: false, d: 'Удары не срывают замах и не заставляют отшатнуться: остановить врага может только заполненная шкала выносливости.' },
   { k: 'staggerDuration', l: 'Отшатывание', u: U.s, min: 0, max: 2, step: 0.01, def: 0.35, d: 'Сколько враг стоит на месте после полученного удара.' },
   { k: 'hitPushback', l: 'Отталкивание', u: U.bl, min: 0, max: 3, step: 0.05, def: 0.45, d: 'Насколько враг отлетает от попадания.' },
   { k: 'deathPieces', l: 'Осколков при смерти', t: 'int', u: 'шт.', min: 1, max: 60, step: 1, def: 14, d: 'На сколько кусков раскалывается куб.' },
@@ -1404,7 +1418,11 @@ const ENEMY_ATTACK_FIELDS = [
   { k: 'knockback', l: 'Отбрасывание', u: U.x, min: 0, max: 5, step: 0.1, def: 1, d: '' },
   { k: 'parryFrom', l: 'Парирование с', u: U.s, min: -1, max: 0.5, step: 0.01, def: -0.18, d: 'Начало окна парирования щитом, секунды от начала удара (минус — ещё в замахе). К открытию окна цепляются звук и VFX.' },
   { k: 'parryTo', l: 'Парирование до', u: U.s, min: -1, max: 0.5, step: 0.01, def: 0.06, d: 'Конец окна парирования, секунды от начала удара.' },
+  { k: 'areaRadius', l: 'Удар по области', u: U.bl, min: 0, max: 6, step: 0.05, def: 0, d: 'Радиус круга поражения вокруг точки удара о землю (волна, как у удара игрока в прыжке). 0 — обычный удар по сектору. Урон — когда оружие дошло до земли.' },
+  { k: 'areaOffset', l: 'Точка удара', u: U.bl, min: 0, max: 5, step: 0.05, def: 1, d: 'Где оружие бьёт в землю: блоков вперёд от центра врага. Только для удара по области.' },
 ];
+// Удары серии (продолжение атаки): вес выбора — у первого удара.
+const ENEMY_COMBO_FIELDS = ENEMY_ATTACK_FIELDS.filter(x => x.k !== 'weight');
 const ENEMY_ATTACK_DEFAULT = () => Object.fromEntries(ENEMY_ATTACK_FIELDS.map(x => [x.k, x.def]));
 
 function validateEnemies(d) {
@@ -1414,7 +1432,8 @@ function validateEnemies(d) {
     if (!(num(e.maxHealth, 40) > 0) || !(num(e.size, 0.8) > 0)) w.push(`${id}: здоровье и размер должны быть больше 0.`);
     if (S.files.Movement && !S.files.Movement.data[e.movement || 'walker']) w.push(`${id}: профиля перемещения «${e.movement || 'walker'}» нет в Movement.json — достижимость игрока не проверяется.`);
     if (e.color && S.files.Colors && !S.files.Colors.data[e.color]) w.push(`${id}: цвета «${e.color}» нет в Colors.json.`);
-    (e.attacks || []).forEach((a, i) => { if (num(a.parryFrom, -0.18) > num(a.parryTo, 0.06)) w.push(`${id}, атака ${i + 1}: начало окна парирования позже конца.`); });
+    (e.attacks || []).forEach((a, i) => enemyAttackSteps(a).forEach((s, j) => { if (num(s.parryFrom, -0.18) > num(s.parryTo, 0.06)) w.push(`${id}, атака ${i + 1}${j ? `, удар серии ${j + 1}` : ''}: начало окна парирования позже конца.`); }));
+    if (num(e.poise, 100) < 0) w.push(`${id}: шкала выносливости не может быть меньше 0.`);
     if (num(e.experiencePieces, 6) > num(e.deathPieces, 14)) w.push(`${id}: осколков опыта больше, чем всего осколков.`);
   }
   return w;
@@ -1449,12 +1468,12 @@ function renderEnemies(main, f) {
     group('Получение урона и смерть', ENEMY_HIT_FIELDS);
     for (const q of collectUnknown(e, [...ENEMY_FIELDS, ...ENEMY_AI_FIELDS, ...ENEMY_HIT_FIELDS].map(x => x.k).concat('attacks'))) card.fields.append(genericRow(f, [id, ...q]));
 
-    const sh = el('<div class="subhead">Атаки <span style="text-transform:none;font-weight:400;letter-spacing:0">(одиночные, без комбо; враг выбирает случайно по весу)</span> <button class="small">+ атака</button></div>');
+    const sh = el('<div class="subhead">Атаки <span style="text-transform:none;font-weight:400;letter-spacing:0">(враг выбирает случайно по весу; у атаки может быть серия ударов подряд)</span> <button class="small">+ атака</button></div>');
     card.fields.append(sh);
     $('button', sh).onclick = () => { e.attacks = e.attacks || []; e.attacks.push(clone(e.attacks[e.attacks.length - 1] || ENEMY_ATTACK_DEFAULT())); renderPage(); };
     (e.attacks || []).forEach((a, i) => {
-      const box = el(`<div class="combo"><div class="chead">Атака ${i + 1}<span class="ctime" title="Полное время атаки: замах + удар + фиксация + возврат (без паузы между атаками)"></span><span class="right"></span></div><div class="fields"></div></div>`);
-      addViz($('.ctime', box), a => a ? `${r2(enemyAttackPhases(a).reduce((x, y) => x + y, 0))} с` : '', () => f.data[id]?.attacks?.[i]);
+      const box = el(`<div class="combo"><div class="chead">Атака ${i + 1}<span class="ctime" title="Полное время атаки: замах + удар + фиксация каждого удара серии и возврат после последнего (без паузы между атаками)"></span><span class="right"></span></div><div class="fields"></div></div>`);
+      addViz($('.ctime', box), a => a ? `${r2(enemyAttackTotal(a))} с` : '', () => f.data[id]?.attacks?.[i]);
       const r = $('.right', box);
       const up = el('<button class="icon" title="Выше">↑</button>'), dn = el('<button class="icon" title="Ниже">↓</button>'), cp = el('<button class="icon" title="Копия">⧉</button>'), rm = el('<button class="icon danger" title="Удалить">✕</button>');
       r.append(up, dn, cp, rm);
@@ -1465,7 +1484,22 @@ function renderEnemies(main, f) {
       rm.onclick = () => { e.attacks.splice(i, 1); renderPage(); };
       const fl = $('.fields', box);
       for (const fd of ENEMY_ATTACK_FIELDS) fl.append(fieldRow(f, [id, 'attacks', i, fd.k], fd));
-      for (const q of collectUnknown(a, ENEMY_ATTACK_FIELDS.map(x => x.k))) fl.append(genericRow(f, [id, 'attacks', i, ...q]));
+      for (const q of collectUnknown(a, ENEMY_ATTACK_FIELDS.map(x => x.k).concat('combo'))) fl.append(genericRow(f, [id, 'attacks', i, ...q]));
+      // Серия: удары после этого, подряд без возврата в стойку. Каждый можно парировать.
+      const csh = el('<div class="subhead" style="margin-top:8px">Серия ударов <span style="text-transform:none;font-weight:400;letter-spacing:0">(после фиксации позы враг сразу замахивается следующим; парированный удар урона не наносит, серия продолжается, если шкала не заполнилась)</span> <button class="small">+ удар серии</button></div>');
+      fl.append(csh);
+      $('button', csh).onclick = () => { a.combo = a.combo || []; const last = a.combo[a.combo.length - 1] || a; const nx = clone(last); delete nx.combo; delete nx.weight; a.combo.push(nx); renderPage(); };
+      (a.combo || []).forEach((s, j) => {
+        const sb = el(`<div class="combo"><div class="chead">Удар серии ${j + 2}<span class="right"></span></div><div class="fields"></div></div>`);
+        const sr = $('.right', sb);
+        const rm2 = el('<button class="icon danger" title="Удалить">✕</button>');
+        sr.append(rm2);
+        rm2.onclick = () => { a.combo.splice(j, 1); if (!a.combo.length) delete a.combo; renderPage(); };
+        const sf = $('.fields', sb);
+        for (const fd of ENEMY_COMBO_FIELDS) sf.append(fieldRow(f, [id, 'attacks', i, 'combo', j, fd.k], fd));
+        for (const q of collectUnknown(s, ENEMY_COMBO_FIELDS.map(x => x.k))) sf.append(genericRow(f, [id, 'attacks', i, 'combo', j, ...q]));
+        fl.append(sb);
+      });
       card.fields.append(box);
     });
     addViz(card.viz, vizEnemy, () => ({ id, e: f.data[id] }));
@@ -1949,6 +1983,10 @@ function fxRangeRow(f, path, phasesOf = comboStepPhases) {
 const comboStepTime = st => { const p = comboStepPhases(st); return p.w + p.s + p.h + p.r; };
 // Фазы атаки врага: замах, удар, фиксация, возврат.
 const enemyAttackPhases = a => [num(a.windup, 1.5), num(a.strike, 0.1), num(a.hold, 0.3), num(a.recovery, 0.5)];
+// Удары серии: сама атака и её продолжение (combo).
+const enemyAttackSteps = a => [a, ...(a?.combo || [])];
+// Полное время серии: замах + удар + фиксация каждого удара, возврат — только после последнего.
+const enemyAttackTotal = a => { const st = enemyAttackSteps(a); return st.reduce((x, s, i) => { const p = enemyAttackPhases(s); return x + p[0] + p[1] + p[2] + (i === st.length - 1 ? p[3] : 0); }, 0); };
 // Пункт легенды таймлайна: подпись того же цвета, что и фаза. Слишком светлые цвета (жёлтый, серый) — чуть темнее, иначе не читаются.
 const LEGEND_TEXT = { [C.yellow]: '#B8900A', [C.grid2]: '#8E949C', [C.grid]: '#8E949C' };
 function legendItem(color, text, swatch) {
@@ -2078,7 +2116,15 @@ function vizEnemy({ e }) {
   for (let r = 1; r <= Math.floor(reach); r++) g += `<circle cx="${ex}" cy="${ey}" r="${r * s2}" fill="none" stroke="${C.grid}"/>` + T(ex + 3, ey - r * s2 - 2, `${r} бл`, { size: 9 });
   const palette = [col, C.dark, C.orange, C.teal, C.red];
   attacks.forEach((a, i) => {
-    const arc = clamp(num(a.arc, 140), 1, 360), R = num(a.range, 1.5) * s2, ly = num(a.lunge, 0.3) * s2, c = palette[i % palette.length];
+    const c = palette[i % palette.length];
+    const ly = num(a.lunge, 0.3) * s2;
+    if (num(a.areaRadius, 0) > 0) {
+      // Удар по области: круг вокруг точки удара о землю.
+      const AR = num(a.areaRadius, 0) * s2, oy = ey - ly - num(a.areaOffset, 1) * s2;
+      g += `<circle cx="${ex}" cy="${oy}" r="${AR}" fill="${c}" fill-opacity=".14" stroke="${c}" stroke-width="1.4" stroke-dasharray="5 3"/>` + T(ex + AR + 3, oy, String(i + 1), { size: 10, fill: c, weight: 600 });
+      return;
+    }
+    const arc = clamp(num(a.arc, 140), 1, 360), R = num(a.range, 1.5) * s2;
     const pt = ang => [ex + Math.sin(ang * Math.PI / 180) * R, ey - ly - Math.cos(ang * Math.PI / 180) * R];
     const [x1, y1] = pt(-arc / 2), [x2, y2] = pt(arc / 2);
     g += arc >= 359 ? `<circle cx="${ex}" cy="${ey - ly}" r="${R}" fill="${c}" fill-opacity=".12" stroke="${c}"/>`
@@ -2089,16 +2135,20 @@ function vizEnemy({ e }) {
   g += `<rect x="10" y="10" width="${s2}" height="${s2}" fill="#b3b6bd" stroke="#7d818a"/>` + T(10 + s2 / 2, 10 + s2 + 12, 'игрок 1×1', { anchor: 'middle', size: 9 });
   // 3. Таймлайн атак
   const cd = num(e.attackCooldown, 0.8);
-  const total = Math.max(0.1, ...attacks.map(a => ph(a).reduce((x, y) => x + y, 0) + cd));
+  const total = Math.max(0.1, ...attacks.map(a => enemyAttackTotal(a) + cd));
   const TW = 560, L = 64, R0 = 8, sx = (TW - L - R0) / total, rowH = 26;
   const phc = [C.yellow, C.red, C.orange, C.grid2];
   let tl = '';
   attacks.forEach((a, i) => {
     const y = 8 + i * rowH; let x = L;
-    tl += T(4, y + 14, `${i + 1}. ${(ENEMY_MOTIONS.find(m => m[0] === a.motion) || [, a.motion])[0]}`, { size: 10, fill: C.dark });
-    ph(a).forEach((d, k) => { if (d > 0) tl += `<rect x="${x}" y="${y}" width="${Math.max(1, d * sx - 1)}" height="18" fill="${phc[k]}" ${k === 1 ? '' : 'opacity=".75"'}/>`; x += d * sx; });
-    const strikeX = L + ph(a)[0] * sx, pf = num(a.parryFrom, -0.18), pt2 = num(a.parryTo, 0.06);
-    if (pt2 > pf) tl += `<rect x="${strikeX + pf * sx}" y="${y - 2}" width="${(pt2 - pf) * sx}" height="22" fill="none" stroke="${C.lilac}" stroke-width="2" rx="2"/>`;
+    tl += T(4, y + 14, `${i + 1}. ${(ENEMY_MOTIONS.find(m => m[0] === a.motion) || [, a.motion])[0]}${a.combo?.length ? ` +${a.combo.length}` : ''}`, { size: 10, fill: C.dark });
+    const steps = enemyAttackSteps(a);
+    steps.forEach((s, j) => {
+      const p = ph(s), last = j === steps.length - 1;
+      const strikeX = x + p[0] * sx, pf = num(s.parryFrom, -0.18), pt2 = num(s.parryTo, 0.06);
+      p.forEach((d, k) => { if (k === 3 && !last) return; if (d > 0) tl += `<rect x="${x}" y="${y}" width="${Math.max(1, d * sx - 1)}" height="18" fill="${phc[k]}" ${k === 1 ? '' : 'opacity=".75"'}/>`; x += d * sx; });
+      if (pt2 > pf) tl += `<rect x="${strikeX + pf * sx}" y="${y - 2}" width="${(pt2 - pf) * sx}" height="22" fill="none" stroke="${C.lilac}" stroke-width="2" rx="2"/>`;
+    });
     if (cd > 0) tl += `<rect x="${x}" y="${y + 5}" width="${cd * sx}" height="8" rx="3" fill="none" stroke="${C.grid2}" stroke-dasharray="2 2"/>`;
     tl += T(x + cd * sx + 3 > TW - 30 ? TW - 4 : x + cd * sx + 3, y + 13, `${r2(x / sx - L / sx + cd)} с`, { size: 9, anchor: x + cd * sx + 3 > TW - 30 ? 'end' : 'start' });
   });
@@ -2112,8 +2162,11 @@ function vizEnemy({ e }) {
     return `<tr><td><span class="swatch" style="background:${esc(colorHex(it.color))}"></span> ${esc(it.name || wid)}</td><td>${mul > 1 ? `×${r2(mul)} (тот же цвет)` : '—'}</td><td><b>${n >= 999 ? '∞' : n}</b></td></tr>`;
   }).join('');
   const wsum = attacks.reduce((x, a) => x + Math.max(0, num(a.weight, 1)), 0) || 1;
-  const avgDmg = attacks.reduce((x, a) => x + num(a.damage, 15) * Math.max(0, num(a.weight, 1)), 0) / wsum;
-  const avgCycle = attacks.reduce((x, a) => x + (ph(a).reduce((p, q) => p + q, 0) + cd) * Math.max(0, num(a.weight, 1)), 0) / wsum;
+  const seriesDmg = a => enemyAttackSteps(a).reduce((x, s) => x + num(s.damage, 15), 0);
+  const avgDmg = attacks.reduce((x, a) => x + seriesDmg(a) * Math.max(0, num(a.weight, 1)), 0) / wsum;
+  const avgCycle = attacks.reduce((x, a) => x + (enemyAttackTotal(a) + cd) * Math.max(0, num(a.weight, 1)), 0) / wsum;
+  const pr = S.files.Combat?.data?.poise || {}, poise = num(e.poise, 100), pHit = num(pr.hit, 25), pParry = num(pr.parry, 100);
+  const poiseFact = poise <= 0 ? 'нет — не ошеломляется' : `${r2(poise, 0)}: ${pHit > 0 ? Math.ceil(poise / pHit) : '∞'} ударов или ${pParry > 0 ? Math.ceil(poise / pParry) : '∞'} парирований (множители оружия 1)`;
   const pWalk = num(S.files.Player?.data?.walkSpeed, 0), speed = num(e.moveSpeed, 4.5);
   const toFirst = num(e.alertDuration, 2) + Math.max(0, aggro - maxR) / Math.max(0.01, speed);
   const pHp = num(S.files.Player?.data?.health?.max, 0);
@@ -2123,6 +2176,7 @@ function vizEnemy({ e }) {
       ['Скорость', pWalk ? `${r2(speed)} бл/с (${r2(speed / pWalk * 100, 0)}% ходьбы игрока)` : `${r2(speed)} бл/с`],
       ['От агро до первого удара (агро 7)', `≈ ${r2(toFirst + (attacks[0] ? ph(attacks[0])[0] : 0), 1)} с`],
       ['Средний урон атаки', r2(avgDmg, 1)],
+      ['Шкала выносливости', poiseFact],
       ['Урон в секунду в упор', r2(avgDmg / Math.max(0.01, avgCycle), 1)],
       ...(pHp ? [['Ударов до смерти игрока', String(Math.ceil(pHp / Math.max(0.01, avgDmg)))]] : []),
       ['Опыт', `${r2(num(e.experience, 10), 0)} (${r2(num(e.experiencePieces, 6), 0)} из ${r2(num(e.deathPieces, 14), 0)} осколков)`],

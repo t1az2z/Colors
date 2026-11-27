@@ -248,11 +248,12 @@ namespace ColorsAction.Unity
                        ((right.Item?.Kind == ItemKind.Shield && right.Holding) || (left.Item?.Kind == ItemKind.Shield && left.Holding) ||
                         (GunBlockHand != null && left.Holding && !GunCharging));
             session.Stamina.Blocking = Blocking;
+            var staminaBefore = session.Stamina.Current.Value;
             if (Blocking && !wasBlocking && !session.Stamina.TrySpend(playerConfig.Stamina.BlockStartCost * BlockCostMultiplier))
                 Blocking = false;
-            // Парирование: блок поставлен ровно в окно парирования вражеской атаки.
+            // Парирование: блок поставлен ровно в окно парирования вражеской атаки (удачное — выносливость вернётся).
             if (Blocking && !wasBlocking)
-                TryParry();
+                TryParry(staminaBefore - session.Stamina.Current.Value);
 
             if (attacking != null)
                 UpdateAttack(dt);
@@ -583,7 +584,8 @@ namespace ColorsAction.Unity
                     Direction = direction,
                     Point = target.HitPoint,
                     Knockback = step.Knockback * ChargeKnockback,
-                    WeaponId = weapon.Id
+                    WeaponId = weapon.Id,
+                    Poise = Poise.HitAmount(combatConfig.Poise, weapon, step.Poise)
                 });
                 if (HitGate.ShowsDamage(target))
                     events.Publish(new DamageDealt(target.HitPoint, result.Damage, result.Effect, color));

@@ -159,8 +159,8 @@ function resourceName(id) { return RESOURCE_INFO[id]?.name || id || '—'; }
 function resourceHex(id) { return PALETTE[RESOURCE_INFO[id]?.color]?.hex || OBJECT_KINDS.Chest.col; }
 /** Подпись сундука: «Металл ×3». */
 function chestLabel(o) { return o.item ? `${resourceName(o.item)} ×${o.count || 1}` : 'пустой'; }
-// Типы врагов из Enemies.json: id → имя и цвет. Манекен — отдельный тип прототипа.
-let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, dummy: { name: 'Манекен', color: null } };
+// Типы врагов из Enemies.json: id → имя, цвет, элитный (★). Манекен — отдельный тип прототипа.
+let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, club_cube_red: { name: 'Красный куб с дубиной', color: 'red' }, elite_sword: { name: 'Элитный мечник', color: 'orange', elite: true }, dummy: { name: 'Манекен', color: null } };
 let ENEMIES = Object.keys(ENEMY_INFO);
 // Радиус агро — у каждого врага в уровне свой; новым врагам и старым файлам без поля — этот (LevelEnemy.DefaultAggroRadius).
 const DEFAULT_AGGRO = 7;
@@ -624,7 +624,7 @@ async function loadSiteData() {
   const enemies = await tryJson('configs/Enemies.json');
   if (enemies) {
     const info = {};
-    for (const [k, v] of Object.entries(enemies)) info[k] = { name: v.name || k, color: v.color || null };
+    for (const [k, v] of Object.entries(enemies)) info[k] = { name: v.name || k, color: v.color || null, elite: !!v.elite };
     if (!info.dummy) info.dummy = { name: 'Манекен', color: null };
     ENEMY_INFO = info; ENEMIES = Object.keys(info);
     if (!info[st.objEnemy]) st.objEnemy = ENEMIES[0];
@@ -904,7 +904,7 @@ function resourceList(cur, set) {
       resourceName(id) + ' (' + id + ')' + (RESOURCE_INFO[id] ? '' : ' — нет в Items.json'))));
 }
 function enemyHex(id) { const c = ENEMY_INFO[id]?.color; return PALETTE[c]?.hex || OBJECT_KINDS.EnemySpawn.col; }
-function enemyName(id) { return ENEMY_INFO[id]?.name || id || '?'; }
+function enemyName(id) { return (ENEMY_INFO[id]?.elite ? '★ ' : '') + (ENEMY_INFO[id]?.name || id || '?'); }
 /** Список типов врагов кнопками; неизвестный тип из файла тоже показывается, чтобы его не потерять. */
 function enemyList(cur, set) {
   const ids = [...ENEMIES]; if (cur && !ids.includes(cur)) ids.push(cur);

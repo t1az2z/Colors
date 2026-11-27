@@ -12,7 +12,16 @@ namespace ColorsAction.Configs
         Sweep,
 
         /// <summary>Удар сверху вниз: дальше, но уже.</summary>
-        Overhead
+        Overhead,
+
+        /// <summary>Тяжёлый удар сверху в землю с высоким замахом над головой (как 4-й удар меча игрока).</summary>
+        Slam,
+
+        /// <summary>Косой удар из-за правого плеча вниз влево (первый удар «накрест»).</summary>
+        DiagonalRight,
+
+        /// <summary>Косой удар из-за левого плеча вниз вправо (второй удар «накрест»).</summary>
+        DiagonalLeft
     }
 
     /// <summary>Одиночная атака врага (без комбо): долгий читаемый замах и резкий удар.</summary>
@@ -57,6 +66,58 @@ namespace ColorsAction.Configs
         public float ParryTo { get; set; } = 0.06f;
 
         /// <summary>
+        /// Удар по области: радиус круга поражения, метры (0 — обычный удар по сектору <see cref="Arc"/>).
+        /// Центр круга — на земле в <see cref="AreaOffset"/> перед врагом; там же волна по земле, как у удара игрока в прыжке.
+        /// </summary>
+        public float AreaRadius { get; set; }
+
+        /// <summary>Где падает удар по области: метры от центра врага вперёд.</summary>
+        public float AreaOffset { get; set; } = 1f;
+
+        /// <summary>Удар по области (<see cref="AreaRadius"/> больше нуля).</summary>
+        public bool IsArea => AreaRadius > 0f;
+
+        /// <summary>
+        /// Продолжение комбо: удары после этого, по порядку. После фиксации позы враг сразу замахивается следующим
+        /// (без возврата в стойку). Парировать можно каждый удар; поглощённый парированием удар урона не наносит,
+        /// а серия продолжается, если шкала выносливости врага не заполнилась. Вес и дальность выбора — у первого удара.
+        /// </summary>
+        public List<EnemyAttackConfig> Combo { get; set; } = new List<EnemyAttackConfig>();
+
+        /// <summary>Удар в серии комбо № <paramref name="index"/> (0 — сам этот удар); null — серия кончилась.</summary>
+        public EnemyAttackConfig Step(int index)
+        {
+            if (index == 0)
+                return this;
+            return Combo != null && index - 1 < Combo.Count ? Combo[index - 1] : null;
+        }
+
+        /// <summary>Ударов в серии (с этим).</summary>
+        public int Steps => 1 + (Combo?.Count ?? 0);
+
+        /// <summary>
+        /// От начала первого удара до конца последнего удара серии, секунды: столько оркестратор держит право атаки
+        /// занятым для чужих ударов.
+        /// </summary>
+        public float StrikeSpan
+        {
+            get
+            {
+                var span = Strike;
+                if (Combo == null)
+                    return span;
+                var previous = this;
+                foreach (var next in Combo)
+                {
+                    span += previous.Hold + next.Windup + next.Strike;
+                    previous = next;
+                }
+
+                return span;
+            }
+        }
+
+        /// <summary>
         /// Окно парирования, расширенное на долю <paramref name="widen"/> своей длины поровну в обе стороны
         /// (апгрейд щита: 0.5 — по четверти длины раньше и позже).
         /// </summary>
@@ -84,6 +145,22 @@ namespace ColorsAction.Configs
         public float Size { get; set; } = 0.8f;
 
         public float MaxHealth { get; set; } = 40f;
+
+        /// <summary>Элитный враг: в редакторах уровней помечен звездой.</summary>
+        public bool Elite { get; set; }
+
+        /// <summary>
+        /// Объём шкалы выносливости (poise). Удары и парирования заполняют её одинаково у всех врагов
+        /// (<see cref="PoiseConfig"/>), заполнилась — враг ошеломлён на <see cref="ParriedDuration"/>.
+        /// 0 — шкалы нет, враг не ошеломляется.
+        /// </summary>
+        public float Poise { get; set; } = 100f;
+
+        /// <summary>
+        /// Стойкость: удары не срывают замах и не заставляют отшатнуться — остановить врага может только
+        /// заполненная шкала выносливости.
+        /// </summary>
+        public bool HyperArmor { get; set; }
 
         /// <summary>Оружие в руке: модель из Resources (Items/Club).</summary>
         public string WeaponPrefab { get; set; } = "Items/Club";
@@ -117,8 +194,17 @@ namespace ColorsAction.Configs
         /// </summary>
         public float ApproachDistance { get; set; } = 1.3f;
 
-        /// <summary>После парирования: враг стоит с опущенным оружием столько секунд.</summary>
+        /// <summary>
+        /// Ошеломление: шкала выносливости заполнилась (парированием или ударами) — враг стоит с опущенным оружием
+        /// столько секунд.
+        /// </summary>
         public float ParriedDuration { get; set; } = 1f;
+
+        /// <summary>
+        /// Парирование при незаполненной шкале поглощает удар: оружие отскакивает, враг приходит в себя за столько
+        /// секунд и продолжает серию (или возвращается к погоне).
+        /// </summary>
+        public float DeflectDuration { get; set; } = 0.4f;
 
         /// <summary>
         /// Подача парирования: враг ещё успевает начать удар и встречает щит на полпути — через столько секунд
@@ -168,6 +254,14 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException($"enemy '{Id}' needs at least one attack");
             if (MaxHealth <= 0 || Size <= 0)
                 throw new InvalidOperationException($"enemy '{Id}': maxHealth and size must be positive");
+            if (Poise < 0f || DeflectDuration < 0f)
+                throw new InvalidOperationException($"enemy '{Id}': poise and deflectDuration must not be negative");
+            foreach (var attack in Attacks)
+            {
+                attack.Combo ??= new List<EnemyAttackConfig>();
+                foreach (var step in attack.Combo)
+                    step.Combo = new List<EnemyAttackConfig>(); // серия — только у первого удара
+            }
         }
     }
 }

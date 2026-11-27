@@ -14,6 +14,9 @@ namespace ColorsAction.Unity
 
         /// <summary>Id оружия из Items.json, которым нанесён удар.</summary>
         public string WeaponId;
+
+        /// <summary>Сколько удар заполняет шкалу выносливости врага (<see cref="ColorsAction.Combat.Poise.HitAmount"/>).</summary>
+        public float Poise;
     }
 
     /// <summary>То, что можно ударить: манекен, враги, разрушаемые объекты.</summary>

@@ -21,7 +21,9 @@
       { "motion": "Overhead", "windup": 0.5, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.03, "parryTo": 0.06 }
     ],
     "flankBias": 0.7,
-    "parriedDuration": 2
+    "parriedDuration": 2,
+    "poise": 100,
+    "deflectDuration": 0.4
   },
   "club_cube_red": {
     "name": "Красный куб с дубиной",
@@ -45,6 +47,40 @@
       { "motion": "Overhead", "windup": 0.6, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.04, "parryTo": 0.06 }
     ],
     "flankBias": 0.7,
-    "parriedDuration": 2
+    "parriedDuration": 2,
+    "poise": 100,
+    "deflectDuration": 0.4
+    },
+  "elite_sword": {
+    "name": "Элитный мечник",
+    "color": "orange",
+    "size": 1.3,
+    "maxHealth": 180,
+    "weaponPrefab": "Items/Sword",
+    "elite": true,
+    "hyperArmor": true,
+    "poise": 300,
+    "loseRadius": 22,
+    "alertDuration": 0.8,
+    "moveSpeed": 5.5,
+    "turnSpeed": 420,
+    "approachDistance": 1.8,
+    "waitDistance": 3.6,
+    "attackCooldown": 1.1,
+    "staggerDuration": 0.35,
+    "hitPushback": 0.2,
+    "experience": 60,
+    "deathPieces": 24,
+    "experiencePieces": 14,
+    "attacks": [
+      { "motion": "Slam", "windup": 0.7, "strike": 0.1, "hold": 0.35, "recovery": 0.8, "damage": 35, "range": 2.6, "arc": 60, "knockback": 2.5, "lunge": 0.6, "weight": 1, "parryFrom": -0.05, "parryTo": 0.06, "areaRadius": 1.8, "areaOffset": 1.4 },
+      { "motion": "DiagonalRight", "windup": 0.45, "strike": 0.1, "hold": 0.12, "recovery": 0.4, "damage": 20, "range": 2.1, "arc": 120, "knockback": 1.2, "lunge": 0.4, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07,
+        "combo": [
+          { "motion": "DiagonalLeft", "windup": 0.3, "strike": 0.1, "hold": 0.2, "recovery": 0.6, "damage": 20, "range": 2.1, "arc": 120, "knockback": 1.5, "lunge": 0.5, "parryFrom": -0.04, "parryTo": 0.07 }
+        ] }
+    ],
+    "flankBias": 0.4,
+    "parriedDuration": 3,
+    "deflectDuration": 0.35
   }
 }

@@ -108,6 +108,9 @@ namespace ColorsAction.Configs
         /// <summary>Отбрасывание врагов от точки приземления.</summary>
         public float Knockback { get; set; } = 2.5f;
 
+        /// <summary>Множитель заполнения шкалы выносливости врага ударом в прыжке (поверх множителя оружия).</summary>
+        public float Poise { get; set; } = 1.5f;
+
         public float StaminaCost { get; set; } = 18f;
 
         /// <summary>Поза удара после приземления (акцент), секунды.</summary>
@@ -142,6 +145,7 @@ namespace ColorsAction.Configs
                 Hold = LandHold,
                 Recovery = Recovery,
                 DamageMultiplier = DamageMultiplier,
+                Poise = Poise,
                 Lunge = 0f,
                 Range = Radius,
                 Arc = 360f,

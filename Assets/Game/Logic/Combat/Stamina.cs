@@ -44,6 +44,13 @@ namespace ColorsAction.Combat
 
         public void Restore() => Current.Value = config.Max;
 
+        /// <summary>Вернуть потраченное (успешное парирование не тратит выносливость), не больше максимума.</summary>
+        public void Refund(float amount)
+        {
+            if (amount > 0f)
+                Current.Value = Math.Min(config.Max, Current.Value + amount);
+        }
+
         public void Tick(float deltaTime)
         {
             if (regenPause > 0f)

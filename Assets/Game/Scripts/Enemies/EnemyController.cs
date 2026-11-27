@@ -51,6 +51,8 @@ namespace ColorsAction.Unity
         private Renderer bodyRenderer;
         private MaterialPropertyBlock block;
         private AlertMarker marker;
+        private PoiseBar poiseBar;
+        private float hitShake;
         private CrackVisual cracks;
         private Color color;
 
@@ -131,7 +133,10 @@ namespace ColorsAction.Unity
             palette = resolver.Resolve<Palette>();
             events = resolver.Resolve<IEventBus>();
             var id = nextId++;
-            brain = new EnemyBrain(id, config, resolver.Resolve<CombatDirector>(), id * 7919, session.StatusConfig, aggroRadius);
+            var combat = configs.Load<CombatConfig>(ConfigKeys.Combat);
+            hitShake = combat?.HitShake ?? 0f;
+            brain = new EnemyBrain(id, config, resolver.Resolve<CombatDirector>(), id * 7919, session.StatusConfig, aggroRadius,
+                combat?.Poise);
             if (reach != null)
             {
                 var profiles = configs.LoadTable<MovementProfile>(MovementProfileKey);
@@ -197,6 +202,8 @@ namespace ColorsAction.Unity
             cracks = meshGo.AddComponent<CrackVisual>();
             cracks.Init(bodyRenderer, deformer, color);
             marker = AlertMarker.Create(transform, size + 0.75f);
+            if (brain.Poise.Max > 0f)
+                poiseBar = PoiseBar.Create(transform, size + 0.32f, Mathf.Max(0.7f, size * 0.95f));
             body.rotation = Quaternion.Euler(0, yaw, 0);
         }
 
@@ -284,6 +291,9 @@ namespace ColorsAction.Unity
 
             tinted = tintNow;
             UpdateDeformation(dt);
+            if (poiseBar != null)
+                poiseBar.Set(brain.Poise.Fraction, brain.Staggering,
+                    brain.Status.Get(StatusEffectsConfig.StunId)?.RemainingFraction ?? 0f);
         }
 
         /// <summary>
@@ -360,8 +370,9 @@ namespace ColorsAction.Unity
         /// <summary>
         /// Игрок поставил блок щитом (или ударил щитом): если сейчас окно парирования (расширенное на долю
         /// <paramref name="widen"/> апгрейдом щита), атака парирована. Враг ещё доводит удар до середины дуги,
-        /// оружие сталкивается со щитом (вспышка, <paramref name="onContact"/> — фриз-кадры у игрока), отскакивает,
-        /// враг отшатывается и стоит с опущенным оружием (<see cref="EnemyConfig.ParriedDuration"/>).
+        /// оружие сталкивается со щитом (вспышка, <paramref name="onContact"/> — фриз-кадры у игрока) и отскакивает.
+        /// Парирование заполнило шкалу выносливости — враг ошеломлён и стоит с опущенным оружием
+        /// (<see cref="EnemyConfig.ParriedDuration"/>); нет — удар поглощён, враг собирается и продолжает серию.
         /// </summary>
         /// <returns>true — парировано.</returns>
         public bool TryParry(Vector3 from, float widen = 0f, System.Action<Vector3> onContact = null)
@@ -517,11 +528,24 @@ namespace ColorsAction.Unity
             if (attack == null)
                 return;
             var forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
-            // Дальность до тела игрока (его полуширина ~0.45).
-            if (distance - 0.45f > attack.Range)
-                return;
-            if (distance > 0.5f && Vector3.Angle(forward, dirToPlayer) > attack.Arc * 0.5f)
-                return;
+            if (attack.IsArea)
+            {
+                // Удар по области бьёт, когда оружие дошло до земли: всех в круге вокруг точки удара.
+                if (!strikeEnded)
+                    return;
+                var toPlayer = player.transform.position - AreaCenter(attack);
+                toPlayer.y = 0f;
+                if (toPlayer.magnitude - 0.45f > attack.AreaRadius)
+                    return;
+            }
+            else
+            {
+                // Дальность до тела игрока (его полуширина ~0.45).
+                if (distance - 0.45f > attack.Range)
+                    return;
+                if (distance > 0.5f && Vector3.Angle(forward, dirToPlayer) > attack.Arc * 0.5f)
+                    return;
+            }
             if (ParryStillPossible())
             {
                 hitDeferred = true;
@@ -557,6 +581,8 @@ namespace ColorsAction.Unity
                 case EnemyState.Hold:
                     strikeEndedThisFrame = true;
                     deformer.Impulse(-1.6f);
+                    if (brain.Attack != null && brain.Attack.IsArea)
+                        GroundSlam(brain.Attack);
                     break;
                 case EnemyState.Staggered:
                 case EnemyState.Idle:
@@ -588,7 +614,7 @@ namespace ColorsAction.Unity
             brain.Health.TakeDamage(hit.Damage);
             if (Dead)
                 return;
-            var interrupted = brain.OnDamaged();
+            var interrupted = brain.OnDamaged(hit.Poise);
             flash = 0.12f;
             ApplyColor();
             var dir = hit.Direction;
@@ -596,8 +622,9 @@ namespace ColorsAction.Unity
             if (dir.sqrMagnitude < 0.001f)
                 dir = -(Quaternion.Euler(0, yaw, 0) * Vector3.forward);
             dir.Normalize();
-            // Отшатывание: толчок от удара, сжатие и наклон назад от удара.
-            push = dir * (config.HitPushback * Mathf.Max(0.5f, hit.Knockback) / Mathf.Max(0.1f, config.StaggerDuration));
+            // Отшатывание: толчок от удара, сжатие и наклон назад от удара (стойкого врага в атаке не сдвинуть).
+            var pushback = config.HyperArmor && brain.IsAttacking ? config.HitPushback * 0.25f : config.HitPushback;
+            push = dir * (pushback * Mathf.Max(0.5f, hit.Knockback) / Mathf.Max(0.1f, config.StaggerDuration));
             deformer.SetSquash(-0.22f, -1.5f);
             var local = Quaternion.Inverse(body.rotation) * dir;
             deformer.Impulse(-0.8f, new Vector2(local.x, local.z) * 3.5f);
@@ -629,6 +656,37 @@ namespace ColorsAction.Unity
         {
             if (marker != null)
                 Destroy(marker.gameObject);
+            if (poiseBar != null)
+                Destroy(poiseBar.gameObject);
+        }
+
+        // ------------------------------------------------------------------ удар по области
+
+        /// <summary>Центр круга удара по области: перед врагом на <see cref="EnemyAttackConfig.AreaOffset"/>.</summary>
+        private Vector3 AreaCenter(EnemyAttackConfig attack) =>
+            transform.position + Quaternion.Euler(0, yaw, 0) * Vector3.forward * attack.AreaOffset;
+
+        /// <summary>
+        /// Оружие врезалось в землю: волна по земле (как удар игрока в прыжке) в точке удара, куб сплющивается.
+        /// Над обрывом волна — на уровне ног врага.
+        /// </summary>
+        private void GroundSlam(EnemyAttackConfig attack)
+        {
+            var center = AreaCenter(attack);
+            var mask = ~((1 << EnemyLayer) | (1 << Debris.Layer));
+            if (player != null)
+                mask &= ~(1 << player.gameObject.layer);
+            var point = Physics.Raycast(center + Vector3.up * 1.2f, Vector3.down, out var ground, 2.6f, mask, QueryTriggerInteraction.Ignore)
+                ? ground.point
+                : new Vector3(center.x, transform.position.y, center.z);
+            ParticleFx.Play(ParticleFx.GroundSlam, point, Quaternion.Euler(0, yaw, 0), Color.Lerp(color, Color.white, 0.3f), attack.AreaRadius);
+            deformer.SetSquash(-0.4f, -3f);
+            // Толчок камеры — тем сильнее, чем ближе игрок к точке удара.
+            if (playerCombat != null && hitShake > 0f)
+            {
+                var near = 1f - Mathf.Clamp01(Vector3.Distance(player.transform.position, point) / Mathf.Max(1f, attack.AreaRadius * 3f));
+                playerCombat.Shake(hitShake * 1.5f * near);
+            }
         }
 
         // ------------------------------------------------------------------ анимация
@@ -679,6 +737,14 @@ namespace ColorsAction.Unity
                 return PlayerCombat.AroundBody(parriedFrom, ParryRecoil, 1f - (1f - u) * (1f - u));
             }
 
+            if (!brain.ParryStunned)
+            {
+                // Удар поглощён, враг не ошеломлён: оружие сразу возвращается в стойку (дальше — следующий удар серии).
+                var rest = Mathf.Max(0.05f, config.DeflectDuration - Mathf.Max(0f, config.ParryContactTime) - bounce);
+                var u = Mathf.Clamp01((t - bounce) / rest);
+                return PlayerCombat.AroundBody(ParryRecoil, Rest, u * u * (3f - 2f * u));
+            }
+
             if (t < lower)
             {
                 var u = (t - bounce) / (lower - bounce);
@@ -708,11 +774,12 @@ namespace ColorsAction.Unity
             switch (brain.State)
             {
                 case EnemyState.Windup:
-                    // Долгий читаемый замах: рука уходит в начало дуги, в конце — дрожь напряжения.
+                    // Долгий читаемый замах: рука уходит в начало дуги, в конце — дрожь напряжения
+                    // (у тяжёлого удара сверху — сильнее).
                     var u = Mathf.Clamp01(p / 0.6f);
                     var pose = PlayerCombat.AroundBody(windupFrom, ArcPose(attack.Motion, 0f), u * u * (3f - 2f * u));
                     if (p > 0.6f)
-                        pose.position += Random.insideUnitSphere * 0.012f;
+                        pose.position += Random.insideUnitSphere * (attack.Motion == EnemyAttackMotion.Slam ? 0.022f : 0.012f);
                     return pose;
                 case EnemyState.Strike:
                     return ArcPose(attack.Motion, 1f - (1f - p) * (1f - p) * (1f - p));
@@ -726,7 +793,10 @@ namespace ColorsAction.Unity
             }
         }
 
-        /// <summary>Дуги дубины (координаты меша, куб 1×1): размашистая горизонтальная и узкая сверху вниз.</summary>
+        /// <summary>
+        /// Дуги оружия (координаты меша, куб 1×1): размашистая горизонтальная, узкая сверху вниз, тяжёлая в землю
+        /// из-за головы и косые «накрест» из-за правого и левого плеча.
+        /// </summary>
         private static Pose ArcPose(EnemyAttackMotion motion, float p)
         {
             if (motion == EnemyAttackMotion.Sweep)
@@ -735,6 +805,26 @@ namespace ColorsAction.Unity
                 var dir = new Vector3(Mathf.Sin(yaw), -0.05f, Mathf.Cos(yaw)).normalized;
                 var pos = new Vector3(0f, 0.5f, 0f) + new Vector3(dir.x, 0f, dir.z) * 0.78f;
                 return new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir));
+            }
+
+            if (motion == EnemyAttackMotion.DiagonalRight || motion == EnemyAttackMotion.DiagonalLeft)
+            {
+                // Косой удар: из-за плеча высоко сзади-сбоку вниз через перед к противоположному бедру.
+                var side = motion == EnemyAttackMotion.DiagonalRight ? 1f : -1f;
+                var yaw = Mathf.Lerp(120f * side, -95f * side, p) * Mathf.Deg2Rad;
+                var flat = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+                var dir = new Vector3(flat.x, Mathf.Lerp(0.85f, -0.55f, p), flat.z).normalized;
+                var pos = new Vector3(0f, Mathf.Lerp(1.05f, 0.28f, p), 0f) + flat * 0.8f;
+                return new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir));
+            }
+
+            if (motion == EnemyAttackMotion.Slam)
+            {
+                // Как 4-й удар меча игрока, но тяжелее: рукоять заведена высоко за голову, клинок врезается в землю впереди.
+                var g = Mathf.Lerp(-55f, 140f, p) * Mathf.Deg2Rad;
+                var gp = new Vector3(0.12f, 0.85f, 0.4f) + new Vector3(0f, Mathf.Cos(g), Mathf.Sin(g)) * 0.78f;
+                var b = Mathf.Lerp(-40f, 105f, p) * Mathf.Deg2Rad;
+                return new Pose(gp, Quaternion.FromToRotation(Vector3.up, new Vector3(0f, Mathf.Cos(b), Mathf.Sin(b))));
             }
 
             var grip = Mathf.Lerp(-30f, 130f, p) * Mathf.Deg2Rad;
@@ -770,23 +860,25 @@ namespace ColorsAction.Unity
             float twist = 0f, pitch = 0f;
             if (attack != null)
             {
-                var sweep = attack.Motion == EnemyAttackMotion.Sweep;
+                BodyPose(attack.Motion, out var windTwist, out var windPitch, out var hitTwist, out var hitPitch);
                 switch (state)
                 {
                     case EnemyState.Windup:
                         var u = Mathf.Clamp01(p / 0.6f);
-                        twist = sweep ? -26f * u : 0f;
-                        pitch = (sweep ? -8f : -16f) * u;
+                        twist = windTwist * u;
+                        pitch = windPitch * u;
+                        if (attack.Motion == EnemyAttackMotion.Slam)
+                            deformer.SquashTarget = -0.2f * u; // тяжёлый замах: присел
                         break;
                     case EnemyState.Strike:
                     case EnemyState.Hold:
-                        twist = sweep ? 24f : 0f;
-                        pitch = sweep ? 10f : 28f;
+                        twist = hitTwist;
+                        pitch = hitPitch;
                         break;
                     case EnemyState.Recovery:
                         var k = 1f - p;
-                        twist = (sweep ? 24f : 0f) * k;
-                        pitch = (sweep ? 10f : 28f) * k;
+                        twist = hitTwist * k;
+                        pitch = hitPitch * k;
                         break;
                 }
             }
@@ -798,9 +890,14 @@ namespace ColorsAction.Unity
                 if (t < 0f && parried != null)
                 {
                     // До столкновения — тело ещё бьёт: поклон и раскрутка удара.
-                    var sweep = parried.Motion == EnemyAttackMotion.Sweep;
-                    twist = sweep ? 24f : 0f;
-                    pitch = sweep ? 10f : 28f;
+                    BodyPose(parried.Motion, out _, out _, out twist, out pitch);
+                }
+                else if (!brain.ParryStunned)
+                {
+                    // Удар поглощён: отшатнулся и сразу собрался.
+                    pitch = t < 0.15f ? -14f : 0f;
+                    twist = 0f;
+                    deformer.SquashTarget = 0f;
                 }
                 else
                 {
@@ -821,6 +918,30 @@ namespace ColorsAction.Unity
 
             deformer.TwistTarget = twist;
             deformer.PitchTarget = pitch;
+        }
+
+        /// <summary>Закрутка и наклон тела на замахе (в конце замаха) и в ударе для движения атаки, градусы.</summary>
+        private static void BodyPose(EnemyAttackMotion motion, out float windTwist, out float windPitch, out float hitTwist,
+            out float hitPitch)
+        {
+            switch (motion)
+            {
+                case EnemyAttackMotion.Sweep:
+                    windTwist = -26f; windPitch = -8f; hitTwist = 24f; hitPitch = 10f;
+                    break;
+                case EnemyAttackMotion.Slam:
+                    windTwist = 0f; windPitch = -26f; hitTwist = 0f; hitPitch = 36f;
+                    break;
+                case EnemyAttackMotion.DiagonalRight:
+                    windTwist = -22f; windPitch = -14f; hitTwist = 20f; hitPitch = 20f;
+                    break;
+                case EnemyAttackMotion.DiagonalLeft:
+                    windTwist = 22f; windPitch = -14f; hitTwist = -20f; hitPitch = 20f;
+                    break;
+                default: // Overhead
+                    windTwist = 0f; windPitch = -16f; hitTwist = 0f; hitPitch = 28f;
+                    break;
+            }
         }
     }
 }

@@ -529,7 +529,9 @@ namespace ColorsAction.Unity
                     Direction = direction.sqrMagnitude > 0.0001f ? direction.normalized : flat,
                     Point = target.HitPoint,
                     Knockback = shot.Knockback * pellets / Mathf.Max(1, shot.Pellets),
-                    WeaponId = weapon.Id
+                    WeaponId = weapon.Id,
+                    // Весь залп — как один удар: каждой пуле — своя доля.
+                    Poise = Poise.HitAmount(owner.combatConfig.Poise, weapon, 1f, (float)pellets / Mathf.Max(1, shot.Pellets))
                 });
                 tally.TryGetValue(target, out var t);
                 t.Damage += damage;

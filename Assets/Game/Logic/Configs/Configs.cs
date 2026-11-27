@@ -389,6 +389,9 @@ namespace ColorsAction.Configs
         public float ActiveFrom { get; set; } = 0.3f;
         public float ActiveTo { get; set; } = 0.65f;
         public float DamageMultiplier { get; set; } = 1f;
+
+        /// <summary>Множитель заполнения шкалы выносливости врага этим ударом (поверх множителя оружия).</summary>
+        public float Poise { get; set; } = 1f;
         /// <summary>Рывок куба при ударе, блоки: больше нуля — вперёд, меньше нуля — шаг назад.</summary>
         public float Lunge { get; set; } = 0.25f;
         public float Range { get; set; } = 1.3f;
@@ -551,6 +554,12 @@ namespace ColorsAction.Configs
         public ItemKind Kind { get; set; }
 
         public float Damage { get; set; }
+
+        /// <summary>
+        /// Множитель заполнения шкалы выносливости врага ударами этим оружием (<see cref="PoiseConfig.Hit"/> × это).
+        /// 1 — обычно, больше — оружие быстрее ошеломляет.
+        /// </summary>
+        public float Poise { get; set; } = 1f;
 
         /// <summary>Путь к префабу в Resources, например "Items/Sword".</summary>
         public string Prefab { get; set; }
@@ -895,6 +904,9 @@ namespace ColorsAction.Configs
         public float BashStaminaCost { get; set; } = 12f;
         public float BashDamage { get; set; } = 8f;
 
+        /// <summary>Множитель заполнения шкалы выносливости врага ударом щитом (поверх множителя щита).</summary>
+        public float BashPoise { get; set; } = 1f;
+
         /// <summary>Отбрасывание врага ударом щитом (как knockback удара).</summary>
         public float BashKnockback { get; set; } = 2.5f;
 
@@ -990,6 +1002,32 @@ namespace ColorsAction.Configs
 
         /// <summary>Успешное парирование: толчок камеры.</summary>
         public float ParryShake { get; set; } = 0.35f;
+
+        /// <summary>Шкала выносливости врагов (poise): сколько её заполняют удары и парирование, как она спадает.</summary>
+        public PoiseConfig Poise { get; set; } = new PoiseConfig();
+    }
+
+    /// <summary>
+    /// Шкала выносливости врагов (poise) — общие правила для всех врагов. Скорость заполнения одна на всех,
+    /// объём шкалы — у каждого типа (<see cref="EnemyConfig.Poise"/>). Заполнилась — враг ошеломлён.
+    /// </summary>
+    [Preserve]
+    public sealed class PoiseConfig
+    {
+        /// <summary>
+        /// Сколько шкалы заполняет один удар оружием. Умножается на множители оружия (<see cref="ItemConfig.Poise"/>)
+        /// и удара (<see cref="AttackStepConfig.Poise"/>, <see cref="PlungeConfig.Poise"/>, <see cref="ShieldConfig.BashPoise"/>).
+        /// </summary>
+        public float Hit { get; set; } = 25f;
+
+        /// <summary>Сколько шкалы заполняет парирование атаки врага.</summary>
+        public float Parry { get; set; } = 100f;
+
+        /// <summary>Через сколько секунд без ударов и парирований шкала начинает спадать.</summary>
+        public float DecayDelay { get; set; } = 3f;
+
+        /// <summary>Скорость спада шкалы, единиц в секунду (0 — не спадает).</summary>
+        public float DecayRate { get; set; } = 10f;
     }
 
     /// <summary>Колесо выбора оружия: замедление времени, пока оно открыто, и кулдаун смены оружия.</summary>
