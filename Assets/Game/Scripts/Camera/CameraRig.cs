@@ -32,6 +32,11 @@ namespace ColorsAction.Unity
         private CameraScheme lastScheme;
         private CurvedWorld curvedWorld;
 
+        // Смерть игрока: камера остаётся смотреть на место гибели (иначе при падении за мир летит вниз за телом).
+        private PlayerDamageReceiver playerDamage;
+        private Transform deathAnchor;
+        private bool followingDeath;
+
         public CameraScheme Scheme => session != null ? session.ControlScheme.Value : CameraScheme.FreeOrbit;
 
         protected override void OnConstruct(IResolver resolver)
@@ -72,12 +77,16 @@ namespace ColorsAction.Unity
         {
             curvedWorld?.Dispose();
             curvedWorld = null;
+            if (deathAnchor != null)
+                Destroy(deathAnchor.gameObject);
         }
 
         private void Update()
         {
             if (config == null || orbit == null)
                 return;
+
+            UpdateDeathFollow();
 
             // Колесо оружия открыто: мышь и правый стик выбирают сектор, курсор свободен.
             var control = session.PlayerControl.Value && !WeaponWheel.IsOpen;
@@ -141,6 +150,33 @@ namespace ColorsAction.Unity
             }
 
             Apply();
+        }
+
+        /// <summary>
+        /// Пока игрок мёртв, камера следит за неподвижной точкой, где он погиб; после возрождения — снова за игроком.
+        /// Приёмник урона ищется лениво: <see cref="PlayerController"/> добавляет его в своём Start.
+        /// </summary>
+        private void UpdateDeathFollow()
+        {
+            if (followTarget == null)
+                return;
+            if (playerDamage == null)
+                playerDamage = followTarget.GetComponentInParent<PlayerDamageReceiver>();
+            var dead = playerDamage != null && playerDamage.Dead;
+            if (dead == followingDeath)
+                return;
+            followingDeath = dead;
+            if (dead)
+            {
+                if (deathAnchor == null)
+                    deathAnchor = new GameObject("CameraDeathAnchor").transform;
+                deathAnchor.SetPositionAndRotation(followTarget.position, followTarget.rotation);
+                virtualCamera.Follow = deathAnchor;
+            }
+            else
+            {
+                virtualCamera.Follow = followTarget;
+            }
         }
 
         private bool LockedYaw(out float value)
