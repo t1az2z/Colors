@@ -51,7 +51,8 @@ namespace ColorsAction.Configs
         public void OnConfigLoaded()
         {
             if (Rows == null || Rows.Count == 0)
-                throw new InvalidOperationException("rows are empty");
+                throw new InvalidOperationException(
+                    "rows are empty (a voxel map from the level editor belongs in Configs/VoxelLevels, not Configs/Levels)");
             Width = Rows[0].Length;
             Length = Rows.Count;
             for (int z = 0; z < Rows.Count; z++)

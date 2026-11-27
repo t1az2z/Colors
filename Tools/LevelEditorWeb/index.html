@@ -1101,6 +1101,13 @@ const clampI = (v, a, b) => Math.max(a, Math.min(b, Math.round(v || a)));
 
 const glCanvas = $('#gl'), ov = $('#ov'), octx = ov.getContext('2d');
 const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true });
+// three.js — правая система координат, Unity — левая: с теми же числами клеток картинка была бы зеркальной
+// относительно игры. Поэтому кадр отражается по горизонтали (см. updateCamera), а грани, которые в отражённом
+// кадре идут в обратном порядке обхода, рисуются с обратной стороны отсечения.
+const baseSetMaterial = renderer.state.setMaterial.bind(renderer.state);
+renderer.state.setMaterial = (material, frontFaceCW) => baseSetMaterial(material, !frontFaceCW);
+// Отражённый кадр меняет видимое направление поворота: жесты и Q/E умножаются на этот знак.
+const YAW_SIGN = -1;
 renderer.setClearColor(0xdfe2e7);
 const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 2000);
@@ -1120,7 +1127,8 @@ let chunks = new Map(); // "cx,cz,floor" -> {mesh, tri: [ключи блоков
 let dirtyChunks = new Set();
 let needMesh = true; // полная пересборка
 
-const cam = { tx: 16, ty: 0, tz: 16, yaw: 45, yawT: 45, pitch: 35.26, pitchT: 35.26, zoom: 14, snap: false };
+// yaw 225 в отражённом кадре — тот же вид, что стартовая камера игры (Camera.json startYaw 45).
+const cam = { tx: 16, ty: 0, tz: 16, yaw: 225, yawT: 225, pitch: 35.26, pitchT: 35.26, zoom: 14, snap: false };
 
 function heightColor(absTop) {
   const base = activeFloor === 0 ? 0 : L.floors[activeFloor].baseY;
@@ -1435,6 +1443,10 @@ function updateCamera() {
   camera.lookAt(cam.tx, cam.ty, cam.tz);
   camera.near = 1; camera.far = 1000;
   camera.updateProjectionMatrix();
+  // Отражение по горизонтали (см. YAW_SIGN): мир выглядит как в Unity. Обратная матрица — для лучей мыши.
+  const pe = camera.projectionMatrix.elements;
+  pe[0] = -pe[0]; pe[4] = -pe[4]; pe[8] = -pe[8]; pe[12] = -pe[12];
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
   camera.updateMatrixWorld();
   sun.position.set(Math.sin(yaw + 0.7) * 10, 18, Math.cos(yaw + 0.7) * 10);
   fill.position.set(-Math.sin(yaw - 0.9) * 10, 6, -Math.cos(yaw - 0.9) * 10);
@@ -1888,7 +1900,7 @@ view.addEventListener('pointermove', e => {
   if (gesture && gesture.mouse !== undefined) {
     const dx = e.clientX - gesture.x, dy = e.clientY - gesture.y; gesture.x = e.clientX; gesture.y = e.clientY;
     if (gesture.mouse === 1) panBy(dx, dy);
-    else { cam.yawT -= dx * 0.4; cam.yaw = cam.yawT; cam.pitchT = Math.max(15, Math.min(90, cam.pitchT + dy * 0.3)); cam.pitch = cam.pitchT; gesture.rot = true; requestRender(); }
+    else { cam.yawT -= YAW_SIGN * dx * 0.4; cam.yaw = cam.yawT; cam.pitchT = Math.max(15, Math.min(90, cam.pitchT + dy * 0.3)); cam.pitch = cam.pitchT; gesture.rot = true; requestRender(); }
     return;
   }
   if (stroke && stroke.id === e.pointerId) {
@@ -2029,7 +2041,7 @@ function moveGesture() {
   // Мёртвая зона: поворот включается, только когда пальцы реально провернулись (~8°), чтобы щипок и сдвиг не крутили камеру.
   gesture.twist = (gesture.twist || 0) + da;
   if (!gesture.rotated && Math.abs(gesture.twist) > ROT_DEADZONE) { gesture.rotated = true; da = gesture.twist; }
-  if (gesture.rotated) { cam.yawT += da * 180 / Math.PI; cam.yaw = cam.yawT; }
+  if (gesture.rotated) { cam.yawT += YAW_SIGN * da * 180 / Math.PI; cam.yaw = cam.yawT; }
   gesture.last = s; requestRender();
 }
 function endGesture() {
@@ -2074,7 +2086,7 @@ window.addEventListener('keydown', e => {
   if (e.key >= '0' && e.key <= '9') { st.height = +e.key; renderPanel(); hud(); }
   if (e.key === 'Delete' && sel.obj) { touchMarkup(); removeObject(sel.obj); sel.obj = null; commit(); renderPanel(); }
 });
-function rotateCam(dir) { cam.yawT = cam.snap ? Math.round((cam.yawT - 45) / 90) * 90 + 45 + dir * 90 : cam.yawT + dir * 45; requestRender(); }
+function rotateCam(dir) { dir *= YAW_SIGN; cam.yawT = cam.snap ? Math.round((cam.yawT - 45) / 90) * 90 + 45 + dir * 90 : cam.yawT + dir * 45; requestRender(); }
 
 // ============================================================================ кнопки
 
