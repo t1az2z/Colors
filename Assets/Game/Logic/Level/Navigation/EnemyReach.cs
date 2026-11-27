@@ -25,7 +25,15 @@ namespace ColorsAction.Level.Navigation
         {
             if (level == null)
                 throw new ArgumentNullException(nameof(level));
-            graph = NavGraph.Build(WithBridgeDecks(level));
+            graph = NavGraph.Build(WithBridgeDecks(level, out var farDecks));
+            // Опоры под дальней створкой есть, только пока мост опущен: поднятая створка стоит у дальнего края,
+            // а под клетками 4–6 пропасть. Узел на такой опоре закрыт, как клетка барьера, пока мост не открыт.
+            foreach (var node in graph.Nodes)
+            {
+                if (node.Barrier == null && farDecks.TryGetValue(node.Block, out var bridgeId))
+                    node.Barrier = bridgeId;
+            }
+
             finder = new PathFinder(graph);
             // Цветные барьеры игра пока не строит — для врага их нет.
             var alwaysOpen = new HashSet<string>(level.Objects.Where(o => o.IsBarrier).Select(o => o.Id));
@@ -62,9 +70,14 @@ namespace ColorsAction.Level.Navigation
             return reachable.Contains(goal.Index);
         }
 
-        /// <summary>Копия уровня с опорами под всеми клетками разводных мостов (настил на высоте клетки моста).</summary>
-        private static VoxelLevel WithBridgeDecks(VoxelLevel level)
+        /// <summary>
+        /// Копия уровня с опорами под всеми клетками разводных мостов (настил на высоте клетки моста).
+        /// <paramref name="farDecks"/> — добавленные опоры под дальней створкой (клетки длины от
+        /// <see cref="DrawBridgeShape.LeafLength"/> до <see cref="DrawBridgeShape.RaisedColumn"/> − 1) → id моста.
+        /// </summary>
+        private static VoxelLevel WithBridgeDecks(VoxelLevel level, out Dictionary<Int3, string> farDecks)
         {
+            farDecks = new Dictionary<Int3, string>();
             var copy = new VoxelLevel();
             copy.Reset(level.Name, level.Blocks, level.Floors.Select(f => f.Clone()), level.Objects.Select(o => o.Clone()),
                 level.Points.Select(p => p.Clone()));
@@ -78,8 +91,11 @@ namespace ColorsAction.Level.Navigation
                 {
                     var c = DrawBridgeShape.Cell(o.Cell, o.Yaw, i, j);
                     var below = new Int3(c.X, c.Y - 1, c.Z);
-                    if (!copy.Blocks.ContainsKey(below))
-                        decks.Add(new KeyValuePair<Int3, Block?>(below, Block.Cube()));
+                    if (copy.Blocks.ContainsKey(below) || decks.Any(d => d.Key.Equals(below)))
+                        continue;
+                    decks.Add(new KeyValuePair<Int3, Block?>(below, Block.Cube()));
+                    if (i >= DrawBridgeShape.LeafLength && i < DrawBridgeShape.RaisedColumn)
+                        farDecks[below] = o.Id;
                 }
             }
 

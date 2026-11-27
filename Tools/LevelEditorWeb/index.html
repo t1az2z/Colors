@@ -160,7 +160,10 @@ function resourceHex(id) { return PALETTE[RESOURCE_INFO[id]?.color]?.hex || OBJE
 /** Подпись сундука: «Металл ×3». */
 function chestLabel(o) { return o.item ? `${resourceName(o.item)} ×${o.count || 1}` : 'пустой'; }
 // Типы врагов из Enemies.json: id → имя, цвет, элитный (★). Манекен — отдельный тип прототипа.
-let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, club_cube_red: { name: 'Красный куб с дубиной', color: 'red' }, elite_sword: { name: 'Элитный мечник', color: 'orange', elite: true }, dummy: { name: 'Манекен', color: null } };
+// size — ребро куба врага в игре (Enemies.json), по нему рисуется спавн: референс масштаба для левел-дизайна.
+let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue', size: 0.8 }, club_cube_red: { name: 'Красный куб с дубиной', color: 'red', size: 0.85 }, elite_sword: { name: 'Элитный мечник', color: 'orange', elite: true, size: 1.3 }, dummy: { name: 'Манекен', color: null, size: 1 } };
+// Персонаж — куб 1×1×1 (GDD).
+const PLAYER_SIZE = 1;
 let ENEMIES = Object.keys(ENEMY_INFO);
 // Радиус агро — у каждого врага в уровне свой; новым врагам и старым файлам без поля — этот (LevelEnemy.DefaultAggroRadius).
 const DEFAULT_AGGRO = 7;
@@ -223,6 +226,8 @@ function warningsBox() {
 // Разводной мост 8×3 (DrawBridgeShape в Unity): от клетки по стрелке на 8 клеток, ширина 3 клетки — слева по ходу.
 // Ближняя створка опущена, дальняя (клетки 5–8) поднята у дальнего края на цепях к раме — её опускает выстрел из дробовика.
 const BRIDGE_LEN = 8, BRIDGE_W = 3, BRIDGE_LEAF = BRIDGE_LEN / 2, BRIDGE_H = BRIDGE_LEAF;
+// Радиус шестерён и высота рам — из Bridges.json (gearRadius, gantryHeight), если сайт его отдаёт.
+let BRIDGE_GEAR_R = 0.9, BRIDGE_GANTRY_H = 4.6;
 const BRIDGE_DIRS = [[0, '→ +X'], [90, '↓ −Z'], [180, '← −X'], [270, '↑ +Z']];
 // Стопка ящиков 2×1×N (CrateStackShape в Unity): вторая клетка по повороту — 0° → +X, 270° → +Z.
 const CRATE_DIRS = [[0, '→ +X'], [270, '↑ +Z']];
@@ -625,11 +630,13 @@ async function loadSiteData() {
   const enemies = await tryJson('configs/Enemies.json');
   if (enemies) {
     const info = {};
-    for (const [k, v] of Object.entries(enemies)) info[k] = { name: v.name || k, color: v.color || null, elite: !!v.elite };
-    if (!info.dummy) info.dummy = { name: 'Манекен', color: null };
+    for (const [k, v] of Object.entries(enemies)) info[k] = { name: v.name || k, color: v.color || null, elite: !!v.elite, size: v.size > 0 ? v.size : 0.8 }; // 0.8 — EnemyConfig.Size по умолчанию
+    if (!info.dummy) info.dummy = { name: 'Манекен', color: null, size: 1 };
     ENEMY_INFO = info; ENEMIES = Object.keys(info);
     if (!info[st.objEnemy]) st.objEnemy = ENEMIES[0];
   }
+  const bridges = await tryJson('configs/Bridges.json');
+  if (bridges) { if (bridges.gearRadius > 0) BRIDGE_GEAR_R = bridges.gearRadius; if (bridges.gantryHeight > 0) BRIDGE_GANTRY_H = bridges.gantryHeight; }
   const idx = await tryJson('levels/index.json'); if (Array.isArray(idx)) siteLevels = idx;
   needMesh = true; requestRender(); renderPanel();
 }
@@ -652,6 +659,7 @@ const st = {
   objResource: 'metal', chestCount: 1, enemyAggro: DEFAULT_AGGRO,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
+  selAll: false, selCopy: false, selGround: true,
 };
 const sel = { obj: null, point: null, linking: false };
 let activeFloor = 0;
@@ -664,6 +672,7 @@ const TOOLS = [
   { id: 'paint', ic: '◐', name: 'Цвет' },
   { id: 'pick', ic: '⊙', name: 'Пипетка' },
   'sep',
+  { id: 'select', ic: '⬚', name: 'Выде­ление' },
   { id: 'object', ic: '⚑', name: 'Объекты' },
   { id: 'point', ic: '◆', name: 'Точки' },
   'sep',
@@ -790,6 +799,7 @@ function renderPanel() {
     case 'pick':
       add(desc('Тап по столбцу берёт его высоту, верх и цвет в инструмент «Высота».'));
       break;
+    case 'select': add(selectPanel()); break;
     case 'object': add(objectPanel()); break;
     case 'point': add(pointPanel()); break;
     case 'pan':
@@ -799,7 +809,7 @@ function renderPanel() {
   }
   add(H3('Этаж'), floorPanel());
 }
-function refreshPanelSoft() { if (st.tool === 'object' || st.tool === 'point' || st.tool === 'view') renderPanel(); }
+function refreshPanelSoft() { if (st.tool === 'object' || st.tool === 'point' || st.tool === 'view' || st.tool === 'select') renderPanel(); }
 
 function objectPanel() {
   const out = [];
@@ -960,6 +970,36 @@ function pointPanel() {
   out.push(H3('Точки уровня (' + L.points.length + ')'), h('div', { class: 'list' }, L.points.map(x =>
     h('button', { class: sel.point === x.id ? 'on' : '', on: { click: () => { sel.point = x.id; sel.obj = null; focusCell(x.cell); renderPanel(); } } },
       h('span', { class: 'mk', style: 'background:#8a5cf0' }, '◆'), x.id + (x.targetPoint ? ' → ' + x.targetPoint : '')))));
+  return out;
+}
+
+function selectPanel() {
+  const out = [desc('Протяни рамку — выделятся блоки этажа и всё, что на них стоит: враги (с радиусом агро и ключом), оружие, двери, ящики, мосты, сундуки, костры, подсказки, точки. Потяни выделение пальцем — оно переедет целиком, связи (ключ → дверь, точки, цели рычагов) сохранятся. Двумя пальцами — камера.'),
+    row('Высота', chips([[false, 'этаж'], [true, 'все этажи']], st.selAll, v => { st.selAll = v; if (selBox) selBox = makeSelBox([selBox.x0, selBox.z0], [selBox.x1, selBox.z1]); requestRender(); })),
+    row('Перетаскивание', chips([[false, 'переносит'], [true, 'копирует']], st.selCopy, v => st.selCopy = v)),
+    row('Где было', chips([[true, 'оставить пол'], [false, 'яма']], st.selGround, v => st.selGround = v)),
+    desc('«Оставить пол»: на первом этаже на старом месте остаётся ровная земля, иначе — пропасть.')];
+  if (selBox) {
+    const c = selContent(selBox), w = selBox.x1 - selBox.x0 + 1, d = selBox.z1 - selBox.z0 + 1;
+    const op = o => () => { transformSelection(o); commit(); renderPanel(); requestRender(); };
+    out.push(H3(`Выделено ${w}×${d}`),
+      h('div', { class: 'note' }, `Блоков: ${c.blocks.length}, объектов: ${c.objects.length}, точек: ${c.points.length}.` +
+        (c.objects.length ? ' ' + c.objects.map(o => o.id).join(', ') : '')),
+      H3('Сдвинуть на 1'),
+      h('div', { class: 'chips big' },
+        h('button', { title: 'Сдвиг −X', on: { click: op({ dx: -1 }) } }, '−X'), h('button', { title: 'Сдвиг +X', on: { click: op({ dx: 1 }) } }, '+X'),
+        h('button', { title: 'Сдвиг −Z', on: { click: op({ dz: -1 }) } }, '−Z'), h('button', { title: 'Сдвиг +Z', on: { click: op({ dz: 1 }) } }, '+Z'),
+        h('button', { title: 'Ниже на куб', on: { click: op({ dy: -1 }) } }, '▼'), h('button', { title: 'Выше на куб', on: { click: op({ dy: 1 }) } }, '▲')),
+      H3('Повернуть'),
+      h('div', { class: 'chips big' },
+        h('button', { on: { click: op({ rot: 3 }) } }, '⟲ 90°'), h('button', { on: { click: op({ rot: 1 }) } }, '⟳ 90°')),
+      h('div', { class: 'chips', style: 'margin-top:10px' },
+        h('button', { on: { click: op({ dx: w, copy: true }) } }, '⧉ Дублировать'),
+        h('button', { class: 'danger', on: { click: () => { deleteSelection(); commit(); renderPanel(); requestRender(); } } }, 'Очистить'),
+        h('button', { on: { click: () => { selBox = null; renderPanel(); requestRender(); } } }, 'Снять выделение')),
+      desc('Дубликат встаёт справа по +X. У копий новые id; связи внутри выделения переходят на копии, ключ от двери вне выделения копия не получает. Клавиши: стрелки — сдвиг, R — поворот, Ctrl+D — дубликат, Delete — очистить, Esc — снять.'));
+  }
+  out.push(warningsBox());
   return out;
 }
 
@@ -1239,6 +1279,8 @@ function buildMarkers() {
     if (o.kind === 'CrateStack') { addCrateMesh(o); continue; }
     if (o.kind === 'Chest') { addChestMesh(o); continue; }
     if (o.kind === 'DrawBridge') { addBridgeMesh(o); continue; }
+    if (o.kind === 'PlayerSpawn') { addBodyMesh(o, PLAYER_SIZE, '#b9bcc2'); continue; }
+    if (o.kind === 'EnemySpawn') { addBodyMesh(o, ENEMY_INFO[o.item]?.size || 1, o.item === 'dummy' ? '#c9a27a' : enemyHex(o.item)); continue; }
     if (o.kind !== 'Barrier') continue;
     const hgt = Math.max(1, o.height ?? 2);
     const col = new THREE.Color(PALETTE[o.color]?.hex || '#999');
@@ -1316,6 +1358,23 @@ function addChestMesh(o) {
   // Как у двери: меши переносятся в мировые координаты прямо в markerGroup.
   for (const m of parts) { m.renderOrder = 3; m.applyMatrix4(g.matrixWorld); m.visible = g.visible; g.remove(m); markerGroup.add(m); }
 }
+// Персонаж или враг в игровом размере: куб с ребром size стоит на опоре, тёмная полоса — лицевая сторона (yaw).
+function addBodyMesh(o, size, color) {
+  const fi = floorIndexOf(o.cell[1]);
+  const faded = fi > activeFloor;
+  const g = new THREE.Group();
+  const mat = c => new THREE.MeshLambertMaterial({ color: c, transparent: true, opacity: faded ? 0.2 : 0.9, depthWrite: !faded });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(size, size, size), mat(color)); body.position.y = size / 2;
+  const face = new THREE.Mesh(new THREE.BoxGeometry(size * 0.6, size * 0.14, 0.04), mat('#23262b'));
+  face.position.set(0, size * 0.7, size / 2 + 0.02);
+  const parts = [body, face];
+  g.add(...parts);
+  g.position.set(o.cell[0] + .5, surfaceOf(o.cell), o.cell[2] + .5);
+  g.rotation.y = (o.yaw || 0) * Math.PI / 180;
+  g.visible = !(faded && st.upper === 'hide');
+  g.updateMatrixWorld(true);
+  for (const m of parts) { m.renderOrder = 3; m.applyMatrix4(g.matrixWorld); m.visible = g.visible; g.remove(m); markerGroup.add(m); }
+}
 // Стопка ящиков: ящики 2×1×1 один на другом (верхние чуть повёрнуты, как в игре), тянутся от клетки по стрелке.
 function addCrateMesh(o) {
   const n = Math.max(1, o.height ?? 2);
@@ -1381,10 +1440,10 @@ function addBridgeMesh(o) {
     for (let i = 0; i < n; i++) { const a = 2 * Math.PI * (i + 0.5) / n; box(g, RED, x + Math.cos(a) * (r - 0.08), Math.sin(a) * (r - 0.08), z, 0.16, 0.12, 0.12, a); }
     box(g, '#8a2420', x, 0, z, 0.26, 0.26, 0.2, Math.PI / 4);
   };
-  const GEAR_R = 0.9;
+  const GEAR_R = BRIDGE_GEAR_R;
   for (const s of [-1, 1]) gear(FAR, W + s * (HW + 0.08), GEAR_R);
   // П-образные рамы на концах: тумбы, столбы, поперечина (выше края поднятой створки — Bridges.json gantryHeight).
-  const H = 4.6;
+  const H = BRIDGE_GANTRY_H;
   const gantry = x => {
     for (const s of [-1, 1]) {
       const z = W + s * (HW + 0.2);
@@ -1433,6 +1492,9 @@ function buildGrid() {
 // курсор
 const cursor = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.02, 1.02, 1.02)), new THREE.LineBasicMaterial({ color: 0x2F6BFF, depthTest: false }));
 cursor.renderOrder = 5; cursor.visible = false; scene.add(cursor);
+// заливка курсора: видна сквозь блоки, чтобы было понятно, какой столбец под пальцем
+const cursorFill = new THREE.Mesh(new THREE.BoxGeometry(1.02, 1.02, 1.02), new THREE.MeshBasicMaterial({ color: 0x2F6BFF, transparent: true, opacity: 0.22, depthTest: false, depthWrite: false }));
+cursorFill.renderOrder = 4; cursor.add(cursorFill);
 
 function updateCamera() {
   const w = glCanvas.clientWidth, hh = glCanvas.clientHeight, a = w / Math.max(1, hh);
@@ -1583,7 +1645,8 @@ function drawOverlay() {
     if (m.diamond) { octx.moveTo(sx, sy - r); octx.lineTo(sx + r, sy); octx.lineTo(sx, sy + r); octx.lineTo(sx - r, sy); octx.closePath(); }
     else octx.arc(sx, sy, r, 0, Math.PI * 2);
     octx.fillStyle = m.col; octx.fill();
-    octx.lineWidth = m.sel ? 4 : 2; octx.strokeStyle = m.sel ? '#ffcc00' : '#fff'; octx.stroke();
+    const inBox = st.tool === 'select' && selBox && inSel(m.cell, selBox);
+    octx.lineWidth = m.sel || inBox ? 4 : 2; octx.strokeStyle = m.sel ? '#ffcc00' : inBox ? '#0fa3a3' : '#fff'; octx.stroke();
     if (!m.diamond) {
       octx.fillStyle = '#fff'; octx.font = `700 ${Math.round(r * 1.05)}px system-ui, sans-serif`; octx.textAlign = 'center'; octx.textBaseline = 'middle';
       octx.fillText(m.mk, sx, sy + 1);
@@ -1601,14 +1664,29 @@ function drawOverlay() {
     m.sx = sx; m.sy = sy;
   }
   octx.globalAlpha = 1;
+  // выделение: каркас рамки от низа до верха содержимого
+  if (selBox && st.tool === 'select') {
+    const b = selBox, X0 = b.x0, X1 = b.x1 + 1, Z0 = b.z0, Z1 = b.z1 + 1;
+    const ring = y => [[X0, Z0], [X0, Z1], [X1, Z1], [X1, Z0]].map(([x, z]) => project(x, y, z));
+    const lo = ring(b.bot), hi = ring(b.top);
+    const poly = pts => { octx.beginPath(); pts.forEach((p, i) => i ? octx.lineTo(p[0], p[1]) : octx.moveTo(p[0], p[1])); octx.closePath(); };
+    poly(hi); octx.fillStyle = 'rgba(15,163,163,.14)'; octx.fill();
+    octx.strokeStyle = '#0b8f8f'; octx.lineWidth = 2; octx.setLineDash([7, 4]);
+    poly(lo); octx.stroke(); poly(hi); octx.stroke();
+    octx.beginPath(); for (let i = 0; i < 4; i++) { octx.moveTo(lo[i][0], lo[i][1]); octx.lineTo(hi[i][0], hi[i][1]); } octx.stroke();
+    octx.setLineDash([]);
+    octx.fillStyle = '#0b6f6f'; octx.font = '700 14px system-ui'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+    octx.fillText(`${b.x1 - b.x0 + 1}×${b.z1 - b.z0 + 1}`, (hi[0][0] + hi[2][0]) / 2, (hi[0][1] + hi[2][1]) / 2);
+  }
   // прямоугольник
   if (rectDrag) {
     const [ax, az] = rectDrag.a, [bx, bz] = rectDrag.b, y = rectDrag.y;
     const x0 = Math.min(ax, bx), x1 = Math.max(ax, bx) + 1, z0 = Math.min(az, bz), z1 = Math.max(az, bz) + 1;
     const pts = [[x0, z0], [x0, z1], [x1, z1], [x1, z0]].map(([x, z]) => project(x, y, z));
     octx.beginPath(); pts.forEach((p, i) => i ? octx.lineTo(p[0], p[1]) : octx.moveTo(p[0], p[1])); octx.closePath();
-    octx.fillStyle = 'rgba(47,107,255,.18)'; octx.fill(); octx.strokeStyle = '#2F6BFF'; octx.lineWidth = 2; octx.stroke();
-    octx.fillStyle = '#1b46b8'; octx.font = '700 14px system-ui'; octx.textAlign = 'center';
+    const sc = rectDrag.select;
+    octx.fillStyle = sc ? 'rgba(15,163,163,.16)' : 'rgba(47,107,255,.18)'; octx.fill(); octx.strokeStyle = sc ? '#0b8f8f' : '#2F6BFF'; octx.lineWidth = 2; octx.stroke();
+    octx.fillStyle = sc ? '#0b6f6f' : '#1b46b8'; octx.font = '700 14px system-ui'; octx.textAlign = 'center';
     octx.fillText(`${x1 - x0}×${z1 - z0}`, (pts[0][0] + pts[2][0]) / 2, (pts[0][1] + pts[2][1]) / 2);
   }
   lastMarkers = markers;
@@ -1851,6 +1929,129 @@ function pointTap(px, py) {
   L.points.push(p); commit();
   sel.point = p.id; sel.obj = null; sel.linking = true; renderPanel();
 }
+// ------------------------------------------------------------------ выделение области: блоки + всё содержимое
+// Рамка по X/Z (включительно) и диапазон Y: этаж или все этажи. base/top — только для рисования рамки.
+let selBox = null, selDrag = null;
+function makeSelBox(a, b) {
+  const [lo, hi] = st.selAll ? [-Infinity, Infinity] : floorRange(activeFloor);
+  const box = { x0: Math.min(a[0], b[0]), x1: Math.max(a[0], b[0]), z0: Math.min(a[1], b[1]), z1: Math.max(a[1], b[1]), y0: lo, y1: hi - 1, base: floorPlaneY() };
+  selMeasure(box);
+  return box;
+}
+function inSelXZ(x, z, b) { return x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1; }
+function inSel(c, b) { return inSelXZ(c[0], c[2], b) && c[1] >= b.y0 && c[1] <= b.y1; }
+/** Высота рамки: от низа выделения до верха самого высокого блока в нём. */
+function selMeasure(b) {
+  let top = -Infinity, bot = Infinity;
+  for (const [x, y, z] of selContent(b).blocks) { if (y + 1 > top) top = y + 1; if (y < bot) bot = y; }
+  if (top === -Infinity) { top = b.base + 1; bot = b.base; }
+  b.top = top; b.bot = Math.min(b.base, Math.max(bot, b.base - 1));
+}
+/** Что внутри рамки: блоки [x, y, z, блок], объекты и точки (по клетке, где стоят). */
+function selContent(b) {
+  const ya = Math.max(b.y0, bounds.minY - 1), yb = Math.min(b.y1, bounds.maxY + 1), blocks = [];
+  for (let x = b.x0; x <= b.x1; x++) for (let z = b.z0; z <= b.z1; z++) for (let y = ya; y <= yb; y++) {
+    const v = getB(x, y, z); if (v) blocks.push([x, y, z, v]);
+  }
+  return { blocks, objects: L.objects.filter(o => inSel(o.cell, b)), points: L.points.filter(p => inSel(p.cell, b)) };
+}
+/** Поворот рамки на 90° по часовой (+Z → +X) вокруг центра: куда уходит клетка и новая рамка. */
+function selRotStep(b) {
+  const w = b.x1 - b.x0 + 1, d = b.z1 - b.z0 + 1;
+  const nx0 = b.x0 + Math.floor((w - d) / 2), nz0 = b.z0 + Math.floor((d - w) / 2);
+  return { map: (x, z) => [nx0 + (z - b.z0), nz0 + (w - 1) - (x - b.x0)], box: { ...b, x0: nx0, x1: nx0 + d - 1, z0: nz0, z1: nz0 + w - 1 } };
+}
+/** Поворот объекта на 90° по часовой, с учётом того, как каждый вид хранит направление. */
+function rotateObject(o) {
+  const y = (o.yaw || 0) + 90;
+  if (o.kind === 'ShortcutDoor' || o.kind === 'DrawBridge') o.yaw = doorSide(y);
+  else if (o.kind === 'KeyDoor') o.yaw = keyDoorAxis(y);
+  else if (o.kind === 'CrateStack') {
+    // Вторая клетка хранится только как +X (0°) или +Z (270°): если после поворота она легла на −Z/−X, якорь — в ней.
+    const s = doorSide(y);
+    if (s === 90) { o.cell = [o.cell[0], o.cell[1], o.cell[2] - 1]; o.yaw = 270; }
+    else if (s === 180) { o.cell = [o.cell[0] - 1, o.cell[1], o.cell[2]]; o.yaw = 0; }
+    else o.yaw = s;
+  } else o.yaw = norm180(y);
+}
+/**
+ * Переносит (или копирует) выделение: сдвиг dx/dy/dz и поворот rot × 90° по часовой. Столбцы на новом месте заменяются
+ * целиком (в пределах этажа выделения), на старом — пусто или ровная земля. Объекты и точки едут вместе с блоками;
+ * связи хранятся по id, поэтому при переносе не рвутся, а у копий внутренние связи переводятся на новые id.
+ */
+function transformSelection({ dx = 0, dy = 0, dz = 0, rot = 0, copy = false }) {
+  const b0 = selBox; if (!b0) return;
+  const c = selContent(b0);
+  rot = ((rot % 4) + 4) % 4;
+  let box = b0; const steps = [];
+  for (let i = 0; i < rot; i++) { const s = selRotStep(box); steps.push(s.map); box = s.box; }
+  const dest = { ...box, x0: box.x0 + dx, x1: box.x1 + dx, z0: box.z0 + dz, z1: box.z1 + dz, y0: box.y0 + dy, y1: box.y1 + dy, base: box.base + dy };
+  const mapXZ = (x, z) => { for (const m of steps) [x, z] = m(x, z); return [x + dx, z + dz]; };
+  const mapCell = cell => { const [x, z] = mapXZ(cell[0], cell[2]); return [x, cell[1] + dy, z]; };
+  const ya = Math.max(b0.y0, bounds.minY - 1), yb = Math.min(b0.y1, bounds.maxY + 1);
+  begin();
+  if (!copy) for (const [x, y, z] of c.blocks) setBlock(x, y, z, null);
+  for (let x = dest.x0; x <= dest.x1; x++) for (let z = dest.z0; z <= dest.z1; z++)
+    for (let y = ya + dy; y <= yb + dy; y++) setBlock(x, y, z, null);
+  for (const [x, y, z, v] of c.blocks) { const [nx, nz] = mapXZ(x, z); setBlock(nx, y + dy, nz, { s: v.s, r: (v.r + rot) % 4, c: v.c }); }
+  // ровная земля на старом месте (первый этаж): столбец, оставшийся без блоков
+  if (!copy && st.selGround && b0.y0 === -Infinity)
+    for (let x = b0.x0; x <= b0.x1; x++) for (let z = b0.z0; z <= b0.z1; z++) {
+      if (inSelXZ(x, z, dest)) continue;
+      let empty = true; for (let y = ya; y <= yb && empty; y++) if (getB(x, y, z)) empty = false;
+      if (empty) setBlock(x, -1, z, { s: 'F', r: 0, c: null });
+    }
+  touchMarkup();
+  const moved = new Set();
+  if (!copy) {
+    for (const o of c.objects) { o.cell = mapCell(o.cell); for (let i = 0; i < rot; i++) rotateObject(o); moved.add(o); }
+    for (const p of c.points) { p.cell = mapCell(p.cell); moved.add(p); }
+  } else {
+    const ids = new Map(), pids = new Map(), clones = [], pclones = [];
+    for (const o of c.objects) {
+      if (o.kind === 'PlayerSpawn') continue; // старт игрока один
+      const n = JSON.parse(JSON.stringify(o));
+      n.id = newId(o.kind.toLowerCase() + '_', [...L.objects, ...clones]);
+      ids.set(o.id, n.id); n.cell = mapCell(o.cell); for (let i = 0; i < rot; i++) rotateObject(n);
+      clones.push(n);
+    }
+    for (const p of c.points) { const n = JSON.parse(JSON.stringify(p)); n.id = newId(p.action.toLowerCase() + '_', [...L.points, ...pclones]); pids.set(p.id, n.id); n.cell = mapCell(p.cell); pclones.push(n); }
+    // ключ — только от двери из того же выделения, иначе у двери стало бы два врага с ключом
+    for (const n of clones) if (n.key) n.key = ids.get(n.key) || null;
+    for (const n of pclones) {
+      if (n.targetPoint && pids.has(n.targetPoint)) n.targetPoint = pids.get(n.targetPoint);
+      if (n.targetObject && ids.has(n.targetObject)) n.targetObject = ids.get(n.targetObject);
+      if (n.requiredOpen && ids.has(n.requiredOpen)) n.requiredOpen = ids.get(n.requiredOpen);
+    }
+    L.objects.push(...clones); L.points.push(...pclones);
+    clones.forEach(n => moved.add(n)); pclones.forEach(n => moved.add(n));
+  }
+  // чужие объекты на новом месте встают на новую поверхность
+  for (const o of [...L.objects, ...L.points]) {
+    if (moved.has(o) || !inSelXZ(o.cell[0], o.cell[2], dest)) continue;
+    const fi = floorIndexOf(o.cell[1]), nc = standCell(o.cell[0], o.cell[2], fi);
+    if (nc[1] !== o.cell[1] && floorIndexOf(nc[1]) === fi) o.cell = nc;
+  }
+  computeBounds();
+  selBox = dest; selMeasure(selBox);
+}
+/** Убирает всё из выделения: блоки (на первом этаже — до ровной земли, если «оставить пол»), объекты и точки. */
+function deleteSelection() {
+  const b = selBox; if (!b) return;
+  const c = selContent(b);
+  begin();
+  for (const [x, y, z] of c.blocks) setBlock(x, y, z, null);
+  if (st.selGround && b.y0 === -Infinity) for (let x = b.x0; x <= b.x1; x++) for (let z = b.z0; z <= b.z1; z++) setBlock(x, -1, z, { s: 'F', r: 0, c: null });
+  touchMarkup();
+  for (const o of c.objects) removeObject(o.id);
+  const gone = new Set(c.points.map(p => p.id));
+  L.points = L.points.filter(p => !gone.has(p.id));
+  for (const p of L.points) if (gone.has(p.targetPoint)) p.targetPoint = null;
+  if (sel.obj && !L.objects.some(o => o.id === sel.obj)) sel.obj = null;
+  if (sel.point && !L.points.some(p => p.id === sel.point)) sel.point = null;
+  computeBounds(); selMeasure(b);
+}
+
 function focusCell(c) { cam.tx = c[0] + .5; cam.tz = c[2] + .5; cam.ty = surfaceOf(c); const fi = floorIndexOf(c[1]); if (fi !== activeFloor) setFloor(fi); requestRender(); }
 function fitView() {
   computeBounds();
@@ -1881,7 +2082,7 @@ view.addEventListener('pointerdown', e => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, type: e.pointerType, button: e.button });
   if (pointers.size >= 2) {
     // второй палец: отменяем начатый штрих и переходим к жесту камеры
-    if (stroke) { if (stroke.started) rollback(); stroke = null; rectDrag = null; dragObj = null; }
+    if (stroke) { if (stroke.started) rollback(); stroke = null; rectDrag = null; dragObj = null; if (selDrag) { selBox = selDrag.box0; selDrag = null; } }
     startGesture();
     return;
   }
@@ -1948,6 +2149,13 @@ function startStroke(px, py) {
   } else if (t === 'paint') { paintAt(px, py); }
   else if (t === 'block') { blockAt(px, py); stroke.once = true; }
   else if (t === 'pick') { pickAt(px, py); }
+  else if (t === 'select') {
+    const c = pickColumn(px, py); if (!c) return;
+    stroke.planeY = c.y;
+    // палец внутри выделения — тянем его, снаружи — новая рамка
+    if (selBox && inSelXZ(c.xz[0], c.xz[1], selBox)) selDrag = { box0: selBox, start: c.xz, off: '0,0' };
+    else { selBox = null; rectDrag = { a: c.xz, b: c.xz, y: c.y + 0.02, select: true }; }
+  }
   else if (t === 'object') { const o = objectTap(px, py); if (o) dragObj = { o, moved: false }; }
   else if (t === 'point') { const p = pointTap(px, py); if (p) dragObj = { o: p, moved: false, point: true }; }
   requestRender();
@@ -1956,7 +2164,15 @@ function continueStroke(px, py) {
   const t = st.tool;
   if (t === 'column' || t === 'erase') {
     const xz = planeHit(px, py, stroke.planeY); if (xz) strokeCells(xz);
-  } else if (t === 'rect') {
+  } else if (t === 'select' && selDrag) {
+    const xz = planeHit(px, py, stroke.planeY); if (!xz) return;
+    const dx = xz[0] - selDrag.start[0], dz = xz[1] - selDrag.start[1], off = dx + ',' + dz;
+    if (off === selDrag.off) return;
+    // каждый шаг — от исходного состояния: откат и перенос заново на полное смещение
+    selDrag.off = off; rollback(); selBox = selDrag.box0;
+    if (dx || dz) transformSelection({ dx, dz, copy: st.selCopy });
+    hoverInfo = `сдвиг ${dx >= 0 ? '+' : ''}${dx} по X, ${dz >= 0 ? '+' : ''}${dz} по Z`; hud();
+  } else if (t === 'rect' || t === 'select') {
     if (!rectDrag) return; const xz = planeHit(px, py, stroke.planeY); if (xz) { rectDrag.b = xz; requestRender(); }
   } else if (t === 'paint') paintAt(px, py);
   else if ((t === 'object' || t === 'point') && dragObj) {
@@ -1986,7 +2202,9 @@ function strokeCells(xz) {
   computeBounds();
 }
 function finishStroke(cancel) {
-  if (cancel) { rollback(); stroke = null; rectDrag = null; dragObj = null; requestRender(); return; }
+  if (cancel) { rollback(); stroke = null; rectDrag = null; dragObj = null; if (selDrag) { selBox = selDrag.box0; selDrag = null; } requestRender(); return; }
+  if (rectDrag && rectDrag.select) { selBox = makeSelBox(rectDrag.a, rectDrag.b); rectDrag = null; renderPanel(); }
+  selDrag = null;
   if (st.tool === 'rect' && rectDrag) {
     const [ax, az] = rectDrag.a, [bx, bz] = rectDrag.b;
     const n = (Math.abs(ax - bx) + 1) * (Math.abs(az - bz) + 1);
@@ -2001,7 +2219,7 @@ function finishStroke(cancel) {
 }
 function hover(px, py) {
   if (pointers.size > 0 && !stroke) return;
-  if (!['column', 'rect', 'erase', 'paint', 'pick', 'block', 'object', 'point'].includes(st.tool)) { cursor.visible = false; hoverInfo = ''; hud(); return; }
+  if (!['column', 'rect', 'erase', 'paint', 'pick', 'block', 'object', 'point', 'select'].includes(st.tool)) { cursor.visible = false; hoverInfo = ''; hud(); return; }
   cursor.scale.set(1, 1, 1);
   if (st.tool === 'block' || (st.tool === 'paint' && !st.paintColumn)) {
     // подсветка там, где реально появится, исчезнет или перекрасится блок
@@ -2023,7 +2241,11 @@ function hover(px, py) {
   cursor.scale.set(n, 1, n);
   // «поверх блока»: рамка в клетке, куда встанет форма (над полным кубом)
   const cy = t ? (st.top && (st.tool === 'column' || st.tool === 'rect') && t.b.s === 'F' ? t.y + 1 : t.y) : base;
-  cursor.position.set(x - o + n / 2, cy + .5, z - o + n / 2); cursor.visible = true;
+  // подсвечиваем столбец целиком: от низа этажа (на первом — от земли) до верха клетки
+  const bottom = Math.min(activeFloor === 0 ? -1 : base, cy);
+  const height = Math.max(1, cy + 1 - bottom);
+  cursor.scale.set(n, height, n);
+  cursor.position.set(x - o + n / 2, bottom + height / 2, z - o + n / 2); cursor.visible = true;
   hoverInfo = `x ${x}, z ${z}, верх ${t ? fmtH(top - base) : '—'}`;
   hud(); requestRender();
 }
@@ -2081,13 +2303,24 @@ function zoomAt(f, px, py) {
 
 // ------------------------------------------------------------------ клавиатура (если планшет с клавиатурой или ПК)
 window.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); download(); return; }
   if (e.key === 'q' || e.key === 'Q' || e.key === 'й') rotateCam(-1);
   if (e.key === 'e' || e.key === 'E' || e.key === 'у') rotateCam(1);
   if (e.key >= '0' && e.key <= '9') { st.height = +e.key; renderPanel(); hud(); }
+  if (st.tool === 'select' && selBox && !stroke) {
+    const op = o => { e.preventDefault(); transformSelection(o); commit(); renderPanel(); requestRender(); };
+    const k = e.key;
+    if (k === 'ArrowLeft') return op({ dx: -1 }); if (k === 'ArrowRight') return op({ dx: 1 });
+    if (k === 'ArrowDown') return op({ dz: -1 }); if (k === 'ArrowUp') return op({ dz: 1 });
+    if (k === 'PageUp') return op({ dy: 1 }); if (k === 'PageDown') return op({ dy: -1 });
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && (k === 'r' || k === 'R' || k === 'к' || k === 'К')) return op({ rot: e.shiftKey ? 3 : 1 });
+    if ((e.ctrlKey || e.metaKey) && (k.toLowerCase() === 'd' || k.toLowerCase() === 'в')) return op({ dx: selBox.x1 - selBox.x0 + 1, copy: true });
+    if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); deleteSelection(); commit(); renderPanel(); requestRender(); return; }
+    if (k === 'Escape') { selBox = null; renderPanel(); requestRender(); return; }
+  }
   if (e.key === 'Delete' && sel.obj) { touchMarkup(); removeObject(sel.obj); sel.obj = null; commit(); renderPanel(); }
 });
 function rotateCam(dir) { dir *= YAW_SIGN; cam.yawT = cam.snap ? Math.round((cam.yawT - 45) / 90) * 90 + 45 + dir * 90 : cam.yawT + dir * 45; requestRender(); }
@@ -2115,7 +2348,8 @@ renderName(); renderFloors(); renderPanel(); updateUndoButtons(); hud();
 resize(); fitView();
 loadSiteData();
 if (/[#&]lvl=/.test(location.hash)) openFromHash();
-window.__editor = { L, st, cam, toJSON, fromJSON, undo, redo, project, buildMeshes, updateCamera, sel,
+window.__editor = { L, st, cam, toJSON, fromJSON, undo, redo, project, buildMeshes, updateCamera, sel, commit, transformSelection, deleteSelection,
+  select: (a, b) => { selBox = a ? makeSelBox(a, b || a) : null; renderPanel(); requestRender(); return selBox; }, selBox: () => selBox,
   forceFull: () => { needMesh = true; }, dirtyOne: () => markDirty(20, 0, 20) }; // для отладки и тестов
 </script>
 </body>
