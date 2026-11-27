@@ -11,6 +11,7 @@ namespace ColorsAction.Unity.Editor
     /// створка на шарнире x=8, под ней поперёк коридора — пропасть x=6..7): поднятая створка не пускает пешком и прыжком, меч цепь не рвёт, фиксация
     /// берёт цепь, выстрел из дробовика её рвёт, створка падает, по мосту можно пройти над пропастью.
     /// Нужен дробовик в руке (окно «Параметры запуска»). Меню: ColorsAction → Debug → Run Bridge Playtest (в Play Mode).
+    /// Итог — в <c>Logs/bridge_playtest_result.txt</c> (первая строка PASS/FAIL N/M, дальше только упавшие проверки с ожидаемым и фактом).
     /// Скриншоты — в Temp/BridgePlaytest.
     /// </summary>
     public static class BridgePlaytest
@@ -22,7 +23,7 @@ namespace ColorsAction.Unity.Editor
         private static float waitUntilTime;
         private static int lastFrame;
         private static readonly StringBuilder report = new StringBuilder();
-        private static int failures;
+        private static readonly PlaytestResultFile result = new PlaytestResultFile("BridgePlaytest", "bridge_playtest_result.txt");
 
         public static string LastReport { get; private set; } = "not run";
 
@@ -38,7 +39,7 @@ namespace ColorsAction.Unity.Editor
             if (!UnityEditorInternal.InternalEditorUtility.isApplicationActive)
                 PlayModeStepper.Enable();
             report.Clear();
-            failures = 0;
+            result.Begin();
             LastReport = "running";
             routine = Sequence();
             waitUntil = 0;
@@ -52,6 +53,12 @@ namespace ColorsAction.Unity.Editor
         {
             if (routine == null || !EditorApplication.isPlaying)
             {
+                if (routine != null)
+                {
+                    result.Abort("play mode exited before the playtest finished");
+                    LastReport = "aborted";
+                }
+
                 EditorApplication.update -= Tick;
                 routine = null;
                 return;
@@ -69,7 +76,7 @@ namespace ColorsAction.Unity.Editor
             catch (System.Exception e)
             {
                 Debug.LogException(e);
-                Check(false, "exception: " + e.Message);
+                Check(false, "exception: " + e.Message, "no exception");
                 more = false;
             }
 
@@ -82,17 +89,20 @@ namespace ColorsAction.Unity.Editor
             routine = null;
             EditorApplication.update -= Tick;
             Object.FindAnyObjectByType<GameInput>()?.ClearScripted();
-            LastReport = (failures == 0 ? "BRIDGE PLAYTEST PASSED\n" : $"BRIDGE PLAYTEST FAILED ({failures})\n") + report;
+            result.Finish();
+            var failures = result.Failures;
+            LastReport = (failures == 0 ? $"BRIDGE PLAYTEST PASSED {result.Total}/{result.Total}\n" : $"BRIDGE PLAYTEST FAILED ({failures}/{result.Total})\n")
+                         + report + $"result file: {result.Path}\n";
             if (failures == 0)
                 Debug.Log(LastReport);
             else
                 Debug.LogError(LastReport);
         }
 
-        private static void Check(bool ok, string what)
+        /// <param name="expected">Что ожидалось — пишется в файл итога у упавшей проверки (факт — в <paramref name="what"/> после «: »).</param>
+        private static void Check(bool ok, string what, string expected = null)
         {
-            if (!ok)
-                failures++;
+            result.Add(ok, what, expected);
             report.AppendLine((ok ? "  ok   " : "  FAIL ") + what);
         }
 
@@ -122,13 +132,13 @@ namespace ColorsAction.Unity.Editor
             foreach (var b in Object.FindObjectsByType<DrawBridge>(FindObjectsInactive.Exclude))
                 if (b.Id == BridgeId)
                     bridge = b;
-            Check(bridge != null, $"{BridgeId} spawned from the voxel map");
+            Check(bridge != null, $"{BridgeId} spawned from the voxel map: not found", "bridge object exists");
             if (bridge == null)
                 yield break;
             var chain = bridge.Chain;
-            Check(chain != null && !chain.Broken && chain.Lockable, "chain is intact and lockable");
-            Check(Mathf.Approximately(bridge.LeafAngle, bridge.Config.RaisedAngle), $"far leaf is raised: {bridge.LeafAngle:F0}°");
-            Check(session.Inventory.Active?.Id == "shotgun", "shotgun in hands (launch options)");
+            Check(chain != null && !chain.Broken && chain.Lockable, $"chain is intact and lockable: {(chain == null ? "no chain" : $"broken={chain.Broken} lockable={chain.Lockable}")}", "chain exists, not broken, lockable");
+            Check(Mathf.Approximately(bridge.LeafAngle, bridge.Config.RaisedAngle), $"far leaf is raised: {bridge.LeafAngle:F0}°", $"{bridge.Config.RaisedAngle:F0}°");
+            Check(session.Inventory.Active?.Id == "shotgun", $"shotgun in hands (launch options): {session.Inventory.Active?.Id ?? "none"}", "shotgun");
             report.AppendLine($"  info fps ~{1f / Mathf.Max(0.0001f, Time.smoothDeltaTime):F0}, chain length {chain?.Length:F2}");
 
             // 1. Пешком не пройти: впереди пропасть и поднятая створка (шарнир на x=8).
@@ -142,7 +152,7 @@ namespace ColorsAction.Unity.Editor
             input.ScriptedMove = null;
             yield return 0.2f;
             var x = player.transform.position.x;
-            Check(x < 7.6f, $"walking does not get past the raised leaf: player x={x:F2} y={player.transform.position.y:F2} (hinge at 8.0)");
+            Check(x < 7.6f, $"walking does not get past the raised leaf: player x={x:F2} y={player.transform.position.y:F2} (hinge at 8.0)", "x < 7.6");
 
             // 2. Прыжком с края ближней створки не перебраться.
             player.Teleport(new Vector3(5.6f, 0f, 3f), 90f);
@@ -153,11 +163,11 @@ namespace ColorsAction.Unity.Editor
             input.ScriptedMove = null;
             yield return 0.5f;
             x = player.transform.position.x;
-            Check(x < 7.6f, $"jump over is blocked: x={x:F2} y={player.transform.position.y:F2}");
+            Check(x < 7.6f, $"jump over is blocked: x={x:F2} y={player.transform.position.y:F2}", "x < 7.6");
 
             // 3. Меч цепь не рвёт, только раскачивает.
             chain.ReceiveHit(new HitInfo { Damage = 100f, WeaponId = "sword", Direction = Vector3.right, Knockback = 1f });
-            Check(!chain.Broken && !chain.Accepts("sword") && chain.Accepts("shotgun"), "gate: shotgun only");
+            Check(!chain.Broken && !chain.Accepts("sword") && chain.Accepts("shotgun"), "gate: shotgun only", "chain intact, accepts shotgun, rejects sword");
 
             // 4. Фиксация берёт цепь.
             player.Teleport(new Vector3(4.8f, 0f, 3f), 90f);
@@ -166,7 +176,7 @@ namespace ColorsAction.Unity.Editor
             lockOn.Release();
             input.ScriptPress(GameAction.LockOn);
             yield return 0.3f;
-            Check(lockOn.Target == chain, $"lock-on picks the chain: {(lockOn.Target != null ? lockOn.Target.name : "none")}");
+            Check(lockOn.Target == chain, $"lock-on picks the chain: {(lockOn.Target != null ? lockOn.Target.name : "none")}", "target = chain");
             Shot("2_locked");
 
             // 5. Выстрел: цепь рвётся, мост запоминается опущенным, створка падает.
@@ -178,13 +188,13 @@ namespace ColorsAction.Unity.Editor
                 yield return 0.8f;
             }
 
-            Check(chain == null || chain.Broken, $"shotgun snaps the chain in {shots} shot(s)");
-            Check(session.OpenedBridges.Contains(BridgeId), "lowered bridge remembered in session");
-            Check(!lockOn.Active, "lock-on released after the chain snapped");
+            Check(chain == null || chain.Broken, $"shotgun snaps the chain in {shots} shot(s): chain intact", "chain broken");
+            Check(session.OpenedBridges.Contains(BridgeId), "lowered bridge remembered in session", $"OpenedBridges contains {BridgeId}");
+            Check(!lockOn.Active, "lock-on released after the chain snapped", "lock-on inactive");
             yield return 0.25f;
             Shot("3_falling");
             yield return 2.5f;
-            Check(Mathf.Approximately(bridge.LeafAngle, 0f) && !bridge.Falling, $"far leaf lies flat: {bridge.LeafAngle:F1}°");
+            Check(Mathf.Approximately(bridge.LeafAngle, 0f) && !bridge.Falling, $"far leaf lies flat: {bridge.LeafAngle:F1}°, falling={bridge.Falling}", "0°, not falling");
             Shot("4_lowered");
 
             // 6. По мосту — над пропастью на ту сторону (под рамой).
@@ -195,7 +205,7 @@ namespace ColorsAction.Unity.Editor
             input.ScriptedMove = null;
             yield return 0.3f;
             var p = player.transform.position;
-            Check(p.x > 8.3f && p.y > -0.3f, $"crossed the bridge over the pit: x={p.x:F2} y={p.y:F2}");
+            Check(p.x > 8.3f && p.y > -0.3f, $"crossed the bridge over the pit: x={p.x:F2} y={p.y:F2}", "x > 8.3 and y > -0.3");
             Shot("5_crossed");
         }
     }
