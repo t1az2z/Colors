@@ -15,7 +15,7 @@ namespace ColorsAction.Unity
     /// Колесо выбора оружия (GDD, раздел 7): пока кнопка колеса (TAB / Y) зажата, время сильно замедлено, на экране —
     /// круг из 6 цветов (<see cref="CombatConfig.ColorWheel"/>, жёлтый сверху, по часовой). Найденное оружие стоит
     /// в секторе своего цвета; сектор без оружия виден сразу, но тусклый. Сектор выбирается движением мыши (виртуальный курсор от центра, курсор захвачен)
-    /// или правым стиком; отпускание кнопки делает оружие активным. У смены есть кулдаун
+    /// или левым стиком геймпада; отпускание кнопки делает оружие активным. У смены есть кулдаун
     /// (<see cref="WeaponWheelConfig"/>, Combat.json → weaponWheel).
     /// </summary>
     public sealed class WeaponWheel : GameBehaviour
@@ -238,11 +238,11 @@ namespace ColorsAction.Unity
             }
         }
 
-        /// <summary>Сектор по виртуальному курсору мыши (от центра колеса) или правым стиком; -1 — в мёртвой зоне.</summary>
+        /// <summary>Сектор по виртуальному курсору мыши (от центра колеса) или левым стиком геймпада; -1 — в мёртвой зоне.</summary>
         private int PickSector()
         {
             var dir = Vector2.zero;
-            var stick = input.AimStick;
+            var stick = input.WheelStick;
             if (stick.magnitude > config.DeadZone)
                 dir = stick;
             else

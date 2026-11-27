@@ -140,7 +140,7 @@ namespace ColorsAction.Unity
                     ChargeCount++;
                     glow?.Flash();
                     if (flash > 0f)
-                        ChargeFlashFx(BladeTip(attacking), attacking.Item.Color, 0.6f * flash);
+                        ChargeFlashFx(BladeTip(attacking), 0.6f * flash);
                     controller.Deformer.Impulse(-1.6f);
                     return true;
                 case ChargeEvent.Released:
@@ -153,7 +153,7 @@ namespace ColorsAction.Unity
                             PerfectChargeCount++;
                             glow?.Flash();
                             if (flash > 0f)
-                                ChargeFlashFx(BladeTip(attacking), attacking.Item.Color, 0.45f * flash);
+                                ChargeFlashFx(BladeTip(attacking), 0.45f * flash);
                         }
                     }
 
@@ -167,9 +167,9 @@ namespace ColorsAction.Unity
             return true;
         }
 
-        /// <summary>Вспышка на пике заряда (Particle System): цвет оружия, высветленный, чтобы светился на белом мире.</summary>
-        private void ChargeFlashFx(Vector3 position, string colorId, float size) =>
-            ParticleFx.Play(ParticleFx.ChargeFlash, position, Color.Lerp(palette.Get(colorId), Color.white, 0.35f), size);
+        /// <summary>Вспышка на пике заряда (Particle System): всегда белая, не в цвет оружия.</summary>
+        private void ChargeFlashFx(Vector3 position, float size) =>
+            ParticleFx.Play(ParticleFx.ChargeFlash, position, Color.white, size);
 
         /// <summary>Остриё оружия в мире (для вспышки заряда).</summary>
         private Vector3 BladeTip(HandState hand)

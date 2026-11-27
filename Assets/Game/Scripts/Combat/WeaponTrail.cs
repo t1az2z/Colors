@@ -4,7 +4,8 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// След за клинком на Particle System (префаб Resources/Fx/SwordTrail): вдоль клинка между рукоятью и остриём
-    /// испускаются мягкие частицы, которые живут доли секунды и тают; с острия срываются кубики-искры.
+    /// испускаются пятна с чётким краем (текстура TrailDot), которые живут доли секунды и тают; по траектории острия
+    /// идёт яркая узкая кромка — она и даёт чёткий контур дуги; с острия срываются кубики-искры.
     /// Между кадрами точки досэмплируются по дуге вокруг центра персонажа, поэтому быстрый взмах даёт гладкий полукруг.
     /// Время игровое: во время фриз-кадров след замирает вместе с ударом.
     /// </summary>
@@ -15,6 +16,12 @@ namespace ColorsAction.Unity
         private const int PointsAlongBlade = 6;
         /// <summary>Доля шагов дуги, на которых с острия срывается искра.</summary>
         private const float SparkChance = 0.18f;
+        /// <summary>Перекрытие пятен полосы: диаметр пятна в долях шага между ними.</summary>
+        private const float BandOverlap = 2f;
+        /// <summary>Толщина яркой кромки по острию в долях длины клинка.</summary>
+        private const float RimWidth = 0.09f;
+        /// <summary>Точек кромки на один шаг дуги.</summary>
+        private const int RimPerStep = 3;
 
         private Transform blade;
         private Transform pivot;
@@ -119,15 +126,35 @@ namespace ColorsAction.Unity
                 var b = SlerpAround(center, b0, b1, k);
                 var t = SlerpAround(center, t0, t1, k);
                 var length = Vector3.Distance(b, t);
+                var dir = length > 0.0001f ? (t - b) / length : Vector3.up;
+
+                // Полоса: одинаковые пятна с чётким краем, внешний край последнего ровно на острие — след не выходит за клинок.
+                var size = length / PointsAlongBlade * BandOverlap;
+                var end = t - dir * (size * 0.5f);
                 for (int j = 0; j < PointsAlongBlade; j++)
                 {
-                    // От рукояти к острию: у острия частицы крупнее и плотнее, к рукояти след растворяется.
-                    var along = (j + 0.5f) / PointsAlongBlade;
-                    emit.position = Vector3.Lerp(b, t, along);
-                    emit.startSize = length / PointsAlongBlade * (2.2f + 1.6f * along);
+                    var along = j / (float)(PointsAlongBlade - 1);
+                    emit.position = Vector3.Lerp(b, end, along);
+                    emit.startSize = size;
                     var c = color;
-                    c.a *= Mathf.SmoothStep(0.15f, 1f, along);
+                    // К рукояти след прозрачнее, но без размытия краёв.
+                    c.a *= Mathf.Lerp(0.35f, 1f, along);
                     emit.startColor = c;
+                    band.Emit(emit, 1);
+                }
+
+                // Кромка: яркая узкая линия по траектории острия, частые точки — контур дуги ровный.
+                var rimSize = Mathf.Max(0.05f, length * RimWidth);
+                var rimColor = Color.Lerp(color, Color.white, 0.55f);
+                rimColor.a = 1f;
+                for (int r = 0; r < RimPerStep; r++)
+                {
+                    var kr = (i - 1 + (r + 1f) / RimPerStep) / steps;
+                    var rb = SlerpAround(center, b0, b1, kr);
+                    var rt = SlerpAround(center, t0, t1, kr);
+                    emit.position = rt - (rt - rb).normalized * (rimSize * 0.5f);
+                    emit.startSize = rimSize;
+                    emit.startColor = rimColor;
                     band.Emit(emit, 1);
                 }
 

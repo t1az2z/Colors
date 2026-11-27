@@ -27,6 +27,12 @@ namespace ColorsAction.Unity.Editor
                 var d = Mathf.Clamp01(1f - Mathf.Sqrt(u * u + v * v));
                 return Mathf.Sqrt(d * d * (3f - 2f * d));
             });
+            var trailDot = EnsureTexture("TrailDot", (u, v) =>
+            {
+                // Сплошной круг с узким сглаженным краем: перекрываясь, пятна дают полосу с чётким контуром.
+                var r = Mathf.Sqrt(u * u + v * v);
+                return Mathf.Clamp01((0.96f - r) / 0.1f);
+            });
             var ring = EnsureTexture("Ring", (u, v) =>
             {
                 var r = Mathf.Sqrt(u * u + v * v);
@@ -39,9 +45,10 @@ namespace ColorsAction.Unity.Editor
             var soft = EnsureMaterial("FxSoft", dot, new Color(1.6f, 1.6f, 1.6f, 1f));
             var ringMat = EnsureMaterial("FxRing", ring, new Color(2.4f, 2.4f, 2.4f, 1f));
             var solid = EnsureMaterial("FxSolid", null, new Color(1.4f, 1.4f, 1.4f, 1f));
+            var trail = EnsureMaterial("FxTrail", trailDot, new Color(1.6f, 1.6f, 1.6f, 1f));
             var cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
 
-            Save(BuildSwordTrail(soft, solid, cube), "SwordTrail");
+            Save(BuildSwordTrail(trail, solid, cube), "SwordTrail");
             Save(BuildChargeFlash(soft, solid, cube), "ChargeFlash");
             Save(BuildGroundSlam(soft, ringMat, solid, cube), "GroundSlam");
             Save(BuildHitFlash(soft, solid, cube), "HitFlash");
@@ -53,19 +60,20 @@ namespace ColorsAction.Unity.Editor
 
         /// <summary>
         /// След: частицы испускает <see cref="WeaponTrail"/> вручную (Emit) вдоль клинка, модуль Emission выключен.
-        /// Мягкие пятна — полоса следа, мелкие кубики — искры с острия.
+        /// Пятна с чётким краем (TrailDot) — полоса следа и яркая кромка по острию, мелкие кубики — искры с острия.
         /// </summary>
-        private static GameObject BuildSwordTrail(Material soft, Material solid, Mesh cube)
+        private static GameObject BuildSwordTrail(Material trail, Material solid, Mesh cube)
         {
             var go = new GameObject("SwordTrail");
             var band = go.AddComponent<ParticleSystem>();
-            Setup(band, soft, loop: true, unscaled: false, maxParticles: 1500);
+            Setup(band, trail, loop: true, unscaled: false, maxParticles: 2500);
             var main = band.main;
             main.startLifetime = 0.2f;
             main.startSize = 0.22f;
             main.startSpeed = 0f;
             Emission(band, 0f);
-            SizeOverLifetime(band, Curve(1f, 0.35f));
+            // Пятна почти не сжимаются, след гаснет прозрачностью: контур не «оплывает» к концу жизни.
+            SizeOverLifetime(band, Curve(1f, 0.75f));
             ColorOverLifetime(band, Fade(1f, 0.85f, 0f));
 
             var sparks = Child(go, "Sparks");

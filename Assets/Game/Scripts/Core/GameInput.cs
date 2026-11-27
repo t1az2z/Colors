@@ -155,6 +155,9 @@ namespace ColorsAction.Unity
             get
             {
                 var v = Move.ReadValue<Vector2>();
+                // Открытое колесо оружия забирает левый стик под выбор сектора: персонаж от него не ходит (WASD — ходит).
+                if (WeaponWheel.IsOpen)
+                    v -= WheelStick;
                 if (ScriptedMove.HasValue)
                     v += ScriptedMove.Value;
                 return Vector2.ClampMagnitude(v, 1f);
@@ -165,6 +168,9 @@ namespace ColorsAction.Unity
         public Vector2 AimStick => CameraStick.ReadValue<Vector2>() + (ScriptedAim ?? Vector2.zero);
 
         public Vector2? ScriptedAim { get; set; }
+
+        /// <summary>Левый стик геймпада — выбор сектора колеса оружия.</summary>
+        public Vector2 WheelStick => Gamepad.current != null ? Gamepad.current.leftStick.ReadValue() : Vector2.zero;
 
         public Vector2 NavigateVector => Navigate.ReadValue<Vector2>() + (ScriptedNavigate ?? Vector2.zero);
 
