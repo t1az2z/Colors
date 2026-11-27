@@ -124,6 +124,14 @@ namespace ColorsAction.Unity
         public Vector3? SpawnPoint { get; private set; }
         public float SpawnYaw { get; private set; }
 
+        /// <summary>
+        /// Ниже этой высоты игрок погибает от падения (провалился за дно мира). Задаёт <see cref="LevelBuilder"/>
+        /// по дну уровня (<see cref="ColorsAction.Level.LevelEdgeWalls.KillHeight(float)"/>), читает
+        /// <see cref="PlayerDamageReceiver"/>. Лежит здесь, а не в приёмнике урона: тот добавляется в <see cref="Start"/>
+        /// и может ещё не существовать, когда уровень строится.
+        /// </summary>
+        public float KillHeight { get; set; } = float.NegativeInfinity;
+
         public void SetSpawn(Vector3 position, float facingYaw)
         {
             SpawnPoint = position;

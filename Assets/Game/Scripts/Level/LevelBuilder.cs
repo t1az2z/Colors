@@ -603,8 +603,9 @@ namespace ColorsAction.Unity
             }
 
             // Провалился в дыру ниже дна мира — смерть и возрождение у костра.
-            if (player != null && player.TryGetComponent<PlayerDamageReceiver>(out var receiver))
-                receiver.KillHeight = killHeight;
+            // Через контроллер: PlayerDamageReceiver добавляется в его Start и к этому моменту может ещё не появиться.
+            if (player != null)
+                player.KillHeight = killHeight;
 
             foreach (var w in boxes)
             {
