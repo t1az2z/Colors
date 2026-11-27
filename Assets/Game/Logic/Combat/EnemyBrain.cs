@@ -356,8 +356,15 @@ namespace ColorsAction.Combat
             }
 
             // Удар поглощён щитом — враг уже отскочил и собирается: не сбиваем.
-            if (State == EnemyState.Parried || Config.HyperArmor)
+            if (State == EnemyState.Parried)
                 return false;
+            if (Config.HyperArmor)
+            {
+                // Не отшатывается, но удар его будит: спокойный стойкий враг сразу идёт на игрока.
+                if (State == EnemyState.Idle)
+                    SetState(EnemyState.Chase);
+                return false;
+            }
             if (State == EnemyState.Windup)
             {
                 director.Release(Id);
@@ -498,7 +505,12 @@ namespace ColorsAction.Combat
             if (cooldown > 0f)
                 return false;
             var attack = PickAttack(distance);
-            if (attack == null || !director.TryAcquire(Id, attack.Windup, attack.StrikeSpan))
+            // Поглощённый парированием удар серии сдвигает следующий на DeflectDuration (не больше): держим запас,
+            // чтобы продолжение серии не совпало с чужим ударом.
+            if (attack == null)
+                return false;
+            var span = attack.StrikeSpan + (attack.Steps - 1) * Math.Max(0f, Config.DeflectDuration);
+            if (!director.TryAcquire(Id, attack.Windup, span))
                 return false;
             Attack = attack;
             rootAttack = attack;

@@ -100,7 +100,9 @@ namespace ColorsAction.Unity
             return false;
         }
 
-        private static readonly RaycastHit[] Hits = new RaycastHit[16];
+        // Без изгиба луч один на всю дальность и пересекает много коллайдеров; RaycastNonAlloc не сортирует попадания,
+        // поэтому буфер с запасом — иначе ближайшее попадание может не влезть.
+        private static readonly RaycastHit[] Hits = new RaycastHit[64];
 
         /// <summary>Ближайшее попадание отрезка, кроме коллайдеров из <paramref name="ignore"/>.</summary>
         private static bool Cast(Vector3 origin, Vector3 direction, float distance, int mask, Func<Collider, bool> ignore, out RaycastHit hit)

@@ -484,6 +484,7 @@ namespace ColorsAction.Unity
         // Удар достал игрока, пока его ещё можно парировать: урон ждёт конца окна парирования
         // (или долёта пуль парирующего выстрела). Парировали — урона нет.
         private bool hitDeferred;
+        private EnemyAttackConfig deferredAttack;
         private float parryHoldUntil = -1f;
         private PlayerCombat playerCombat;
 
@@ -527,34 +528,64 @@ namespace ColorsAction.Unity
             var attack = brain.Attack;
             if (attack == null)
                 return;
-            var forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
-            if (attack.IsArea)
-            {
-                // Удар по области бьёт, когда оружие дошло до земли: всех в круге вокруг точки удара.
-                if (!strikeEnded)
-                    return;
-                var toPlayer = player.transform.position - AreaCenter(attack);
-                toPlayer.y = 0f;
-                if (toPlayer.magnitude - 0.45f > attack.AreaRadius)
-                    return;
-            }
-            else
-            {
-                // Дальность до тела игрока (его полуширина ~0.45).
-                if (distance - 0.45f > attack.Range)
-                    return;
-                if (distance > 0.5f && Vector3.Angle(forward, dirToPlayer) > attack.Arc * 0.5f)
-                    return;
-            }
+            // Удар по области бьёт, когда оружие дошло до земли.
+            if (attack.IsArea && !strikeEnded)
+                return;
+            if (!InStrikeZone(attack, distance, dirToPlayer))
+                return;
             if (ParryStillPossible())
             {
                 hitDeferred = true;
+                deferredAttack = attack;
                 return;
             }
 
+            DealHit(attack);
+        }
+
+        /// <summary>Игрок в зоне удара: в круге удара по области или в секторе на дальности удара.</summary>
+        private bool InStrikeZone(EnemyAttackConfig attack, float distance, Vector3 dirToPlayer)
+        {
+            if (player == null)
+                return false;
+            if (attack.IsArea)
+            {
+                // Удар по области: всех в круге вокруг точки удара.
+                var toPlayer = player.transform.position - AreaCenter(attack);
+                toPlayer.y = 0f;
+                return toPlayer.magnitude - 0.45f <= attack.AreaRadius;
+            }
+
+            // Дальность до тела игрока (его полуширина ~0.45).
+            if (distance - 0.45f > attack.Range)
+                return false;
+            var forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
+            return distance <= 0.5f || Vector3.Angle(forward, dirToPlayer) <= attack.Arc * 0.5f;
+        }
+
+        private void DealHit(EnemyAttackConfig attack)
+        {
             hitThisAttack = true;
             // Усиление врага статус-эффектом; уязвимость игрока учитывает PlayerVitals.
             playerDamage.ReceiveEnemyHit(attack.Damage * brain.Status.DamageDealtMultiplier, transform.position, attack.Knockback);
+        }
+
+        /// <summary>
+        /// Серия: следующий удар начал замах, пока прошлый ждал конца окна парирования. Прошлый удар уже не парировать —
+        /// наносим его, если игрок ещё в зоне удара (иначе он молча терялся бы).
+        /// </summary>
+        private void FlushDeferredHit()
+        {
+            var attack = deferredAttack;
+            deferredAttack = null;
+            if (!hitDeferred || hitThisAttack || attack == null || playerDamage == null || player == null || Dead)
+                return;
+            var toPlayer = player.transform.position - transform.position;
+            toPlayer.y = 0f;
+            var distance = toPlayer.magnitude;
+            var dir = distance > 0.001f ? toPlayer / distance : transform.forward;
+            if (InStrikeZone(attack, distance, dir))
+                DealHit(attack);
         }
 
         // ------------------------------------------------------------------ состояния
@@ -570,6 +601,7 @@ namespace ColorsAction.Unity
                     marker.Show(config.AlertDuration);
                     break;
                 case EnemyState.Windup:
+                    FlushDeferredHit();
                     windupFrom = handPose;
                     hitThisAttack = false;
                     hitDeferred = false;

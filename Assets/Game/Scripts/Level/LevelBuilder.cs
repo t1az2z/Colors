@@ -470,8 +470,15 @@ namespace ColorsAction.Unity
             var position = enemy.transform.position;
             // Враг мог погибнуть в воздухе (отброшен ударом): ключ опускается на пол под ним.
             var mask = ~(1 << EnemyController.EnemyLayer);
-            if (Physics.Raycast(position + Vector3.up * 0.5f, Vector3.down, out var hit, 30f, mask, QueryTriggerInteraction.Ignore))
-                position = hit.point;
+            if (!Physics.Raycast(position + Vector3.up * 0.5f, Vector3.down, out var hit, 30f, mask, QueryTriggerInteraction.Ignore))
+            {
+                // Погиб над пропастью: ключ лёг бы туда, где его не достать, а дверь не открылась бы никогда.
+                // Не роняем — возрождённый у костра враг снова понесёт ключ.
+                session.DroppedKeys.Remove(door);
+                return;
+            }
+
+            position = hit.point;
             var go = new GameObject($"Key_{door}");
             go.transform.SetParent(root, false);
             go.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, enemy.transform.eulerAngles.y, 0f));

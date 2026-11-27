@@ -505,7 +505,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 var plateSize = new Vector3(Mathf.Abs(plate.x), 0.36f, Mathf.Abs(plate.z));
                 foreach (var side in new[] { 1f, -1f })
                     DrawSolidBox(new Vector3(pos.x, o.Cell.Y + 1.05f, pos.z) + rot * new Vector3(0f, 0f, side * 0.17f), plateSize);
-                var holders = KeyDoorRules.Holders(session.Level, o.Id);
+                var holders = KeyDoorRules.Holders(session.Level, o.Id).Where(VoxelLevelData.IsEnemy).ToList();
                 Handles.color = holders.Count == 0 ? new Color(1f, 0.3f, 0.2f) : new Color(1f, 0.85f, 0.3f);
                 foreach (var e in holders)
                     Handles.DrawDottedLine(center, new Vector3(e.Cell.X + 0.5f, Surface(e.Cell) + 0.5f, e.Cell.Z + 0.5f), 4f);
