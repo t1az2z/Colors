@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using ColorsAction.Configs;
 using ColorsAction.Level;
 using ColorsAction.Unity.Voxel;
 using UnityEditor;
@@ -57,6 +58,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
         [SerializeField] private int crateHeight = CrateStackShape.DefaultHeight;
         [SerializeField] private int bridgeYaw;
         [SerializeField] private int chestCount = 1;
+        [SerializeField] private float enemyAggroRadius = LevelEnemy.DefaultAggroRadius;
         [SerializeField] private string objectItem = "";
         [SerializeField] private InteractionAction pointAction = InteractionAction.ShieldSlide;
 
@@ -419,7 +421,10 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                                                 "возрождения; у костра — меню апгрейдов оружия. Поворот — где встаёт игрок.", MessageType.None);
 
                     if (objectKind == LevelObjectKind.EnemySpawn)
+                    {
                         objectItem = DrawEnemyPopup(objectItem);
+                        enemyAggroRadius = AggroRadiusField(enemyAggroRadius, false);
+                    }
                     else
                     {
                         if (HasColor(objectKind))
@@ -478,6 +483,14 @@ namespace ColorsAction.Unity.Editor.LevelEditor
             }
 
             return ids[Mathf.Clamp(index, 0, ids.Count - 1)];
+        }
+
+        /// <summary>Радиус агро врага (метры): на сцене — оранжевый круг вокруг врага.</summary>
+        private static float AggroRadiusField(float value, bool delayed)
+        {
+            var label = new GUIContent("Радиус агро", "Игрок ближе — враг заметит его, если может до него дойти. Круг на сцене.");
+            var v = delayed ? EditorGUILayout.DelayedFloatField(label, value) : EditorGUILayout.Slider(label, value, 0f, 30f);
+            return Mathf.Clamp(Mathf.Round(v * 2f) / 2f, 0f, 30f);
         }
 
         private static string ItemLabel(LevelObjectKind kind)
@@ -563,6 +576,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 // Цвет врага задаёт его тип в Enemies.json.
                 after.Item = DrawEnemyPopup(obj.Item);
                 after.Color = null;
+                if (after.Item != VoxelPlayLayout.DummyType)
+                    after.AggroRadius = AggroRadiusField(obj.AggroRadius, true);
             }
             else if (after.Kind == LevelObjectKind.ShortcutDoor)
             {

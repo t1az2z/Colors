@@ -88,11 +88,19 @@ namespace ColorsAction.Configs
         /// <summary>Оружие в руке: модель из Resources (Items/Club).</summary>
         public string WeaponPrefab { get; set; } = "Items/Club";
 
-        /// <summary>Зона агро: подойди ближе — враг заметит.</summary>
-        public float AggroRadius { get; set; } = 7f;
+        // Радиус агро — у каждого врага на карте свой: LevelEnemy.AggroRadius (VoxelLevels, редакторы уровней).
 
-        /// <summary>Дальше этого враг теряет игрока и возвращается в покой.</summary>
+        /// <summary>
+        /// Дальше этого враг теряет игрока и возвращается в покой. Если радиус агро врага на карте больше —
+        /// берётся он (<see cref="ColorsAction.Combat.EnemyBrain.LoseRadius"/>).
+        /// </summary>
         public float LoseRadius { get; set; } = 13f;
+
+        /// <summary>
+        /// Профиль перемещения из Movement.json: по нему проверяется, может ли враг дойти до игрока
+        /// (за ящиками, поднятым мостом, закрытой дверью-срезкой враг не замечает игрока).
+        /// </summary>
+        public string Movement { get; set; } = "walker";
 
         /// <summary>Реакция "заметил!" (сжатие, подпрыгивание, знак "!"), секунды. Потом бег или атака.</summary>
         public float AlertDuration { get; set; } = 2f;
@@ -160,8 +168,6 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException($"enemy '{Id}' needs at least one attack");
             if (MaxHealth <= 0 || Size <= 0)
                 throw new InvalidOperationException($"enemy '{Id}': maxHealth and size must be positive");
-            if (LoseRadius < AggroRadius)
-                LoseRadius = AggroRadius;
         }
     }
 }

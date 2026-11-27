@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
+using ColorsAction.Level.Navigation;
 using ColorsAction.Status;
 using GameCore.Config;
 using GameCore.DI;
@@ -24,6 +25,12 @@ namespace ColorsAction.Unity
         public static IReadOnlyList<EnemyController> All => all;
 
         private string typeId;
+        private float aggroRadius = LevelEnemy.DefaultAggroRadius;
+
+        /// <summary>Проверка "дойдёт ли до игрока" (воксельные уровни); null — не проверяем.</summary>
+        private EnemyReach reach;
+
+        private MovementProfile movement;
         private Mesh bodyMesh;
         private Material[] bodyMaterials;
 
@@ -68,8 +75,10 @@ namespace ColorsAction.Unity
         public bool Dead => brain != null && brain.State == EnemyState.Dead;
 
         /// <summary>Создать врага на сцене. Тело — тот же скруглённый куб с глазами, что у игрока, другого цвета и размера.</summary>
+        /// <param name="aggroRadius">Радиус агро этого врага (из уровня).</param>
+        /// <param name="reach">Проверка достижимости игрока; null — враг замечает игрока по одной дистанции.</param>
         public static EnemyController Spawn(string type, Vector3 position, float yaw, Transform parent, GameBootstrap bootstrap,
-            Mesh mesh, Material[] materials)
+            Mesh mesh, Material[] materials, float aggroRadius = LevelEnemy.DefaultAggroRadius, EnemyReach reach = null)
         {
             var go = new GameObject($"Enemy_{type}");
             go.transform.SetParent(parent, false);
@@ -80,9 +89,14 @@ namespace ColorsAction.Unity
             enemy.bodyMesh = mesh;
             enemy.bodyMaterials = materials;
             enemy.yaw = yaw;
+            enemy.aggroRadius = aggroRadius;
+            enemy.reach = reach;
             bootstrap.Inject(go);
             return enemy;
         }
+
+        /// <summary>Профили перемещения (Configs/Movement.json).</summary>
+        private const string MovementProfileKey = "Movement";
 
         /// <summary>Слой врагов (создаётся сборщиком сцены). Если его нет — слой по умолчанию.</summary>
         public static int EnemyLayer
@@ -111,7 +125,14 @@ namespace ColorsAction.Unity
             palette = resolver.Resolve<Palette>();
             events = resolver.Resolve<IEventBus>();
             var id = nextId++;
-            brain = new EnemyBrain(id, config, resolver.Resolve<CombatDirector>(), id * 7919, session.StatusConfig);
+            brain = new EnemyBrain(id, config, resolver.Resolve<CombatDirector>(), id * 7919, session.StatusConfig, aggroRadius);
+            if (reach != null)
+            {
+                var profiles = configs.LoadTable<MovementProfile>(MovementProfileKey);
+                if (!profiles.TryGet(config.Movement ?? string.Empty, out movement))
+                    Debug.LogWarning($"[Enemy] '{typeId}': movement profile '{config.Movement}' not in Movement.json — reachability not checked.");
+            }
+
             brain.StateChanged += OnStateChanged;
             BuildBody();
             if (isActiveAndEnabled && !all.Contains(this))
@@ -205,7 +226,7 @@ namespace ColorsAction.Unity
             toPlayer.y = 0f;
             var distance = toPlayer.magnitude;
             var available = player != null && (playerDamage == null || !playerDamage.Dead) && vertical < 3f;
-            var intent = brain.Tick(dt, distance, available);
+            var intent = brain.Tick(dt, distance, available, PlayerReachable(available, distance));
             var dir = distance > 0.001f ? toPlayer / distance : transform.forward;
 
             // Движение: к игроку / от игрока, а в очереди — к точке за спиной игрока;
@@ -257,6 +278,19 @@ namespace ColorsAction.Unity
 
             tinted = tintNow;
             UpdateDeformation(dt);
+        }
+
+        /// <summary>
+        /// Спокойный враг замечает игрока, только если может до него дойти (ящики, поднятый мост, закрытая дверь-срезка
+        /// отрезают путь). Путь считаем лишь тогда, когда игрок уже в зоне агро.
+        /// </summary>
+        private bool PlayerReachable(bool available, float distance)
+        {
+            if (reach == null || movement == null || !available || brain.State != EnemyState.Idle || distance > brain.AggroRadius)
+                return true;
+            var from = transform.position;
+            var to = player.transform.position;
+            return reach.CanReach(movement, from.x, from.y + 0.1f, from.z, to.x, to.y + 0.1f, to.z);
         }
 
         /// <summary>

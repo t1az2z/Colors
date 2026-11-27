@@ -65,6 +65,13 @@ namespace ColorsAction.Combat
 
         public int Id { get; }
         public EnemyConfig Config { get; }
+
+        /// <summary>Зона агро этого врага (задаётся в уровне, у каждого врага своя), м.</summary>
+        public float AggroRadius { get; }
+
+        /// <summary>Дальше этого враг теряет игрока: радиус потери типа, но не меньше своего радиуса агро.</summary>
+        public float LoseRadius => Math.Max(Config.LoseRadius, AggroRadius);
+
         public Health Health { get; }
         public EnemyState State { get; private set; } = EnemyState.Idle;
         public float StateTime { get; private set; }
@@ -134,10 +141,13 @@ namespace ColorsAction.Combat
         public event Action<EnemyState> StateChanged;
 
         /// <param name="statusConfig">StatusEffects.json; null — встроенные значения (<see cref="StatusEffectsConfig.CreateDefault"/>).</param>
-        public EnemyBrain(int id, EnemyConfig config, CombatDirector director, int seed, StatusEffectsConfig statusConfig = null)
+        /// <param name="aggroRadius">Радиус агро врага на карте; null — <see cref="LevelEnemy.DefaultAggroRadius"/>.</param>
+        public EnemyBrain(int id, EnemyConfig config, CombatDirector director, int seed, StatusEffectsConfig statusConfig = null,
+            float? aggroRadius = null)
         {
             Id = id;
             Config = config ?? throw new ArgumentNullException(nameof(config));
+            AggroRadius = Math.Max(0f, aggroRadius ?? LevelEnemy.DefaultAggroRadius);
             this.director = director ?? throw new ArgumentNullException(nameof(director));
             random = new Random(seed);
             Health = new Health(config.MaxHealth);
@@ -147,7 +157,11 @@ namespace ColorsAction.Combat
 
         /// <param name="distance">Расстояние до игрока по горизонтали, м.</param>
         /// <param name="playerAvailable">false — игрок недоступен (мёртв, далеко по высоте): враг остывает.</param>
-        public EnemyIntent Tick(float deltaTime, float distance, bool playerAvailable = true)
+        /// <param name="playerReachable">
+        /// false — дойти до игрока нельзя (ящики, поднятый мост, закрытая дверь-срезка): спокойный враг его не замечает.
+        /// Уже агрессивного врага не останавливает.
+        /// </param>
+        public EnemyIntent Tick(float deltaTime, float distance, bool playerAvailable = true, bool playerReachable = true)
         {
             StateTime += deltaTime;
             if (cooldown > 0f)
@@ -164,7 +178,7 @@ namespace ColorsAction.Combat
                     return new EnemyIntent(0f, false);
 
                 case EnemyState.Idle:
-                    if (playerAvailable && distance <= Config.AggroRadius)
+                    if (playerAvailable && playerReachable && distance <= AggroRadius)
                         SetState(EnemyState.Alerted);
                     return new EnemyIntent(0f, false);
 
@@ -174,7 +188,7 @@ namespace ColorsAction.Combat
                     return new EnemyIntent(0f, true);
 
                 case EnemyState.Chase:
-                    if (!playerAvailable || distance > Config.LoseRadius)
+                    if (!playerAvailable || distance > LoseRadius)
                     {
                         SetState(EnemyState.Idle);
                         return new EnemyIntent(0f, false);
@@ -192,7 +206,7 @@ namespace ColorsAction.Combat
                     return new EnemyIntent(ApproachSpeed(distance), true);
 
                 case EnemyState.Waiting:
-                    if (!playerAvailable || distance > Config.LoseRadius)
+                    if (!playerAvailable || distance > LoseRadius)
                     {
                         director.Leave(Id);
                         SetState(EnemyState.Idle);

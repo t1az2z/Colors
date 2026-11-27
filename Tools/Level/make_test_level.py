@@ -119,18 +119,18 @@ level = {
     ],
     # Враги на ровной площадке за блоками-образцами: трое, чтобы видеть, что атакует только один.
     "enemies": [
-        {"type": "club_cube", "x": 16, "z": 29, "yaw": 180},
-        {"type": "club_cube", "x": 20, "z": 31, "yaw": 200},
-        {"type": "club_cube", "x": 12, "z": 31, "yaw": 160},
+        {"type": "club_cube", "aggroRadius": 7, "x": 16, "z": 29, "yaw": 180},
+        {"type": "club_cube", "aggroRadius": 7, "x": 20, "z": 31, "yaw": 200},
+        {"type": "club_cube", "aggroRadius": 7, "x": 12, "z": 31, "yaw": 160},
         # Тир на поле за северной стеной: 4 красных (цвет дробовика) и 3 синих (цвет меча),
         # шахматкой в 2-3 клетках друг от друга, в 9-15 клетках от прохода.
-        {"type": "club_cube_red", "x": 6, "z": 74, "yaw": 180},
-        {"type": "club_cube", "x": 9, "z": 76, "yaw": 180},
-        {"type": "club_cube_red", "x": 12, "z": 74, "yaw": 180},
-        {"type": "club_cube", "x": 15, "z": 76, "yaw": 180},
-        {"type": "club_cube_red", "x": 18, "z": 74, "yaw": 180},
-        {"type": "club_cube", "x": 21, "z": 76, "yaw": 180},
-        {"type": "club_cube_red", "x": 24, "z": 74, "yaw": 180},
+        {"type": "club_cube_red", "aggroRadius": 8, "x": 6, "z": 74, "yaw": 180},
+        {"type": "club_cube", "aggroRadius": 7, "x": 9, "z": 76, "yaw": 180},
+        {"type": "club_cube_red", "aggroRadius": 8, "x": 12, "z": 74, "yaw": 180},
+        {"type": "club_cube", "aggroRadius": 7, "x": 15, "z": 76, "yaw": 180},
+        {"type": "club_cube_red", "aggroRadius": 8, "x": 18, "z": 74, "yaw": 180},
+        {"type": "club_cube", "aggroRadius": 7, "x": 21, "z": 76, "yaw": 180},
+        {"type": "club_cube_red", "aggroRadius": 8, "x": 24, "z": 74, "yaw": 180},
     ],
     "dummies": [
         {"x": 18, "z": 15, "yaw": 200},

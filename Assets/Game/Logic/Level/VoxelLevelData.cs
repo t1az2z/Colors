@@ -56,6 +56,9 @@ namespace ColorsAction.Level
 
             /// <summary>Количество (сундук: сколько ресурса). Не задано — 1.</summary>
             public int Count { get; set; } = 1;
+
+            /// <summary>Радиус агро врага, м. Пишется только у врагов; не задан — <see cref="LevelEnemy.DefaultAggroRadius"/>.</summary>
+            public float? AggroRadius { get; set; }
         }
 
         [Preserve]
@@ -117,7 +120,8 @@ namespace ColorsAction.Level
                 Objects.Select(o => new LevelObject
                 {
                     Id = o.Id, Kind = o.Kind, Cell = Int3.Parse(o.Cell), Yaw = o.Yaw, Color = o.Color,
-                    Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = Math.Max(1, o.Count)
+                    Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = Math.Max(1, o.Count),
+                    AggroRadius = Math.Max(0f, o.AggroRadius ?? LevelEnemy.DefaultAggroRadius)
                 }),
                 Points.Select(p => new InteractionPoint
                 {
@@ -140,7 +144,8 @@ namespace ColorsAction.Level
                 Objects = level.Objects.Select(o => new ObjectData
                 {
                     Id = o.Id, Kind = o.Kind, Cell = o.Cell.ToString(), Yaw = o.Yaw, Color = o.Color,
-                    Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = o.Count
+                    Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = o.Count,
+                    AggroRadius = IsEnemy(o) ? o.AggroRadius : (float?)null
                 }).ToList(),
                 Points = level.Points.Select(p => new PointData
                 {
@@ -150,6 +155,10 @@ namespace ColorsAction.Level
                 }).ToList()
             };
         }
+
+        /// <summary>Настоящий враг (не манекен): у него есть радиус агро.</summary>
+        public static bool IsEnemy(LevelObject o) =>
+            o.Kind == LevelObjectKind.EnemySpawn && !string.IsNullOrEmpty(o.Item) && o.Item != VoxelPlayLayout.DummyType;
 
         /// <summary>
         /// Импорт карты высот прототипа (<see cref="LevelConfig"/>): каждый столбик превращается в полные кубы
@@ -216,7 +225,7 @@ namespace ColorsAction.Level
                 level.PutObject(new LevelObject
                 {
                     Id = level.NewObjectId(LevelObjectKind.EnemySpawn), Kind = LevelObjectKind.EnemySpawn,
-                    Cell = StandCell(e.X, e.Z), Yaw = e.Yaw, Item = e.Type
+                    Cell = StandCell(e.X, e.Z), Yaw = e.Yaw, Item = e.Type, AggroRadius = e.AggroRadius
                 });
             }
 

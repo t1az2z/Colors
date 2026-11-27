@@ -212,11 +212,17 @@ namespace ColorsAction.Configs
         public string Item { get; set; }
     }
 
-    /// <summary>Враг на карте: тип из Enemies.json.</summary>
+    /// <summary>Враг на карте: тип из Enemies.json и радиус агро этого врага.</summary>
     [Preserve]
     public sealed class LevelEnemy : LevelPoint
     {
+        /// <summary>Радиус агро врага, у которого в уровне он не задан (новые враги в редакторах, старые файлы).</summary>
+        public const float DefaultAggroRadius = 7f;
+
         public string Type { get; set; }
+
+        /// <summary>Зона агро, м: игрок ближе — враг замечает его (если может до него дойти).</summary>
+        public float AggroRadius { get; set; } = DefaultAggroRadius;
     }
 
     /// <summary>

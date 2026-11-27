@@ -38,7 +38,7 @@ namespace ColorsAction.Level
                         if (string.IsNullOrEmpty(o.Item) || o.Item == DummyType)
                             config.Dummies.Add(Point(new LevelPoint(), o, y));
                         else
-                            config.Enemies.Add(Point(new LevelEnemy { Type = o.Item }, o, y));
+                            config.Enemies.Add(Point(new LevelEnemy { Type = o.Item, AggroRadius = o.AggroRadius }, o, y));
                         break;
                     case LevelObjectKind.Hint:
                         config.Hints.Add(Point(new LevelHint { Id = o.Id, Action = string.IsNullOrEmpty(o.Item) ? "interact" : o.Item }, o, y));

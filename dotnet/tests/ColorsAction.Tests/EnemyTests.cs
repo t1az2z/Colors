@@ -9,7 +9,7 @@ namespace ColorsAction.Tests
     {
         private static EnemyConfig Club() => new EnemyConfig
         {
-            Id = "club_cube", MaxHealth = 40, AggroRadius = 7, LoseRadius = 13, AlertDuration = 2f,
+            Id = "club_cube", MaxHealth = 40, LoseRadius = 13, AlertDuration = 2f,
             MoveSpeed = 4f, WaitDistance = 3f, AttackCooldown = 0.5f, StaggerDuration = 0.3f,
             Attacks = new List<EnemyAttackConfig>
             {

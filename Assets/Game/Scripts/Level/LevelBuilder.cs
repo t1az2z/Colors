@@ -3,6 +3,7 @@ using System.IO;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Level;
+using ColorsAction.Level.Navigation;
 using ColorsAction.Unity.Voxel;
 using GameCore.Config;
 using GameCore.DI;
@@ -34,6 +35,9 @@ namespace ColorsAction.Unity
 
         private LevelConfig level;
         private VoxelLevel voxel;
+
+        /// <summary>Может ли враг дойти до игрока (только воксельные уровни).</summary>
+        private EnemyReach reach;
         private Palette palette;
         private GameConfig game;
         private GameBootstrap bootstrap;
@@ -429,9 +433,17 @@ namespace ColorsAction.Unity
             var materials = playerMesh != null ? playerMesh.GetComponent<Renderer>().sharedMaterials : null;
             if (mesh == null)
                 return;
+            if (voxel != null && reach == null)
+                reach = new EnemyReach(voxel, IsOpenForEnemies,
+                    () => session.OpenedShortcuts.Count + session.BrokenCrates.Count + session.OpenedBridges.Count);
             foreach (var e in config.Enemies)
-                enemies.Add(EnemyController.Spawn(e.Type, PointPosition(e), e.Yaw, root, bootstrap, mesh, materials));
+                enemies.Add(EnemyController.Spawn(e.Type, PointPosition(e), e.Yaw, root, bootstrap, mesh, materials,
+                    e.AggroRadius, reach));
         }
+
+        /// <summary>Открыт ли проход для врагов: дверь-срезка открыта, ящики разбиты, мост опущен.</summary>
+        private bool IsOpenForEnemies(string id) =>
+            session.OpenedShortcuts.Contains(id) || session.BrokenCrates.Contains(id) || session.OpenedBridges.Contains(id);
 
         /// <summary>
         /// Все враги уровня заново на своих местах и в исходном состоянии (живые убираются, погибшие возвращаются).

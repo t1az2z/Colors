@@ -162,6 +162,10 @@ function chestLabel(o) { return o.item ? `${resourceName(o.item)} ×${o.count ||
 // Типы врагов из Enemies.json: id → имя и цвет. Манекен — отдельный тип прототипа.
 let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'blue' }, dummy: { name: 'Манекен', color: null } };
 let ENEMIES = Object.keys(ENEMY_INFO);
+// Радиус агро — у каждого врага в уровне свой; новым врагам и старым файлам без поля — этот (LevelEnemy.DefaultAggroRadius).
+const DEFAULT_AGGRO = 7;
+function isEnemy(o) { return o.kind === 'EnemySpawn' && o.item && o.item !== 'dummy'; }
+function aggroOf(o) { return Number.isFinite(+o.aggroRadius) && o.aggroRadius !== null ? +o.aggroRadius : DEFAULT_AGGRO; }
 // Действия для подсказок на полу (GameInput.Label в Unity): кнопка подставляется под устройство ввода.
 const HINTS = ['interact', 'jump', 'roll', 'attack', 'block', 'wheel', 'inventory', 'items', 'run', 'lockOn'];
 const WORLD_COLOR = '#e4e5e9';
@@ -385,6 +389,7 @@ function toJSON() {
       id: o.id, kind: o.kind, cell: cellStr(o.cell), yaw: o.yaw || undefined, color: o.color,
       barrier: o.kind === 'Barrier' && o.barrier && o.barrier !== 'Wall' ? o.barrier : undefined,
       height: o.height ?? 2, item: o.item, count: o.kind === 'Chest' ? Math.max(1, o.count | 0) : undefined,
+      aggroRadius: isEnemy(o) ? aggroOf(o) : undefined,
     })),
     points: L.points.map(p => clean({
       id: p.id, action: p.action, cell: cellStr(p.cell), requiredItem: p.requiredItem, requiredOpen: p.requiredOpen,
@@ -414,6 +419,7 @@ function fromJSON(d, file) {
     id: get(o, 'id'), kind: enumOf(get(o, 'kind'), OBJECT_KINDS, 'PlayerSpawn'), cell: parseCell(get(o, 'cell')),
     yaw: +(get(o, 'yaw') || 0), color: get(o, 'color') || null, barrier: enumOf(get(o, 'barrier'), BARRIERS, 'Wall'),
     height: get(o, 'height') ?? 2, item: get(o, 'item') || null, count: Math.max(1, +(get(o, 'count') || 1) | 0),
+    aggroRadius: get(o, 'aggroRadius') ?? null,
   }));
   L.points = (get(d, 'points') || []).map(p => ({
     id: get(p, 'id'), action: enumOf(get(p, 'action'), ACTIONS, 'ShieldSlide'), cell: parseCell(get(p, 'cell')),
@@ -613,7 +619,7 @@ const st = {
   blockShape: 'F', blockMode: 'add',
   paintColumn: false,
   objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, crateYaw: 0, crateHeight: 2, bridgeYaw: 0,
-  objResource: 'metal', chestCount: 1,
+  objResource: 'metal', chestCount: 1, enemyAggro: DEFAULT_AGGRO,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
 };
@@ -685,6 +691,11 @@ function stepper(val, set, min, max, fmt, step = 1) {
 }
 function rotChips(cur, set) {
   return chips([[0, '↑ +Z'], [1, '→ +X'], [2, '↓ −Z'], [3, '← −X']], cur, set);
+}
+function aggroRow(val, set) {
+  return h('div', {},
+    row('Радиус агро, м', stepper(val, v => { set(v); requestRender(); }, 0, 30, v => String(v), 0.5)),
+    desc('Игрок ближе — враг заметит его, если может до него дойти (не через ящики, поднятый мост или закрытую дверь). Зона — оранжевый круг.'));
 }
 function row(label, ctl) { return h('div', { class: 'row' }, h('label', {}, label), ctl); }
 function textInput(val, set, list) {
@@ -778,7 +789,8 @@ function objectPanel() {
     desc('Дверь открывается только со стороны стрелки и дальше остаётся открытой. Ставьте её в проём стены.'),
     row('Открывается со стороны', chips(DOOR_SIDES, st.doorYaw, v => { st.doorYaw = v; renderPanel(); })),
     row('Высота, кубов', stepper(st.doorHeight, v => st.doorHeight = v, 1, 12)));
-  if (st.objKind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(st.objEnemy, v => { st.objEnemy = v; renderPanel(); }));
+  if (st.objKind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(st.objEnemy, v => { st.objEnemy = v; renderPanel(); }),
+    st.objEnemy !== 'dummy' ? aggroRow(st.enemyAggro, v => st.enemyAggro = v) : '');
   if (st.objKind === 'CrateStack') out.push(
     desc('Стопка деревянных ящиков 2×1: закрывает проход, разбивается только мечом. Две в высоту не перепрыгнуть. Тап — первая клетка, вторая — по стрелке.'),
     row('Вторая клетка', chips(CRATE_DIRS, st.crateYaw, v => { st.crateYaw = v; renderPanel(); })),
@@ -820,7 +832,8 @@ function objectPanel() {
       out.push(row('Высота', stepper(o.height ?? 2, v => edit(() => o.height = v), 1, 12)));
     }
     const itemList = o.kind === 'WeaponPedestal' ? ITEMS : o.kind === 'Hint' ? HINTS : null;
-    if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })));
+    if (o.kind === 'EnemySpawn') out.push(H3('Тип врага'), enemyList(o.item, v => edit(() => { o.item = v; o.color = null; })),
+      isEnemy(o) ? aggroRow(aggroOf(o), v => edit(() => o.aggroRadius = v)) : '');
     else if (o.kind === 'Chest') out.push(H3('Ресурс в сундуке'), resourceList(o.item, v => edit(() => o.item = v)),
       row('Количество', stepper(o.count || 1, v => edit(() => o.count = v), 1, 99)));
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack' && o.kind !== 'DrawBridge')
@@ -1431,6 +1444,23 @@ function drawOverlay() {
     octx.stroke(); octx.setLineDash([6, 4]);
   }
   octx.setLineDash([]);
+  // зоны агро врагов: круг на полу; у выбранного — ярче и с заливкой
+  for (const o of L.objects) {
+    if (!isEnemy(o) || aggroOf(o) <= 0) continue;
+    const fi = floorIndexOf(o.cell[1]);
+    if (fi > activeFloor && st.upper === 'hide') continue;
+    const selected = sel.obj === o.id, R = aggroOf(o), y = surfaceOf(o.cell) + .05, cx = o.cell[0] + .5, cz = o.cell[2] + .5;
+    octx.beginPath();
+    for (let i = 0; i <= 64; i++) {
+      const a = i / 64 * Math.PI * 2, [sx, sy] = project(cx + Math.cos(a) * R, y, cz + Math.sin(a) * R);
+      i ? octx.lineTo(sx, sy) : octx.moveTo(sx, sy);
+    }
+    octx.closePath();
+    if (selected) { octx.fillStyle = 'rgba(255,140,26,.10)'; octx.fill(); }
+    octx.strokeStyle = selected ? 'rgba(230,110,10,.95)' : 'rgba(255,140,26,.45)';
+    octx.lineWidth = selected ? 2.5 : 1.5; octx.setLineDash(selected ? [] : [5, 4]); octx.stroke();
+  }
+  octx.setLineDash([]);
   // объекты и точки
   const r = Math.max(9, Math.min(17, ppu * 0.36));
   const markers = [];
@@ -1689,6 +1719,7 @@ function objectTap(px, py) {
     height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : 2,
     item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : kind === 'Chest' ? st.objResource : null,
     count: kind === 'Chest' ? st.chestCount : 1,
+    aggroRadius: kind === 'EnemySpawn' ? st.enemyAggro : null,
   };
   if (kind === 'PlayerSpawn') { L.objects = L.objects.filter(x => x.kind !== 'PlayerSpawn'); o.id = 'spawn'; }
   L.objects.push(o); commit();

@@ -1372,8 +1372,8 @@ const ENEMY_FIELDS = [
   { k: 'experience', l: 'Опыт за победу', t: 'int', u: U.pts, min: 0, max: 500, step: 1, def: 10, d: '' },
 ];
 const ENEMY_AI_FIELDS = [
-  { k: 'aggroRadius', l: 'Радиус агро', u: U.bl, min: 0, max: 30, step: 0.5, def: 7, d: 'Подойди ближе — враг заметит игрока.' },
-  { k: 'loseRadius', l: 'Радиус потери', u: U.bl, min: 0, max: 50, step: 0.5, def: 13, d: 'Дальше этого враг теряет игрока и возвращается в покой. Не меньше радиуса агро.' },
+  { k: 'loseRadius', l: 'Радиус потери', u: U.bl, min: 0, max: 50, step: 0.5, def: 13, d: 'Дальше этого враг теряет игрока и возвращается в покой. Радиус агро задаётся у каждого врага в редакторе уровней; если он больше — враг теряет игрока на радиусе агро.' },
+  { k: 'movement', l: 'Профиль перемещения', t: 'text', def: 'walker', d: 'Id из Movement.json. По нему игра проверяет, может ли враг дойти до игрока: за ящиками, поднятым мостом или закрытой дверью враг игрока не замечает.' },
   { k: 'alertDuration', l: 'Реакция «заметил!»', u: U.s, min: 0, max: 5, step: 0.05, def: 2, d: 'Сжатие, подпрыгивание и знак «!» перед погоней или атакой.' },
   { k: 'moveSpeed', l: 'Скорость', u: U.bls, min: 0, max: 15, step: 0.1, def: 4.5, d: 'Для сравнения: игрок ходит со скоростью walkSpeed из Player.json.' },
   { k: 'turnSpeed', l: 'Скорость поворота', u: U.degs, min: 30, max: 2000, step: 10, def: 540, d: '' },
@@ -1411,7 +1411,7 @@ function validateEnemies(d) {
   for (const [id, e] of Object.entries(d || {})) {
     if (!(e.attacks?.length)) w.push(`${id}: нужна хотя бы одна атака — иначе игра не загрузит конфиг.`);
     if (!(num(e.maxHealth, 40) > 0) || !(num(e.size, 0.8) > 0)) w.push(`${id}: здоровье и размер должны быть больше 0.`);
-    if (num(e.loseRadius, 13) < num(e.aggroRadius, 7)) w.push(`${id}: радиус потери меньше радиуса агро — игра поднимет его до радиуса агро.`);
+    if (S.files.Movement && !S.files.Movement.data[e.movement || 'walker']) w.push(`${id}: профиля перемещения «${e.movement || 'walker'}» нет в Movement.json — достижимость игрока не проверяется.`);
     if (e.color && S.files.Colors && !S.files.Colors.data[e.color]) w.push(`${id}: цвета «${e.color}» нет в Colors.json.`);
     (e.attacks || []).forEach((a, i) => { if (num(a.parryFrom, -0.18) > num(a.parryTo, 0.06)) w.push(`${id}, атака ${i + 1}: начало окна парирования позже конца.`); });
     if (num(e.experiencePieces, 6) > num(e.deathPieces, 14)) w.push(`${id}: осколков опыта больше, чем всего осколков.`);
@@ -2057,14 +2057,15 @@ function vizMoveProfile({ p }) {
 
 function vizEnemy({ e }) {
   const col = colorHex(e.color || 'blue');
-  const size = num(e.size, 0.8), aggro = num(e.aggroRadius, 7), lose = Math.max(aggro, num(e.loseRadius, 13)), wait = num(e.waitDistance, 3.2);
+  // Радиус агро — у каждого врага в уровне; здесь для картинки берём значение по умолчанию (LevelEnemy.DefaultAggroRadius).
+  const size = num(e.size, 0.8), aggro = 7, lose = Math.max(aggro, num(e.loseRadius, 13)), wait = num(e.waitDistance, 3.2);
   const attacks = e.attacks || [];
   const ph = enemyAttackPhases;
   // 1. Зоны сверху
   const W = 270, H = 270, cx = W / 2, cy = H / 2, s = (W / 2 - 14) / Math.max(1, lose);
   let z = '';
   const ring = (r, c, label, dash, fillOp = 0) => `<circle cx="${cx}" cy="${cy}" r="${r * s}" fill="${c}" fill-opacity="${fillOp}" stroke="${c}" ${dash ? 'stroke-dasharray="4 3"' : ''}/>` + (label ? T(cx, cy - r * s + 12, label, { anchor: 'middle', size: 10, fill: c }) : '');
-  z += ring(lose, C.text, `потеря ${r2(lose)}`, true) + ring(aggro, C.orange, `агро ${r2(aggro)}`, false, 0.06) + ring(wait, C.lilac, `ожидание ${r2(wait)}`, true);
+  z += ring(lose, C.text, `потеря ${r2(lose)}`, true) + ring(aggro, C.orange, `агро ${r2(aggro)} (по умолч., задаётся в уровне)`, false, 0.06) + ring(wait, C.lilac, `ожидание ${r2(wait)}`, true);
   const maxR = Math.max(0, ...attacks.map(a => num(a.range, 1.5)));
   if (maxR > 0) z += ring(maxR, col, '', false, 0.25);
   z += `<rect x="${cx - size * s / 2}" y="${cy - size * s / 2}" width="${Math.max(3, size * s)}" height="${Math.max(3, size * s)}" fill="${col}"/>`;
@@ -2119,7 +2120,7 @@ function vizEnemy({ e }) {
     + `<h4>Атаки по времени</h4>${svgWrap(TW, tlH, tl)}<div class="legend">${legendItem(C.yellow, 'замах (реакция игрока)')}${legendItem(C.red, 'удар (урон)')}${legendItem(C.orange, 'фиксация')}${legendItem(C.grid2, 'возврат')}${legendItem(C.lilac, 'окно парирования', `border:2px solid ${C.lilac};height:6px`)}${legendItem(C.grid2, 'пауза между атаками', `border:1px dashed ${C.grid2};height:6px`)}</div>`
     + facts([
       ['Скорость', pWalk ? `${r2(speed)} бл/с (${r2(speed / pWalk * 100, 0)}% ходьбы игрока)` : `${r2(speed)} бл/с`],
-      ['От агро до первого удара', `≈ ${r2(toFirst + (attacks[0] ? ph(attacks[0])[0] : 0), 1)} с`],
+      ['От агро до первого удара (агро 7)', `≈ ${r2(toFirst + (attacks[0] ? ph(attacks[0])[0] : 0), 1)} с`],
       ['Средний урон атаки', r2(avgDmg, 1)],
       ['Урон в секунду в упор', r2(avgDmg / Math.max(0.01, avgCycle), 1)],
       ...(pHp ? [['Ударов до смерти игрока', String(Math.ceil(pHp / Math.max(0.01, avgDmg)))]] : []),

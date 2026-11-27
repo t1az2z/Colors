@@ -186,7 +186,7 @@ namespace ColorsAction.Tests
 
         private static EnemyConfig Club(float parryFrom, float parryTo) => new EnemyConfig
         {
-            Id = "club_cube", MaxHealth = 40, AggroRadius = 7, LoseRadius = 13, AlertDuration = 0.1f,
+            Id = "club_cube", MaxHealth = 40, LoseRadius = 13, AlertDuration = 0.1f,
             MoveSpeed = 4f, WaitDistance = 3f, AttackCooldown = 0.5f, StaggerDuration = 0.3f,
             Attacks = new List<EnemyAttackConfig>
             {

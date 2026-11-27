@@ -243,7 +243,8 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                     : objectKind == LevelObjectKind.DrawBridge ? bridgeYaw : 0f,
                 Color = HasColor(objectKind) ? objectColor : null,
                 Item = string.IsNullOrEmpty(objectItem) ? null : objectItem,
-                Count = objectKind == LevelObjectKind.Chest ? chestCount : 1
+                Count = objectKind == LevelObjectKind.Chest ? chestCount : 1,
+                AggroRadius = enemyAggroRadius
             };
             session.Execute(MarkupCommand.PutObject(null, obj));
             selectedObject = obj.Id;
@@ -529,6 +530,21 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 }
             }
 
+            // Зона агро врага: круг на высоте пола, у выбранного — ярче и с заливкой.
+            if (VoxelLevelData.IsEnemy(o) && o.AggroRadius > 0f)
+            {
+                var selected = o.Id == selectedObject;
+                var disc = pos + Vector3.up * 0.05f;
+                if (selected)
+                {
+                    Handles.color = new Color(1f, 0.55f, 0.1f, 0.08f);
+                    Handles.DrawSolidDisc(disc, Vector3.up, o.AggroRadius);
+                }
+
+                Handles.color = new Color(1f, 0.55f, 0.1f, selected ? 0.9f : 0.35f);
+                Handles.DrawWireDisc(disc, Vector3.up, o.AggroRadius, selected ? 2f : 1f);
+            }
+
             if (o.Id == selectedObject)
             {
                 Handles.color = Color.yellow;
@@ -536,7 +552,7 @@ namespace ColorsAction.Unity.Editor.LevelEditor
                 Handles.DrawWireCube(new Vector3(pos.x, o.Cell.Y + h * 0.5f, pos.z), new Vector3(1.08f, h + 0.08f, 1.08f));
             }
 
-            var text = enemyName != null ? "Враг: " + enemyName
+            var text = enemyName != null ? $"Враг: {enemyName} (агро {o.AggroRadius:0.#})"
                 : o.IsDoor ? "Дверь-срезка ↦ " + DoorSideLabels[((Mathf.RoundToInt(o.Yaw / 90f) % 4) + 4) % 4]
                 : o.Item != null ? $"{o.Kind}: {o.Item}" : o.Kind.ToString();
             Handles.Label(new Vector3(pos.x, top + 0.2f, pos.z), text, label);

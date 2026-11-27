@@ -229,6 +229,9 @@ namespace ColorsAction.Level
         /// <summary>Сколько штук <see cref="Item"/> (сундук: количество ресурса).</summary>
         public int Count { get; set; } = 1;
 
+        /// <summary>Враг: радиус агро в метрах (свой у каждого размещённого врага).</summary>
+        public float AggroRadius { get; set; } = ColorsAction.Configs.LevelEnemy.DefaultAggroRadius;
+
         public bool IsBarrier => Kind == LevelObjectKind.Barrier;
 
         public bool IsChest => Kind == LevelObjectKind.Chest;

@@ -124,60 +124,70 @@
  "enemies": [
   {
    "type": "club_cube",
+   "aggroRadius": 7,
    "x": 16,
    "z": 29,
    "yaw": 180
   },
   {
    "type": "club_cube",
+   "aggroRadius": 7,
    "x": 20,
    "z": 31,
    "yaw": 200
   },
   {
    "type": "club_cube",
+   "aggroRadius": 7,
    "x": 12,
    "z": 31,
    "yaw": 160
   },
   {
    "type": "club_cube_red",
+   "aggroRadius": 8,
    "x": 6,
    "z": 74,
    "yaw": 180
   },
   {
    "type": "club_cube",
+   "aggroRadius": 7,
    "x": 9,
    "z": 76,
    "yaw": 180
   },
   {
    "type": "club_cube_red",
+   "aggroRadius": 8,
    "x": 12,
    "z": 74,
    "yaw": 180
   },
   {
    "type": "club_cube",
+   "aggroRadius": 7,
    "x": 15,
    "z": 76,
    "yaw": 180
   },
   {
    "type": "club_cube_red",
+   "aggroRadius": 8,
    "x": 18,
    "z": 74,
    "yaw": 180
   },
   {
    "type": "club_cube",
+   "aggroRadius": 7,
    "x": 21,
    "z": 76,
    "yaw": 180
   },
   {
    "type": "club_cube_red",
+   "aggroRadius": 8,
    "x": 24,
    "z": 74,
    "yaw": 180
