@@ -14,7 +14,7 @@ namespace ColorsAction.Unity
     /// <summary>
     /// Колесо выбора оружия (GDD, раздел 7): пока кнопка колеса (TAB / Y) зажата, время сильно замедлено, на экране —
     /// круг из 6 цветов (<see cref="CombatConfig.ColorWheel"/>, жёлтый сверху, по часовой). Найденное оружие стоит
-    /// в секторе своего цвета; сектор без оружия виден сразу, но тусклый. Сектор выбирается мышью (от центра экрана)
+    /// в секторе своего цвета; сектор без оружия виден сразу, но тусклый. Сектор выбирается движением мыши (виртуальный курсор от центра, курсор захвачен)
     /// или правым стиком; отпускание кнопки делает оружие активным. У смены есть кулдаун
     /// (<see cref="WeaponWheelConfig"/>, Combat.json → weaponWheel).
     /// </summary>
@@ -45,6 +45,12 @@ namespace ColorsAction.Unity
 
         private float openT;
         private int hovered = -1;
+
+        /// <summary>
+        /// Виртуальный курсор колеса: сдвиг мыши от центра, накопленный из mouse.delta. Курсор в игре захвачен
+        /// (свободная камера), его позиция не меняется, поэтому выбирать сектор по Mouse.position нельзя.
+        /// </summary>
+        private Vector2 virtualCursor;
         private float cooldownUntil;
         private bool wasOpen;
 
@@ -204,6 +210,7 @@ namespace ColorsAction.Unity
         {
             IsOpen = true;
             hovered = -1;
+            virtualCursor = Vector2.zero;
             GameTimeScale.SetSlowMotion(config.TimeScale);
             Refresh();
         }
@@ -231,7 +238,7 @@ namespace ColorsAction.Unity
             }
         }
 
-        /// <summary>Сектор под мышью (от центра экрана) или правым стиком; -1 — в мёртвой зоне.</summary>
+        /// <summary>Сектор по виртуальному курсору мыши (от центра колеса) или правым стиком; -1 — в мёртвой зоне.</summary>
         private int PickSector()
         {
             var dir = Vector2.zero;
@@ -243,9 +250,10 @@ namespace ColorsAction.Unity
                 var mouse = Mouse.current;
                 if (mouse != null)
                 {
-                    var center = new Vector2(Screen.width, Screen.height) * 0.5f;
-                    var scale = Screen.height / 1080f;
-                    var offset = (mouse.position.ReadValue() - center) / Mathf.Max(1f, Radius * scale);
+                    // Курсор захвачен — копим движение мыши; дальше края колеса не уходит, чтобы обратный ход сразу менял сектор.
+                    var radius = Mathf.Max(1f, Radius * (Screen.height / 1080f));
+                    virtualCursor = Vector2.ClampMagnitude(virtualCursor + mouse.delta.ReadValue(), radius);
+                    var offset = virtualCursor / radius;
                     if (offset.magnitude > config.DeadZone)
                         dir = offset;
                 }
