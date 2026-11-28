@@ -362,16 +362,23 @@ namespace ColorsAction.Unity
 
             SpawnEnemies(config);
 
-            // Двери-срезки: открываются только с лицевой стороны (yaw), дальше открыты навсегда.
+            // Двери-срезки: открываются только с лицевой стороны (yaw), дальше открыты навсегда. Стоящие вплотную
+            // в линию — одна широкая дверь (ShortcutDoorGroups); doors[i] — дверь, в которую попала клетка i.
             var doors = new ShortcutDoor[config.Doors.Count];
-            for (int i = 0; i < config.Doors.Count; i++)
+            foreach (var group in ShortcutDoorGroups.Build(config.Doors))
             {
-                var door = config.Doors[i];
-                var go = new GameObject($"ShortcutDoor_{door.Id}");
+                var first = config.Doors[group.Doors[0]];
+                var ids = new string[group.Width];
+                for (int k = 0; k < ids.Length; k++)
+                    ids[k] = config.Doors[group.Doors[k]].Id;
+                var position = PointPosition(first) + new Vector3(group.CenterX - first.X, 0f, group.CenterZ - first.Z);
+                var go = new GameObject($"ShortcutDoor_{first.Id}" + (group.Width > 1 ? $"_x{group.Width}" : ""));
                 go.transform.SetParent(root, false);
-                go.transform.SetPositionAndRotation(PointPosition(door), Quaternion.Euler(0, door.Yaw, 0));
-                doors[i] = go.AddComponent<ShortcutDoor>();
-                doors[i].Init(door.Id, door.Height, worldMaterial);
+                go.transform.SetPositionAndRotation(position, Quaternion.Euler(0, group.Yaw, 0));
+                var door = go.AddComponent<ShortcutDoor>();
+                door.Init(ids, first.Height, worldMaterial);
+                foreach (var i in group.Doors)
+                    doors[i] = door;
                 bootstrap.Inject(go);
             }
 
@@ -540,7 +547,8 @@ namespace ColorsAction.Unity
                     boundPickups.Add(pickups[i]);
                 var boundDoors = new List<ShortcutDoor>();
                 foreach (var i in doorIndices)
-                    boundDoors.Add(doors[i]);
+                    if (!boundDoors.Contains(doors[i]))
+                        boundDoors.Add(doors[i]);
                 var id = hint.Id;
                 marker.BindTargets(() =>
                 {

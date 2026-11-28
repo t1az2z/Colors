@@ -27,6 +27,15 @@ namespace ColorsAction.Unity
         void Interact(Vector3 from);
     }
 
+    /// <summary>
+    /// Протяжённый объект (широкая дверь): расстояние до игрока меряется от ближайшей точки, а не от
+    /// <see cref="IInteractable.InteractPoint"/>, чтобы открыть можно было, стоя у любого края.
+    /// </summary>
+    public interface IInteractableSpan
+    {
+        Vector3 NearestPoint(Vector3 from);
+    }
+
     /// <summary>Реестр активных <see cref="IInteractable"/>: регистрируются в OnEnable, снимаются в OnDisable.</summary>
     public static class Interactables
     {

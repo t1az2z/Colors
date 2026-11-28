@@ -954,7 +954,9 @@ function objectPanel() {
     out.push(row('Клетка', h('span', {}, cellStr(o.cell))));
     if (o.kind === 'ShortcutDoor') out.push(
       row('Открывается со стороны', chips(DOOR_SIDES, doorSide(o.yaw), v => edit(() => o.yaw = v))),
-      row('Высота', stepper(o.height ?? 3, v => edit(() => o.height = v), 1, 12)));
+      row('Высота', stepper(o.height ?? 3, v => edit(() => o.height = v), 1, 12)),
+      row('Ширина', h('span', {}, shortcutDoorWidth(o) > 1
+        ? `${shortcutDoorWidth(o)} кл. — одна дверь с соседними` : '1 клетка (соседние двери в линию сливаются в одну)')));
     else if (o.kind === 'CrateStack') out.push(
       row('Вторая клетка', chips(CRATE_DIRS, crateDir(o.yaw), v => edit(() => o.yaw = v))),
       row('Ящиков в высоту', stepper(o.height ?? 2, v => edit(() => o.height = v), 1, 3)));
@@ -1367,8 +1369,9 @@ function buildMarkers() {
   needMarkers = false;
   markerGroup.children.forEach(c => { c.geometry.dispose(); c.material.dispose(); });
   markerGroup.clear();
+  for (const g of shortcutDoorGroups()) addDoorMesh(g);
   for (const o of L.objects) {
-    if (o.kind === 'ShortcutDoor') { addDoorMesh(o); continue; }
+    if (o.kind === 'ShortcutDoor') continue;
     if (o.kind === 'KeyDoor') { addKeyDoorMesh(o); continue; }
     if (o.kind === 'CrateStack') { addCrateMesh(o); continue; }
     if (o.kind === 'Chest') { addChestMesh(o); continue; }
@@ -1389,17 +1392,39 @@ function buildMarkers() {
     markerGroup.add(m);
   }
 }
-// Дверь-срезка: плита поперёк клетки (тонкая вдоль лицевой стороны) и засов на лицевой стороне.
-function addDoorMesh(o) {
+// Двери-срезки, стоящие вплотную в линию, — одна широкая дверь (ShortcutDoorGroups в Unity): одна сторона, один этаж,
+// одна высота, соседи вдоль плиты (лицом в ±Z — по X, лицом в ±X — по Z). Формат карты тот же: каждая клетка — своя дверь.
+function shortcutDoorJoins(a, b) {
+  const s = doorSide(a.yaw);
+  if (s !== doorSide(b.yaw) || a.cell[1] !== b.cell[1] || Math.max(1, a.height ?? 3) !== Math.max(1, b.height ?? 3)) return false;
+  return s % 180 === 0 ? a.cell[2] === b.cell[2] && Math.abs(a.cell[0] - b.cell[0]) === 1
+                       : a.cell[0] === b.cell[0] && Math.abs(a.cell[2] - b.cell[2]) === 1;
+}
+function shortcutDoorGroups() {
+  const doors = L.objects.filter(o => o.kind === 'ShortcutDoor'), used = new Set(), out = [];
+  for (const d of doors) {
+    if (used.has(d)) continue;
+    const m = [d]; used.add(d);
+    for (let k = 0; k < m.length; k++)
+      for (const o of doors) if (!used.has(o) && shortcutDoorJoins(m[k], o)) { used.add(o); m.push(o); }
+    out.push(m);
+  }
+  return out;
+}
+function shortcutDoorWidth(o) { return shortcutDoorGroups().find(g => g.includes(o))?.length || 1; }
+// Дверь-срезка: плита поперёк прохода (тонкая вдоль лицевой стороны) во всю ширину группы и засов на лицевой стороне.
+function addDoorMesh(group) {
+  const o = group[0], w = group.length;
   const hgt = Math.max(1, o.height ?? 3);
   const fi = floorIndexOf(o.cell[1]);
+  const cx = group.reduce((a, d) => a + d.cell[0], 0) / w, cz = group.reduce((a, d) => a + d.cell[2], 0) / w;
   const g = new THREE.Group();
   const mat = new THREE.MeshLambertMaterial({ color: OBJECT_KINDS.ShortcutDoor.col, transparent: true, opacity: fi > activeFloor ? 0.2 : 0.8, depthWrite: false });
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.96, hgt, 0.3), mat);
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, hgt, 0.3), mat);
   slab.position.y = hgt / 2;
-  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.14, 0.12), new THREE.MeshLambertMaterial({ color: '#ffd34d' }));
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(w - 0.2, 0.14, 0.12), new THREE.MeshLambertMaterial({ color: '#ffd34d' }));
   bar.position.set(0, Math.min(1.1, hgt - 0.2), 0.21);
-  g.position.set(o.cell[0] + .5, surfaceOf(o.cell), o.cell[2] + .5);
+  g.position.set(cx + .5, surfaceOf(o.cell), cz + .5);
   g.rotation.y = (o.yaw || 0) * Math.PI / 180;
   g.visible = !(fi > activeFloor && st.upper === 'hide');
   slab.renderOrder = 3; bar.renderOrder = 3;

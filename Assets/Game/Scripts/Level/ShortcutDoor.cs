@@ -9,14 +9,18 @@ namespace ColorsAction.Unity
     /// помечена засовом — только оттуда дверь открывается на F / X. С обратной стороны подсказка
     /// «Не открывается с этой стороны». Открытая дверь уходит в пол и больше не закрывается
     /// (id запоминается в <see cref="GameSession.OpenedShortcuts"/>). Правила — <see cref="ShortcutDoorRules"/>.
+    /// Двери, поставленные вплотную в линию (<see cref="ShortcutDoorGroups"/>), — один объект шириной в несколько
+    /// клеток: одна плита, открываются вместе, в сессию пишутся id всех клеток.
     /// </summary>
-    public sealed class ShortcutDoor : GameBehaviour, IInteractable
+    public sealed class ShortcutDoor : GameBehaviour, IInteractable, IInteractableSpan
     {
         private const float Thickness = 0.3f;
         private const float ShakeTime = 0.3f;
         private const float SlideTime = 0.9f;
 
         private string id;
+        private string[] ids;
+        private int width = 1;
         private float height = 3f;
         private Material material;
 
@@ -27,6 +31,11 @@ namespace ColorsAction.Unity
         private float openTimer = -1f;
 
         public string Id => id;
+
+        /// <summary>Id всех клеток двери (у одиночной — один).</summary>
+        public string[] Ids => ids;
+
+        public int Width => width;
         public bool IsOpen => state != null && state.IsOpen;
 
         public bool Available => state != null && !state.IsOpen;
@@ -34,10 +43,12 @@ namespace ColorsAction.Unity
         public string Prompt => "открыть дверь";
         public string BlockedPrompt => "Не открывается с этой стороны";
 
-        /// <summary>Вызвать до Inject: id, высота в метрах, материал мира (будет затемнён).</summary>
-        public void Init(string doorId, float doorHeight, Material worldMaterial)
+        /// <summary>Вызвать до Inject: id клеток по порядку вдоль плиты, высота в метрах, материал мира (будет затемнён).</summary>
+        public void Init(string[] doorIds, float doorHeight, Material worldMaterial)
         {
-            id = doorId;
+            ids = doorIds;
+            id = doorIds[0];
+            width = Mathf.Max(1, doorIds.Length);
             height = Mathf.Max(1f, doorHeight);
             material = worldMaterial;
         }
@@ -53,7 +64,11 @@ namespace ColorsAction.Unity
         private void Start()
         {
             var p = transform.position;
-            var open = session != null && session.OpenedShortcuts.Contains(id);
+            // Открыта, если открыта хоть одна клетка (на случай сохранения, где двери ещё стояли по отдельности).
+            var open = false;
+            if (session != null)
+                foreach (var cell in ids)
+                    open |= session.OpenedShortcuts.Contains(cell);
             state = new ShortcutDoorState(id, p.x, p.z, transform.eulerAngles.y, open);
             Build();
             if (open)
@@ -67,14 +82,15 @@ namespace ColorsAction.Unity
 
             // Плита: в мировом материале, но темнее стен, чтобы проход читался.
             var tint = new Color(0.62f, 0.62f, 0.66f);
-            var body = Part("Body", slab, new Vector3(0f, height * 0.5f, 0f), new Vector3(0.98f, height, Thickness), tint);
+            var body = Part("Body", slab, new Vector3(0f, height * 0.5f, 0f), new Vector3(width - 0.02f, height, Thickness), tint);
 
-            // Засов на лицевой стороне (+Z): горизонтальный брус и две скобы.
+            // Засов на лицевой стороне (+Z): один горизонтальный брус во всю ширину и скобы у краёв.
             var latch = new Color(0.35f, 0.35f, 0.4f);
             var front = Thickness * 0.5f;
-            Part("Bar", slab, new Vector3(0f, 1.1f, front + 0.06f), new Vector3(0.8f, 0.14f, 0.12f), latch);
-            Part("BracketL", slab, new Vector3(-0.3f, 1.1f, front + 0.03f), new Vector3(0.1f, 0.3f, 0.06f), latch);
-            Part("BracketR", slab, new Vector3(0.3f, 1.1f, front + 0.03f), new Vector3(0.1f, 0.3f, 0.06f), latch);
+            var bracket = width * 0.5f - 0.2f;
+            Part("Bar", slab, new Vector3(0f, 1.1f, front + 0.06f), new Vector3(width - 0.2f, 0.14f, 0.12f), latch);
+            Part("BracketL", slab, new Vector3(-bracket, 1.1f, front + 0.03f), new Vector3(0.1f, 0.3f, 0.06f), latch);
+            Part("BracketR", slab, new Vector3(bracket, 1.1f, front + 0.03f), new Vector3(0.1f, 0.3f, 0.06f), latch);
 
             blocker = body.gameObject.AddComponent<BoxCollider>();
         }
@@ -97,13 +113,22 @@ namespace ColorsAction.Unity
             return go.transform;
         }
 
+        public Vector3 NearestPoint(Vector3 from)
+        {
+            var p = transform.position;
+            var (x, z) = ShortcutDoorRules.NearestPoint(p.x, p.z, transform.eulerAngles.y, width, from.x, from.z);
+            return new Vector3(x, p.y, z);
+        }
+
         public bool CanInteract(Vector3 from) => state != null && state.CanOpenFrom(from.x, from.z);
 
         public void Interact(Vector3 from)
         {
             if (state == null || state.TryOpen(from.x, from.z) != DoorOpenResult.Opened)
                 return;
-            session?.OpenedShortcuts.Add(id);
+            if (session != null)
+                foreach (var cell in ids)
+                    session.OpenedShortcuts.Add(cell);
             openTimer = 0f;
         }
 

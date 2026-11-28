@@ -51,7 +51,7 @@ namespace ColorsAction.Unity
             {
                 if (!item.Available)
                     continue;
-                var d = item.InteractPoint - position;
+                var d = (item is IInteractableSpan span ? span.NearestPoint(position) : item.InteractPoint) - position;
                 if (Mathf.Abs(d.y) > 1.2f)
                     continue;
                 d.y = 0;

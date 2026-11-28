@@ -73,6 +73,59 @@ namespace ColorsAction.Tests
             Assert.That(finder.TryFind(start, goal, walker, ctx, path), Is.True);
         }
 
+        private static LevelDoor Door(string id, int x, int z, float yaw, float y = 1f, float height = 3f) =>
+            new LevelDoor { Id = id, X = x, Z = z, Yaw = yaw, Y = y, Height = height };
+
+        [Test]
+        public void AdjacentDoorsInLine_FormOneWideDoor()
+        {
+            // Лицом в +Z: соседи по X — одна дверь шириной 3; ещё одна отдельно через клетку.
+            var doors = new[] { Door("b", 6, 2, 0), Door("a", 5, 2, 0), Door("c", 7, 2, 360), Door("far", 9, 2, 0) };
+            var groups = ShortcutDoorGroups.Build(doors);
+            Assert.That(groups.Count, Is.EqualTo(2));
+            var wide = groups.Single(g => g.Width == 3);
+            Assert.That(wide.Doors.Select(i => doors[i].Id), Is.EqualTo(new[] { "a", "b", "c" }), "ordered along the slab");
+            Assert.That(wide.CenterX, Is.EqualTo(6f));
+            Assert.That(wide.CenterZ, Is.EqualTo(2f));
+            Assert.That(wide.Yaw, Is.EqualTo(0f));
+            Assert.That(groups.Single(g => g.Width == 1).Doors, Is.EqualTo(new[] { 3 }));
+        }
+
+        [Test]
+        public void SideFacingDoors_GroupAlongZ()
+        {
+            var groups = ShortcutDoorGroups.Build(new[] { Door("a", 4, 1, 90), Door("b", 4, 2, 90) });
+            Assert.That(groups.Single().Width, Is.EqualTo(2));
+            Assert.That(groups[0].CenterZ, Is.EqualTo(1.5f));
+        }
+
+        [Test]
+        public void DoorsNotInLine_StaySeparate()
+        {
+            // Соседи «в глубину» (один за другим по проходу), разные стороны, высоты и этажи — отдельные двери.
+            Assert.That(ShortcutDoorGroups.Build(new[] { Door("a", 5, 2, 0), Door("b", 5, 3, 0) }).Count, Is.EqualTo(2));
+            Assert.That(ShortcutDoorGroups.Build(new[] { Door("a", 5, 2, 0), Door("b", 6, 2, 180) }).Count, Is.EqualTo(2));
+            Assert.That(ShortcutDoorGroups.Build(new[] { Door("a", 5, 2, 0), Door("b", 6, 2, 0, height: 4) }).Count, Is.EqualTo(2));
+            Assert.That(ShortcutDoorGroups.Build(new[] { Door("a", 5, 2, 0), Door("b", 6, 2, 0, y: 4) }).Count, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void WideDoor_NearestPoint_StaysOnSlab()
+        {
+            // Дверь шириной 3 с центром (6, 2), лицом в +Z: точка взаимодействия скользит по оси от x=5 до x=7.
+            var (x, z) = ShortcutDoorRules.NearestPoint(6, 2, 0, 3, 4f, 3f);
+            Assert.That(x, Is.EqualTo(5f).Within(1e-4));
+            Assert.That(z, Is.EqualTo(2f).Within(1e-4));
+            (x, _) = ShortcutDoorRules.NearestPoint(6, 2, 0, 3, 6.6f, 3f);
+            Assert.That(x, Is.EqualTo(6.6f).Within(1e-4));
+            (x, z) = ShortcutDoorRules.NearestPoint(6, 2, 0, 1, 7f, 3f);
+            Assert.That((x, z), Is.EqualTo((6f, 2f)), "single door: its centre");
+            // Лицом в +X: ось по Z.
+            (x, z) = ShortcutDoorRules.NearestPoint(4, 1.5f, 90, 2, 5f, 9f);
+            Assert.That(x, Is.EqualTo(4f).Within(1e-4));
+            Assert.That(z, Is.EqualTo(2f).Within(1e-4));
+        }
+
         [Test]
         public void TestLevel_HasDoor_OpeningIntoCourtyard()
         {
