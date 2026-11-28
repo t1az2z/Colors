@@ -386,13 +386,19 @@ namespace ColorsAction.Unity
 
             SpawnHints(config, pickups, doors);
 
-            // Двери на ключ: открываются с любой стороны ключом, который выпадает из врага (LevelEnemy.Key).
-            foreach (var d in config.KeyDoors)
+            // Двери на ключ: открываются с любой стороны ключом, который выпадает из врага (LevelEnemy.Key). Стоящие
+            // вплотную в линию — одна широкая дверь (KeyDoorGroups): один замок, один ключ от любой клетки.
+            foreach (var group in KeyDoorGroups.Build(config.KeyDoors))
             {
-                var go = new GameObject($"KeyDoor_{d.Id}");
+                var first = config.KeyDoors[group.Doors[0]];
+                var ids = new string[group.Width];
+                for (int k = 0; k < ids.Length; k++)
+                    ids[k] = config.KeyDoors[group.Doors[k]].Id;
+                var position = PointPosition(first) + new Vector3(group.CenterX - first.X, 0f, group.CenterZ - first.Z);
+                var go = new GameObject($"KeyDoor_{first.Id}" + (group.Width > 1 ? $"_x{group.Width}" : ""));
                 go.transform.SetParent(root, false);
-                go.transform.SetPositionAndRotation(PointPosition(d), Quaternion.Euler(0, d.Yaw, 0));
-                go.AddComponent<KeyDoor>().Init(d.Id, d.Height, worldMaterial);
+                go.transform.SetPositionAndRotation(position, Quaternion.Euler(0, group.Yaw, 0));
+                go.AddComponent<KeyDoor>().Init(ids, first.Height, worldMaterial);
                 bootstrap.Inject(go);
             }
 

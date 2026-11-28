@@ -10,8 +10,10 @@ namespace ColorsAction.Unity
     /// Открывается с любой стороны на E / X, если в инвентаре есть ключ от неё (ключ выпадает из врага, у которого он
     /// задан в редакторе уровней). Ключ вставляется в замок со стороны игрока, поворачивается, засов дрожит и плита уходит
     /// в пол; ключ тратится, дверь открыта навсегда (<see cref="GameSession.OpenedKeyDoors"/>). Без ключа — «Заперто».
+    /// Двери, поставленные вплотную в линию (<see cref="KeyDoorGroups"/>), — один объект шириной в несколько клеток:
+    /// одна плита с одним замком, открывается одним ключом от любой клетки, в сессию пишутся id всех клеток.
     /// </summary>
-    public sealed class KeyDoor : GameBehaviour, IInteractable
+    public sealed class KeyDoor : GameBehaviour, IInteractable, IInteractableSpan
     {
         private const float Thickness = 0.3f;
         private const float LockHeight = 1.05f;
@@ -24,6 +26,8 @@ namespace ColorsAction.Unity
         private static readonly Color HoleTint = new Color(0.06f, 0.06f, 0.07f);
 
         private string id;
+        private string[] ids;
+        private int width = 1;
         private float height = 3f;
         private Material material;
 
@@ -35,17 +39,37 @@ namespace ColorsAction.Unity
         private float openTimer = -1f;
 
         public string Id => id;
-        public bool IsOpen => session != null && session.OpenedKeyDoors.Contains(id);
+
+        /// <summary>Id всех клеток двери (у одиночной — один).</summary>
+        public string[] Ids => ids;
+
+        public int Width => width;
+
+        /// <summary>Открыта, если открыта хоть одна клетка (на случай сохранения, где двери ещё стояли по отдельности).</summary>
+        public bool IsOpen
+        {
+            get
+            {
+                if (session == null || ids == null)
+                    return false;
+                foreach (var cell in ids)
+                    if (session.OpenedKeyDoors.Contains(cell))
+                        return true;
+                return false;
+            }
+        }
 
         public bool Available => !IsOpen;
         public Vector3 InteractPoint => transform.position;
         public LocText Prompt => "prompt.keyDoor";
         public LocText BlockedPrompt => "prompt.keyDoor.locked";
 
-        /// <summary>Вызвать до Inject: id, высота в метрах, материал мира.</summary>
-        public void Init(string doorId, float doorHeight, Material worldMaterial)
+        /// <summary>Вызвать до Inject: id клеток по порядку вдоль плиты, высота в метрах, материал мира.</summary>
+        public void Init(string[] doorIds, float doorHeight, Material worldMaterial)
         {
-            id = doorId;
+            ids = doorIds;
+            id = doorIds[0];
+            width = Mathf.Max(1, doorIds.Length);
             height = Mathf.Max(1f, doorHeight);
             material = worldMaterial;
         }
@@ -70,15 +94,15 @@ namespace ColorsAction.Unity
             slab = new GameObject("Slab").transform;
             slab.SetParent(transform, false);
 
-            var body = Part("Body", slab, new Vector3(0f, height * 0.5f, 0f), new Vector3(0.98f, height, Thickness), SlabTint);
+            var body = Part("Body", slab, new Vector3(0f, height * 0.5f, 0f), new Vector3(width - 0.02f, height, Thickness), SlabTint);
             blocker = body.gameObject.AddComponent<BoxCollider>();
 
-            // Окованные полосы и замок — с обеих сторон: дверь открывается откуда угодно.
+            // Окованные полосы во всю ширину и один замок посередине — с обеих сторон: дверь открывается откуда угодно.
             foreach (var side in new[] { 1f, -1f })
             {
                 var face = side * (Thickness * 0.5f + 0.02f);
                 for (var y = 0.35f; y < height - 0.2f; y += 1.1f)
-                    Part("Band", slab, new Vector3(0f, y, face), new Vector3(0.98f, 0.12f, 0.04f), IronTint);
+                    Part("Band", slab, new Vector3(0f, y, face), new Vector3(width - 0.02f, 0.12f, 0.04f), IronTint);
                 Part("LockPlate", slab, new Vector3(0f, LockHeight, face + side * 0.02f), new Vector3(0.3f, 0.36f, 0.05f), IronTint);
                 Part("Keyhole", slab, new Vector3(0f, LockHeight + 0.05f, face + side * 0.05f), new Vector3(0.08f, 0.08f, 0.02f), HoleTint);
                 Part("KeyholeSlot", slab, new Vector3(0f, LockHeight - 0.04f, face + side * 0.05f), new Vector3(0.04f, 0.12f, 0.02f), HoleTint);
@@ -103,11 +127,18 @@ namespace ColorsAction.Unity
             return go.transform;
         }
 
-        public bool CanInteract(Vector3 from) => Available && session != null && session.HasKey(id);
+        public Vector3 NearestPoint(Vector3 from)
+        {
+            var p = transform.position;
+            var (x, z) = ShortcutDoorRules.NearestPoint(p.x, p.z, transform.eulerAngles.y, width, from.x, from.z);
+            return new Vector3(x, p.y, z);
+        }
+
+        public bool CanInteract(Vector3 from) => Available && session != null && session.HasKey(ids);
 
         public void Interact(Vector3 from)
         {
-            if (!CanInteract(from) || !session.TryOpenKeyDoor(id))
+            if (!CanInteract(from) || !session.TryOpenKeyDoor(ids))
                 return;
             // Ключ входит в замок со стороны игрока.
             var local = transform.InverseTransformPoint(from);

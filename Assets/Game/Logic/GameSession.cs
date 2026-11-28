@@ -214,6 +214,53 @@ namespace ColorsAction
         /// <summary>Есть ли у игрока ключ от двери.</summary>
         public bool HasKey(string doorId) => Inventory.FindKey(doorId) != null;
 
+        /// <summary>Есть ли ключ хоть от одной клетки широкой двери (<see cref="KeyDoorGroups"/>).</summary>
+        public bool HasKey(IReadOnlyList<string> doorIds)
+        {
+            if (doorIds == null)
+                return false;
+            foreach (var id in doorIds)
+                if (HasKey(id))
+                    return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Открыть широкую дверь на ключ (несколько клеток вплотную, <see cref="KeyDoorGroups"/>): подходит ключ от любой
+        /// клетки, тратится один; открытыми помечаются все клетки, а ключи от остальных клеток этой двери (стали не нужны)
+        /// уходят из инвентаря. Уже открытая клетка — дверь открыта без ключа (true).
+        /// </summary>
+        public bool TryOpenKeyDoor(IReadOnlyList<string> doorIds)
+        {
+            if (doorIds == null || doorIds.Count == 0)
+                return false;
+            var opened = false;
+            foreach (var id in doorIds)
+                opened |= !string.IsNullOrEmpty(id) && OpenedKeyDoors.Contains(id);
+            if (!opened)
+            {
+                Item key = null;
+                foreach (var id in doorIds)
+                    if (key == null && !string.IsNullOrEmpty(id))
+                        key = Inventory.FindKey(id);
+                if (key == null)
+                    return false;
+                Inventory.Remove(key);
+            }
+
+            foreach (var id in doorIds)
+            {
+                if (string.IsNullOrEmpty(id))
+                    continue;
+                OpenedKeyDoors.Add(id);
+                for (var extra = Inventory.FindKey(id); extra != null && Inventory.Remove(extra); extra = Inventory.FindKey(id))
+                {
+                }
+            }
+
+            return true;
+        }
+
         /// <summary>
         /// Открыть дверь на ключ: ключ уходит из инвентаря, дверь запоминается открытой. false — ключа нет
         /// (уже открытая дверь — true, ключ не нужен).

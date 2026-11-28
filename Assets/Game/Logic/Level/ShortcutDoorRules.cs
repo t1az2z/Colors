@@ -103,13 +103,14 @@ namespace ColorsAction.Level
 namespace ColorsAction.Level
 {
     /// <summary>
-    /// Несколько дверей-срезок, поставленных вплотную в одну линию: в игре это одна широкая дверь — одна плита,
+    /// Несколько дверей, поставленных вплотную в одну линию: в игре это одна широкая дверь — одна плита,
     /// одно взаимодействие, открываются вместе. Формат карты не меняется: каждая клетка — своя дверь со своим id,
-    /// группа собирается при загрузке (<see cref="ShortcutDoorGroups.Build"/>).
+    /// группа собирается при загрузке (<see cref="ShortcutDoorGroups.Build"/> для срезок, <see cref="KeyDoorGroups"/>
+    /// для дверей на ключ).
     /// </summary>
-    public sealed class ShortcutDoorGroup
+    public sealed class DoorGroup
     {
-        internal ShortcutDoorGroup(int[] doors, float centerX, float centerZ, float yaw, float? y, float height)
+        internal DoorGroup(int[] doors, float centerX, float centerZ, float yaw, float? y, float height)
         {
             Doors = doors;
             CenterX = centerX;
@@ -130,10 +131,29 @@ namespace ColorsAction.Level
 
         public float CenterZ { get; }
 
-        /// <summary>Лицевая сторона, приведённая к 0/90/180/270.</summary>
+        /// <summary>Поворот первой двери, приведённый к 0/90/180/270.</summary>
         public float Yaw { get; }
 
         public float? Y { get; }
+        public float Height { get; }
+    }
+
+    /// <summary>Клетка двери для сборки групп: координаты, этаж, поворот и высота.</summary>
+    internal readonly struct DoorCell
+    {
+        public DoorCell(int x, int z, float? y, float yaw, float height)
+        {
+            X = x;
+            Z = z;
+            Y = y;
+            Yaw = yaw;
+            Height = height;
+        }
+
+        public int X { get; }
+        public int Z { get; }
+        public float? Y { get; }
+        public float Yaw { get; }
         public float Height { get; }
     }
 
@@ -147,14 +167,24 @@ namespace ColorsAction.Level
         /// и соприкасаются вдоль плиты (лицом в ±Z — соседи по X, лицом в ±X — соседи по Z).
         /// Двери, повёрнутые в разные стороны, остаются отдельными.
         /// </summary>
-        public static List<ShortcutDoorGroup> Build(IReadOnlyList<Configs.LevelDoor> doors)
+        public static List<DoorGroup> Build(IReadOnlyList<Configs.LevelDoor> doors) =>
+            Build(doors, d => new DoorCell(d.X, d.Z, d.Y, d.Yaw, d.Height), false);
+
+        /// <summary>
+        /// Сборка групп. <paramref name="twoSided"/> — у двери нет лицевой стороны (дверь на ключ): 0° и 180°
+        /// (90° и 270°) считаются одним поворотом.
+        /// </summary>
+        internal static List<DoorGroup> Build<T>(IReadOnlyList<T> source, Func<T, DoorCell> cell, bool twoSided)
         {
-            var groups = new List<ShortcutDoorGroup>();
-            if (doors == null)
+            var groups = new List<DoorGroup>();
+            if (source == null)
                 return groups;
-            var used = new bool[doors.Count];
+            var doors = new DoorCell[source.Count];
+            for (int i = 0; i < doors.Length; i++)
+                doors[i] = cell(source[i]);
+            var used = new bool[doors.Length];
             var members = new List<int>();
-            for (int start = 0; start < doors.Count; start++)
+            for (int start = 0; start < doors.Length; start++)
             {
                 if (used[start])
                     continue;
@@ -164,9 +194,9 @@ namespace ColorsAction.Level
                 for (int k = 0; k < members.Count; k++)
                 {
                     var a = doors[members[k]];
-                    for (int j = 0; j < doors.Count; j++)
+                    for (int j = 0; j < doors.Length; j++)
                     {
-                        if (!used[j] && Joins(a, doors[j]))
+                        if (!used[j] && Joins(a, doors[j], twoSided))
                         {
                             used[j] = true;
                             members.Add(j);
@@ -185,23 +215,58 @@ namespace ColorsAction.Level
                     cz += doors[m].Z;
                 }
 
-                groups.Add(new ShortcutDoorGroup(members.ToArray(), cx / members.Count, cz / members.Count, side, first.Y,
+                groups.Add(new DoorGroup(members.ToArray(), cx / members.Count, cz / members.Count, side, first.Y,
                     first.Height));
             }
 
             return groups;
         }
 
-        private static bool Joins(Configs.LevelDoor a, Configs.LevelDoor b)
+        private static bool Joins(DoorCell a, DoorCell b, bool twoSided)
         {
             var side = SnapYaw(a.Yaw);
-            if (side != SnapYaw(b.Yaw) || Math.Abs(a.Height - b.Height) > 0.01f)
+            var other = SnapYaw(b.Yaw);
+            if (twoSided ? side % 180 != other % 180 : side != other)
+                return false;
+            if (Math.Abs(a.Height - b.Height) > 0.01f)
                 return false;
             if (a.Y.HasValue != b.Y.HasValue || (a.Y.HasValue && Math.Abs(a.Y.Value - b.Y.Value) > 0.01f))
                 return false;
             return side % 180 == 0
                 ? a.Z == b.Z && Math.Abs(a.X - b.X) == 1
                 : a.X == b.X && Math.Abs(a.Z - b.Z) == 1;
+        }
+    }
+
+    /// <summary>
+    /// Двери на ключ, стоящие вплотную в линию (одна ось прохода, один этаж, одна высота), — одна широкая дверь:
+    /// открывается одним ключом от любой её клетки, ключ тратится один, открытыми помечаются все клетки.
+    /// </summary>
+    public static class KeyDoorGroups
+    {
+        public static List<DoorGroup> Build(IReadOnlyList<Configs.LevelKeyDoor> doors) =>
+            ShortcutDoorGroups.Build(doors, d => new DoorCell(d.X, d.Z, d.Y, d.Yaw, d.Height), true);
+
+        /// <summary>Группы дверей на ключ воксельной карты (для редакторов): id клеток каждой двери по порядку вдоль плиты.</summary>
+        public static List<string[]> Build(VoxelLevel level)
+        {
+            var result = new List<string[]>();
+            if (level == null)
+                return result;
+            var doors = new List<LevelObject>();
+            foreach (var o in level.Objects)
+                if (o.IsKeyDoor)
+                    doors.Add(o);
+            foreach (var g in ShortcutDoorGroups.Build(doors,
+                         d => new DoorCell(d.Cell.X, d.Cell.Z, d.Cell.Y, d.Yaw, Math.Max(1, d.Height)), true))
+            {
+                var ids = new string[g.Width];
+                for (int k = 0; k < ids.Length; k++)
+                    ids[k] = doors[g.Doors[k]].Id;
+                result.Add(ids);
+            }
+
+            return result;
         }
     }
 }

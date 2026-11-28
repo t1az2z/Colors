@@ -270,15 +270,40 @@ const OBJECT_KINDS = {
 // o.key = id двери, враг роняет ключ при смерти. Поворот: 0° — проход по Z, 90° — по X.
 const KEY_DOOR_AXES = [[0, 'проход ↑↓ (Z)'], [90, 'проход ←→ (X)']];
 function keyDoorAxis(yaw) { return doorSide(yaw) % 180; }
+// Двери на ключ вплотную в линию — одна широкая дверь (KeyDoorGroups в Unity): одна ось, один этаж, одна высота,
+// соседи вдоль плиты. Ей нужен один ключ от любой клетки.
+function keyDoorJoins(a, b) {
+  const s = keyDoorAxis(a.yaw);
+  if (s !== keyDoorAxis(b.yaw) || a.cell[1] !== b.cell[1] || Math.max(1, a.height ?? 3) !== Math.max(1, b.height ?? 3)) return false;
+  return s === 0 ? a.cell[2] === b.cell[2] && Math.abs(a.cell[0] - b.cell[0]) === 1
+                 : a.cell[0] === b.cell[0] && Math.abs(a.cell[2] - b.cell[2]) === 1;
+}
+function keyDoorGroups() {
+  const doors = L.objects.filter(o => o.kind === 'KeyDoor'), used = new Set(), out = [];
+  for (const d of doors) {
+    if (used.has(d)) continue;
+    const m = [d]; used.add(d);
+    for (let k = 0; k < m.length; k++)
+      for (const o of doors) if (!used.has(o) && keyDoorJoins(m[k], o)) { used.add(o); m.push(o); }
+    const along = keyDoorAxis(d.yaw) === 0 ? 0 : 2;
+    m.sort((l, r) => l.cell[along] - r.cell[along]);
+    out.push(m);
+  }
+  return out;
+}
+function keyDoorGroupOf(o) { return keyDoorGroups().find(g => g.includes(o)) || [o]; }
 function keyHolders(doorId) { return L.objects.filter(o => o.kind === 'EnemySpawn' && o.key === doorId); }
+/** Враги с ключом от любой клетки широкой двери, в которую входит дверь o. */
+function keyGroupHolders(o) { const ids = new Set(keyDoorGroupOf(o).map(d => d.id)); return L.objects.filter(e => e.kind === 'EnemySpawn' && e.key && ids.has(e.key)); }
 /** Предупреждения расстановки дверей на ключ — те же, что KeyDoorRules.Warnings в Unity. */
 function keyWarnings() {
   const out = [];
   const doors = new Set(L.objects.filter(o => o.kind === 'KeyDoor').map(o => o.id));
-  for (const d of L.objects.filter(o => o.kind === 'KeyDoor')) {
-    const holders = keyHolders(d.id).filter(isEnemy);
-    if (!holders.length) out.push(`Дверь ${d.id}: ни у одного врага нет ключа от неё — её не открыть.`);
-    else if (holders.length > 1) out.push(`Дверь ${d.id}: ключ у нескольких врагов (${holders.map(e => e.id).join(', ')}) — выпадет из каждого, нужен один.`);
+  for (const g of keyDoorGroups()) {
+    const holders = keyGroupHolders(g[0]).filter(isEnemy);
+    const name = g.length > 1 ? `${g[0].id} (широкая, ${g.length} кл.)` : g[0].id;
+    if (!holders.length) out.push(`Дверь ${name}: ни у одного врага нет ключа от неё — её не открыть.`);
+    else if (holders.length > 1) out.push(`Дверь ${name}: ключ у нескольких врагов (${holders.map(e => e.id).join(', ')}) — выпадет из каждого, нужен один.`);
   }
   for (const o of L.objects) {
     if (o.kind !== 'EnemySpawn' || !o.key) continue;
@@ -1073,12 +1098,13 @@ function objectPanel() {
       row('Мост тянется', chips(BRIDGE_DIRS, doorSide(o.yaw), v => edit(() => o.yaw = v))),
       row('Высота настила', liftStepper(standHeight(o.cell), v => edit(() => o.cell = [o.cell[0], o.cell[1] + Math.sign(v - standHeight(o.cell)), o.cell[2]]), fmtH)));
     else if (o.kind === 'KeyDoor') {
-      const holder = keyHolders(o.id).find(isEnemy);
+      const holder = keyGroupHolders(o).find(isEnemy), cells = new Set(keyDoorGroupOf(o).map(d => d.id)), w = cells.size;
       out.push(
         row('Стоит поперёк', chips(KEY_DOOR_AXES, keyDoorAxis(o.yaw), v => edit(() => o.yaw = v))),
         row('Высота', stepper(o.height ?? 3, v => edit(() => o.height = v), 1, 12)),
+        row('Ширина', h('span', {}, w > 1 ? `${w} кл. — одна дверь с соседними, нужен один ключ` : '1 клетка (соседние двери в линию сливаются в одну)')),
         row('Ключ у врага', selectInput(holder?.id || null, [[null, '— ни у кого'], ...L.objects.filter(isEnemy).map(e => [e.id, e.id + ' · ' + enemyName(e.item)])],
-          v => edit(() => { for (const e of L.objects) if (e.kind === 'EnemySpawn' && (e.key === o.id || e.id === v)) e.key = e.id === v ? o.id : null; }))),
+          v => edit(() => { for (const e of L.objects) if (e.kind === 'EnemySpawn' && ((e.key && cells.has(e.key)) || e.id === v)) e.key = e.id === v ? o.id : null; }))),
         holder ? null : h('div', { class: 'note warn' }, '⚠ Ни у одного врага нет ключа от этой двери — её не открыть.'));
     }
     else out.push(o.kind === 'Hint' ? hintDeviceRow() : null, row('Поворот ' + Math.round(o.yaw || 0) + '°', h('span', { class: 'chips' },
@@ -1111,7 +1137,7 @@ function objectPanel() {
   out.push(H3('Объекты уровня (' + L.objects.length + ')'), h('div', { class: 'list' }, L.objects.map(x =>
     h('button', { class: sel.obj === x.id ? 'on' : '', on: { click: () => { sel.obj = x.id; sel.point = null; focusCell(x.cell); renderPanel(); } } },
       h('span', { class: 'mk', style: `background:${objColor(x)}` }, OBJECT_KINDS[x.kind]?.mk || '?'),
-      x.id + (x.kind === 'EnemySpawn' ? ' · ' + enemyName(x.item) + (isEnemy(x) ? ' · ' + (PALETTE[enemyColorOf(x)]?.name || '?').toLowerCase() : '') + (x.key ? ' · ключ от ' + x.key : '') : x.kind === 'KeyDoor' ? (keyHolders(x.id).some(isEnemy) ? '' : ' · ⚠ нет ключа') : x.kind === 'Chest' ? ' · ' + chestLabel(x) : x.item ? ' · ' + x.item : '')))));
+      x.id + (x.kind === 'EnemySpawn' ? ' · ' + enemyName(x.item) + (isEnemy(x) ? ' · ' + (PALETTE[enemyColorOf(x)]?.name || '?').toLowerCase() : '') + (x.key ? ' · ключ от ' + x.key : '') : x.kind === 'KeyDoor' ? (keyGroupHolders(x).some(isEnemy) ? '' : ' · ⚠ нет ключа') : x.kind === 'Chest' ? ' · ' + chestLabel(x) : x.item ? ' · ' + x.item : '')))));
   return out;
 }
 /** Ресурсы кнопками (цвет и название); неизвестный id из файла тоже показывается, чтобы его не потерять. */
@@ -1497,9 +1523,10 @@ function buildMarkers() {
   markerGroup.children.forEach(c => { c.geometry.dispose(); c.material.map?.dispose(); c.material.dispose(); });
   markerGroup.clear();
   for (const g of shortcutDoorGroups()) addDoorMesh(g);
+  for (const g of keyDoorGroups()) addKeyDoorMesh(g);
   for (const o of L.objects) {
     if (o.kind === 'ShortcutDoor') continue;
-    if (o.kind === 'KeyDoor') { addKeyDoorMesh(o); continue; }
+    if (o.kind === 'KeyDoor') continue;
     if (o.kind === 'CrateStack') { addCrateMesh(o); continue; }
     if (o.kind === 'Chest') { addChestMesh(o); continue; }
     if (o.kind === 'DrawBridge') { addBridgeMesh(o); continue; }
@@ -1702,13 +1729,15 @@ function addDoorMesh(group) {
   g.updateMatrixWorld(true);
   for (const m of [slab, bar]) { m.applyMatrix4(g.matrixWorld); m.visible = g.visible; }
 }
-// Дверь на ключ: плита поперёк клетки, тёмные полосы и замок с обеих сторон (KeyDoor.cs).
-function addKeyDoorMesh(o) {
+// Дверь на ключ: плита поперёк прохода во всю ширину группы, тёмные полосы и один замок посередине с обеих сторон (KeyDoor.cs).
+function addKeyDoorMesh(group) {
+  const o = group[0], w = group.length;
+  const cx = group.reduce((a, d) => a + d.cell[0], 0) / w, cz = group.reduce((a, d) => a + d.cell[2], 0) / w;
   const hgt = Math.max(1, o.height ?? 3);
   const fi = floorIndexOf(o.cell[1]);
   const g = new THREE.Group();
   const ghost = fi > activeFloor ? 0.2 : 0.85;
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(0.96, hgt, 0.3), new THREE.MeshLambertMaterial({ color: '#9a9ca6', transparent: true, opacity: ghost, depthWrite: false }));
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, hgt, 0.3), new THREE.MeshLambertMaterial({ color: '#9a9ca6', transparent: true, opacity: ghost, depthWrite: false }));
   slab.position.y = hgt / 2;
   const parts = [slab];
   for (const side of [1, -1]) {
@@ -1716,12 +1745,12 @@ function addKeyDoorMesh(o) {
     lock.position.set(0, Math.min(1.05, hgt - 0.25), side * 0.18);
     parts.push(lock);
     for (let y = 0.35; y < hgt - 0.2; y += 1.1) {
-      const band = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.12, 0.04), new THREE.MeshLambertMaterial({ color: '#4c4f58', transparent: true, opacity: ghost }));
+      const band = new THREE.Mesh(new THREE.BoxGeometry(w - 0.04, 0.12, 0.04), new THREE.MeshLambertMaterial({ color: '#4c4f58', transparent: true, opacity: ghost }));
       band.position.set(0, y, side * 0.17);
       parts.push(band);
     }
   }
-  g.position.set(o.cell[0] + .5, surfaceOf(o.cell), o.cell[2] + .5);
+  g.position.set(cx + .5, surfaceOf(o.cell), cz + .5);
   g.rotation.y = -(o.yaw || 0) * Math.PI / 180;
   g.visible = !(fi > activeFloor && st.upper === 'hide');
   g.updateMatrixWorld(true);
@@ -2016,7 +2045,7 @@ function drawOverlay() {
   // объекты и точки
   const r = Math.max(9, Math.min(17, ppu * 0.36));
   const markers = [];
-  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' || o.kind === 'KeyDoor' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? '' : o.kind === 'KeyDoor' ? (keyHolders(o.id).some(isEnemy) ? 'на ключ' : '⚠ нет ключа') : o.kind === 'EnemySpawn' ? enemyName(o.item) + (o.key ? ' · ключ' : '') : o.kind === 'Chest' ? chestLabel(o) : o.kind === 'Hint' ? '' : o.item, badge: o.kind === 'Chest', kind: 'obj', hint: o.kind === 'Hint' });
+  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' || o.kind === 'KeyDoor' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? '' : o.kind === 'KeyDoor' ? (keyGroupHolders(o).some(isEnemy) ? 'на ключ' : '⚠ нет ключа') : o.kind === 'EnemySpawn' ? enemyName(o.item) + (o.key ? ' · ключ' : '') : o.kind === 'Chest' ? chestLabel(o) : o.kind === 'Hint' ? '' : o.item, badge: o.kind === 'Chest', kind: 'obj', hint: o.kind === 'Hint' });
   for (const p of L.points) markers.push({ id: p.id, cell: p.cell, col: '#8a5cf0', mk: '◆', sel: sel.point === p.id, diamond: true, label: ACTIONS[p.action]?.name, kind: 'pt' });
   for (const m of markers) {
     const fi = floorIndexOf(m.cell[1]);

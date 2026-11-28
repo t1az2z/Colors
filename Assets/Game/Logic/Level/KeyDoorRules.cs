@@ -32,13 +32,18 @@ namespace ColorsAction.Level
             if (level == null)
                 return result;
             var doors = new HashSet<string>(level.Objects.Where(o => o.IsKeyDoor).Select(o => o.Id));
-            foreach (var door in level.Objects.Where(o => o.IsKeyDoor))
+            // Двери вплотную в линию — одна широкая дверь (KeyDoorGroups): ей нужен один ключ от любой клетки.
+            foreach (var group in KeyDoorGroups.Build(level))
             {
-                var holders = Holders(level, door.Id).Where(VoxelLevelData.IsEnemy).ToList();
+                var cells = new HashSet<string>(group);
+                var holders = level.Objects
+                    .Where(o => o.Kind == LevelObjectKind.EnemySpawn && o.Key != null && cells.Contains(o.Key))
+                    .Where(VoxelLevelData.IsEnemy).ToList();
+                var name = group.Length > 1 ? $"{group[0]} (широкая, {group.Length} кл.)" : group[0];
                 if (holders.Count == 0)
-                    result.Add($"Дверь {door.Id}: ни у одного врага нет ключа от неё — её не открыть.");
+                    result.Add($"Дверь {name}: ни у одного врага нет ключа от неё — её не открыть.");
                 else if (holders.Count > 1)
-                    result.Add($"Дверь {door.Id}: ключ у нескольких врагов ({string.Join(", ", holders.Select(h => h.Id))}) — " +
+                    result.Add($"Дверь {name}: ключ у нескольких врагов ({string.Join(", ", holders.Select(h => h.Id))}) — " +
                                "выпадет из каждого, нужен один.");
             }
 
@@ -57,18 +62,20 @@ namespace ColorsAction.Level
 
         /// <summary>
         /// Отдать ключ от двери <paramref name="doorId"/> врагу <paramref name="enemyId"/> (null — никому): у остальных
-        /// врагов ключ от этой двери снимается. Возвращает пары (до, после) изменённых врагов — для одной отмены в редакторе.
+        /// врагов ключ от этой двери (и от других клеток той же широкой двери) снимается. Возвращает пары (до, после) изменённых врагов — для одной отмены в редакторе.
         /// </summary>
         public static List<(LevelObject before, LevelObject after)> AssignHolder(VoxelLevel level, string doorId, string enemyId)
         {
             var changes = new List<(LevelObject, LevelObject)>();
             if (level == null || string.IsNullOrEmpty(doorId))
                 return changes;
+            // У широкой двери ключ один на все клетки: ключи от соседних клеток той же двери тоже снимаются.
+            var cells = new HashSet<string>(KeyDoorGroups.Build(level).FirstOrDefault(g => g.Contains(doorId)) ?? new[] { doorId });
             foreach (var o in level.Objects)
             {
                 if (o.Kind != LevelObjectKind.EnemySpawn)
                     continue;
-                var wanted = o.Id == enemyId ? doorId : o.Key == doorId ? null : o.Key;
+                var wanted = o.Id == enemyId ? doorId : o.Key != null && cells.Contains(o.Key) ? null : o.Key;
                 if (string.Equals(wanted, o.Key, StringComparison.Ordinal))
                     continue;
                 var after = o.Clone();

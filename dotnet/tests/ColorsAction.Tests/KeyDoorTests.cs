@@ -151,6 +151,68 @@ namespace ColorsAction.Tests
             Assert.That(KeyDoorRules.Warnings(level).Single(), Does.Contain("манекен"));
         }
 
+        private static LevelKeyDoor KeyDoor(string id, int x, int z, float yaw, float y = 1f, float height = 3f) =>
+            new LevelKeyDoor { Id = id, X = x, Z = z, Yaw = yaw, Y = y, Height = height };
+
+        [Test]
+        public void AdjacentKeyDoorsInLine_FormOneWideDoor_EitherFacing()
+        {
+            // Дверь на ключ двусторонняя: 0° и 180° — одна ось, соседи по X сливаются; через клетку — отдельно.
+            var doors = new[] { KeyDoor("b", 6, 2, 180), KeyDoor("a", 5, 2, 0), KeyDoor("c", 7, 2, 0), KeyDoor("far", 9, 2, 0) };
+            var groups = KeyDoorGroups.Build(doors);
+            Assert.That(groups.Count, Is.EqualTo(2));
+            var wide = groups.Single(g => g.Width == 3);
+            Assert.That(wide.Doors.Select(i => doors[i].Id), Is.EqualTo(new[] { "a", "b", "c" }));
+            Assert.That(wide.CenterX, Is.EqualTo(6f));
+            Assert.That(KeyDoorGroups.Build(new[] { KeyDoor("a", 4, 1, 90), KeyDoor("b", 4, 2, 270) }).Single().Width, Is.EqualTo(2));
+            // Разные оси, этажи, высоты и соседи «в глубину» остаются отдельными.
+            Assert.That(KeyDoorGroups.Build(new[] { KeyDoor("a", 5, 2, 0), KeyDoor("b", 6, 2, 90) }).Count, Is.EqualTo(2));
+            Assert.That(KeyDoorGroups.Build(new[] { KeyDoor("a", 5, 2, 0), KeyDoor("b", 6, 2, 0, y: 4) }).Count, Is.EqualTo(2));
+            Assert.That(KeyDoorGroups.Build(new[] { KeyDoor("a", 5, 2, 0), KeyDoor("b", 6, 2, 0, height: 4) }).Count, Is.EqualTo(2));
+            Assert.That(KeyDoorGroups.Build(new[] { KeyDoor("a", 5, 2, 0), KeyDoor("b", 5, 3, 0) }).Count, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void WideKeyDoor_OpensWithOneKeyOfAnyCell_AndMarksAllCells()
+        {
+            var session = Session();
+            var door = new[] { "a", "b", "c" };
+            Assert.That(session.HasKey(door), Is.False);
+            Assert.That(session.TryOpenKeyDoor(door), Is.False);
+
+            Assert.That(session.PickUpKey("b"), Is.True);
+            Assert.That(session.PickUpKey("c"), Is.True);
+            Assert.That(session.PickUpKey("other"), Is.True);
+            Assert.That(session.HasKey(door), Is.True);
+            Assert.That(session.TryOpenKeyDoor(door), Is.True);
+            Assert.That(session.OpenedKeyDoors, Is.SupersetOf(door));
+            Assert.That(session.HasKey("b") || session.HasKey("c"), Is.False, "ключи от клеток открытой двери больше не нужны");
+            Assert.That(session.HasKey("other"), Is.True, "ключ от другой двери не трогается");
+            Assert.That(session.PickUpKey("a"), Is.True, "ключ от открытой двери не кладётся в инвентарь");
+            Assert.That(session.HasKey("a"), Is.False);
+            Assert.That(session.TryOpenKeyDoor(door), Is.True);
+        }
+
+        [Test]
+        public void Warnings_WideDoor_NeedsOneKeyForAllCells()
+        {
+            var level = new VoxelLevel();
+            level.PutObject(Door("w1", 5));
+            level.PutObject(Door("w2", 6));
+            Assert.That(KeyDoorRules.Warnings(level).Single(), Does.Contain("w1").And.Contain("широкая").And.Contain("нет ключа"));
+
+            level.PutObject(Enemy("e1", "w2"));
+            Assert.That(KeyDoorRules.Warnings(level), Is.Empty, "ключа от одной клетки хватает на всю дверь");
+
+            level.PutObject(Enemy("e2", "w1"));
+            Assert.That(KeyDoorRules.Warnings(level).Single(), Does.Contain("нескольких"));
+
+            KeyDoorRules.AssignHolder(level, "w1", "e2").ForEach(c => level.PutObject(c.after));
+            Assert.That(level.FindObject("e1").Key, Is.Null, "ключ от соседней клетки той же двери снят");
+            Assert.That(level.FindObject("e2").Key, Is.EqualTo("w1"));
+            Assert.That(KeyDoorRules.Warnings(level), Is.Empty);
+        }
+
         [Test]
         public void AssignHolder_MovesKeyBetweenEnemies()
         {
