@@ -31,6 +31,6 @@
     },
     "breath": { "period": 2.8, "amount": 0.035, "inhale": 0.45, "fadeTime": 0.4 },
     "blink": { "enabled": true, "intervalMin": 3, "intervalMax": 7, "duration": 0.18, "doubleChance": 0.15, "closed": 0.12, "whileMoving": false },
-    "inspect": { "delay": 6, "intervalMin": 18, "intervalMax": 30, "duration": 4.2, "raise": 0.15, "lower": 0.15, "tosses": 4, "hold": 0.35, "tossHeight": 0.22, "spin": 0, "span": 1.2, "catchSquash": 0.04, "pitch": 6, "followTwist": 10, "eyeShift": 0.12 }
+    "inspect": { "delay": 6, "intervalMin": 18, "intervalMax": 30, "duration": 3.4, "raise": 0.15, "lower": 0.15, "tosses": 2, "hold": 0.6, "tossHeight": 0.32, "spin": 0, "span": 1.2, "catchSquash": 0.08, "catchBend": 0.12, "pitch": 6, "followTwist": 10, "eyeShift": 0.12 }
   }
 }

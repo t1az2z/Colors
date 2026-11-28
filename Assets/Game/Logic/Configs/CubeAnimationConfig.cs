@@ -241,7 +241,7 @@ namespace ColorsAction.Configs
         /// <summary>Сколько бросков из руки в руку (чётное — оружие вернётся в правую руку).</summary>
         public int Tosses { get; set; } = 4;
 
-        /// <summary>Доля каждого броска, когда оружие лежит в руке (поймал, подкинул), остальное — полёт.</summary>
+        /// <summary>Доля каждого броска, когда оружие в руке (замах перед броском и удар при ловле), остальное — полёт.</summary>
         public float Hold { get; set; } = 0.35f;
 
         /// <summary>Высота дуги броска над руками, доля куба.</summary>
@@ -255,6 +255,9 @@ namespace ColorsAction.Configs
 
         /// <summary>Приседание куба, когда он ловит оружие, доля высоты.</summary>
         public float CatchSquash { get; set; } = 0.04f;
+
+        /// <summary>Изгиб куба вбок по инерции при замахе, броске и ловле, доля куба у верха.</summary>
+        public float CatchBend { get; set; } = 0.12f;
 
         /// <summary>Поклон куба к оружию, градусы у верха.</summary>
         public float Pitch { get; set; } = 6f;
@@ -278,6 +281,7 @@ namespace ColorsAction.Configs
             TossHeight = Math.Max(0f, Math.Min(1.5f, TossHeight));
             Span = Math.Max(0f, Math.Min(1.6f, Span));
             CatchSquash = Math.Max(0f, Math.Min(0.2f, CatchSquash));
+            CatchBend = Math.Max(0f, Math.Min(0.4f, CatchBend));
             EyeShift = Math.Max(0f, Math.Min(0.2f, EyeShift));
         }
     }

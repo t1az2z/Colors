@@ -876,23 +876,22 @@ namespace ColorsAction.Unity
         private const float WeaponMiddle = 0.32f;
 
         /// <summary>
-        /// Редкий idle (Animations.json → inspect): враг перебрасывает оружие из руки в руку.
-        /// В руке оружие стоит сбоку от куба рукоятью вниз, чуть наклонено наружу (замах — приседание в руке);
-        /// в полёте оно идёт невысокой дугой перед лицом куба и остаётся стоять вертикально (при spin 0),
-        /// ловится другой рукой с другого бока. <paramref name="u"/> — доля idle 0..1:
+        /// Редкий idle (Animations.json → inspect): враг перебрасывает оружие из руки в руку перед собой.
+        /// Руки — по бокам куба, впереди его лица, так что оружие весь бросок остаётся перед кубом. На замахе оружие
+        /// опускается, отводится наружу и заваливается; в полёте идёт дугой и стоит вертикально (при spin 0);
+        /// при ловле тянет руку вниз и наружу. <paramref name="u"/> — доля idle 0..1:
         /// из стойки в руку, броски (<see cref="CubeIdleAnimator.Toss"/>), вернуть в стойку.
         /// </summary>
         private Pose InspectPose(float u)
         {
-            const float gripHeight = 0.42f, sideDepth = 0.2f, frontDepth = 0.72f;
+            const float gripHeight = 0.42f, frontDepth = 0.8f;
             var inspect = animConfig.Inspect;
             var toss = CubeIdleAnimator.Toss(inspect, u);
             var half = inspect.Span * 0.5f;
-            // Сбоку — у боковой грани, в середине полёта — перед лицом куба.
-            var depth = Mathf.Lerp(sideDepth, frontDepth, 1f - toss.Side * toss.Side);
-            var middle = new Vector3(half * toss.Side,
-                gripHeight + WeaponMiddle + toss.Arc * inspect.TossHeight - toss.Dip * 0.06f, depth);
-            var lean = Quaternion.FromToRotation(Vector3.up, new Vector3(0.2f * toss.Side, 1f, 0.05f).normalized);
+            var middle = new Vector3(half * toss.Side + toss.FlipDirection * toss.Windup * 0.08f + toss.Bend * 0.05f,
+                gripHeight + WeaponMiddle + toss.Arc * inspect.TossHeight - toss.Dip * 0.1f, frontDepth);
+            var tilt = 0.2f * toss.Side + 0.5f * toss.FlipDirection * toss.Windup + 0.35f * toss.Bend;
+            var lean = Quaternion.FromToRotation(Vector3.up, new Vector3(tilt, 1f, 0.05f).normalized);
             var flip = Quaternion.AngleAxis(toss.FlipDirection * toss.Flip * 360f * inspect.Spin, Vector3.forward);
             var rotation = flip * lean;
             var front = new Pose(middle - rotation * (Vector3.up * WeaponMiddle), rotation);
@@ -1038,6 +1037,7 @@ namespace ColorsAction.Unity
             var standing = state == EnemyState.Idle && motor.Grounded && speed < 0.3f && push.sqrMagnitude < 0.04f && hopTimer < 0f;
             idle.Tick(dt, standing, false);
             deformer.DirectSquash = steps.Squash + idle.BreathSquash + idle.Squash;
+            deformer.DirectBend += new Vector2(idle.Bend, 0f); // инерция брошенного и пойманного оружия
             deformer.TwistOffset = idle.Twist;
             deformer.PitchOffset = idle.Pitch;
             deformer.EyeOffset = new Vector2(idle.EyeX, idle.EyeY);

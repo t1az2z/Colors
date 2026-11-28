@@ -18,8 +18,14 @@ namespace ColorsAction.Animation
         /// <summary>Направление переворота: +1 — бросок из правой руки, -1 — из левой.</summary>
         public float FlipDirection;
 
-        /// <summary>Приседание в руке 0..1 (поймал — опустилось, подкинул — поднялось).</summary>
+        /// <summary>Приседание: плюс — оружие и куб опустились (замах, удар при ловле), минус — рывок вверх при броске.</summary>
         public float Dip;
+
+        /// <summary>Замах 0..1: оружие отведено наружу и вниз перед броском.</summary>
+        public float Windup;
+
+        /// <summary>Изгиб куба вбок по инерции, -1..1 (знак — сторона): к оружию на замахе, вслед за броском, за пойманным.</summary>
+        public float Bend;
 
         /// <summary>Насколько оружие взято перед собой (0 — в стойке).</summary>
         public float Lift;
@@ -92,6 +98,9 @@ namespace ColorsAction.Animation
 
         /// <summary>Добавка к сжатию от редкого idle (присел, поймав оружие), складывается с дыханием.</summary>
         public float Squash { get; private set; }
+
+        /// <summary>Изгиб верха вбок от редкого idle (инерция брошенного и пойманного оружия), доля куба.</summary>
+        public float Bend { get; private set; }
 
         /// <summary>Сдвиг глаз по передней грани (доля куба): X — вправо, Y — вверх.</summary>
         public float EyeX { get; private set; }
@@ -318,7 +327,7 @@ namespace ColorsAction.Animation
                 }
             }
 
-            Twist = Pitch = EyeX = EyeY = Squash = 0f;
+            Twist = Pitch = EyeX = EyeY = Squash = Bend = 0f;
             if (specialTime < 0f)
                 return;
             var u = Clamp01(specialTime / Math.Max(0.01f, SpecialDuration));
@@ -362,9 +371,9 @@ namespace ColorsAction.Animation
         }
 
         /// <summary>
-        /// Перебрасывание оружия из руки в руку в момент <paramref name="u"/> (доля всего idle 0..1). Начинает и
-        /// заканчивает в правой руке (при чётном числе бросков); каждый бросок — сначала оружие в руке (поймал,
-        /// чуть присел, подкинул), потом полёт дугой к другой руке с переворотом.
+        /// Перебрасывание оружия из руки в руку в момент <paramref name="u"/> (доля всего idle 0..1). Начинает в правой
+        /// руке; каждый бросок — замах (медленно присел и отвёл оружие, в конце рывок вверх), полёт дугой к другой руке,
+        /// ловля с ударом: оружие тянет руку вниз, куб приседает и изгибается за ним по инерции, затухая.
         /// </summary>
         public static WeaponToss Toss(WeaponInspectConfig inspect, float u)
         {
@@ -375,19 +384,49 @@ namespace ColorsAction.Animation
             var w = v * n - k;
             var from = k % 2 == 0 ? 1f : -1f;
             toss.FlipDirection = from;
-            if (w < inspect.Hold)
+            var wind = inspect.Hold * 0.55f;
+            var catchTime = inspect.Hold - wind;
+            var fly = Math.Max(0.01f, 1f - inspect.Hold);
+            if (w < wind)
             {
-                // В руке: поймал — присел и выпрямился, подкидывая.
+                // Замах: присел, оружие отведено наружу, куб изогнулся к нему; в конце — рывок вверх, бросок.
+                var s = wind > 0f ? w / wind : 1f;
                 toss.Side = from;
-                toss.Dip = inspect.Hold > 0f ? (float)Math.Sin(Math.PI * w / inspect.Hold) : 0f;
+                if (s < 0.75f)
+                {
+                    toss.Windup = Smooth(s / 0.75f);
+                    toss.Dip = toss.Windup;
+                }
+                else
+                {
+                    var r = (s - 0.75f) / 0.25f;
+                    toss.Windup = 1f - Smooth(r);
+                    toss.Dip = 1f - 1.5f * r;
+                }
+
+                toss.Bend = from * 0.5f * toss.Windup;
                 return toss;
             }
 
-            var f = Clamp01((w - inspect.Hold) / Math.Max(0.01f, 1f - inspect.Hold));
-            toss.Side = from * (1f - 2f * f);
-            toss.Arc = 4f * f * (1f - f);
-            toss.Flip = f;
-            toss.Flying = f > 0f && f < 1f;
+            if (w < wind + fly)
+            {
+                var f = Clamp01((w - wind) / fly);
+                toss.Side = from * (1f - 2f * f);
+                toss.Arc = 4f * f * (1f - f);
+                toss.Flip = f;
+                toss.Flying = f > 0f && f < 1f;
+                // Распрямился после рывка, верх по инерции тянется вслед за брошенным.
+                toss.Dip = -0.5f * (1f - f) * (1f - f);
+                toss.Bend = -from * 0.5f * (float)Math.Sin(Math.PI * Math.Min(1f, f * 1.6f));
+                return toss;
+            }
+
+            // Поймал: удар затухающими колебаниями — оружие тянет вниз и наружу, куб приседает и гнётся за ним.
+            var c = catchTime > 0f ? Clamp01((w - wind - fly) / catchTime) : 1f;
+            var impact = (float)(Math.Exp(-3.5 * c) * Math.Cos(Math.PI * 2.5 * c));
+            toss.Side = -from;
+            toss.Dip = impact;
+            toss.Bend = -from * impact;
             return toss;
         }
 
@@ -398,9 +437,10 @@ namespace ColorsAction.Animation
             // Глаза и верх куба следят за оружием весь полёт: вбок — за рукой/полётом, вверх — по дуге броска.
             EyeX = toss.Side * inspect.EyeShift * lift;
             EyeY = (0.15f + toss.Arc * 0.85f) * inspect.EyeShift * lift;
-            Twist = toss.Side * inspect.FollowTwist * lift;
+            Twist = toss.Side * (1f + 0.5f * toss.Windup) * inspect.FollowTwist * lift;
             Pitch = inspect.Pitch * lift;
             Squash = -toss.Dip * inspect.CatchSquash * lift;
+            Bend = toss.Bend * inspect.CatchBend * lift;
         }
 
         // ------------------------------------------------------------------ helpers
