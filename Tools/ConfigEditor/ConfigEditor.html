@@ -151,7 +151,7 @@
    Описания параметров — в SCHEMA ниже. Неописанные ключи показываются как есть.
    ===================================================================== */
 
-const FILE_ORDER = ['Player', 'Animations', 'Camera', 'Items', 'Upgrades', 'Enemies', 'StatusEffects', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Water', 'Movement', 'Game'];
+const FILE_ORDER = ['Player', 'Animations', 'Camera', 'PickupSequence', 'Items', 'Upgrades', 'Enemies', 'StatusEffects', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Water', 'Movement', 'Game'];
 const S = { dir: null, files: {}, current: null, levels: [], mode: 'none' };
 
 /* ---------- утилиты ---------- */
@@ -463,6 +463,7 @@ const SCHEMA = {
         { k: 'fixedAngleStep', l: 'Шаг фиксированного угла', d: 'FixedAngles: на сколько градусов поворачивает Q/E.', u: U.deg, min: 15, max: 180, step: 5 },
         { k: 'fixedRotateTime', l: 'Время доворота', d: 'FixedAngles: за сколько секунд камера доворачивает к новому углу.', u: U.s, min: 0, max: 1, step: 0.01 },
         { k: 'aimDeadzone', l: 'Мёртвая зона стика взгляда', d: 'FixedAngles: отклонение правого стика, ниже которого взгляд не меняется.', u: U.frac, min: 0, max: 0.9, step: 0.05 },
+        { k: 'stickAimMarkerDistance', l: 'Дальность маркера прицела (стик)', d: 'FixedAngles, геймпад: пока правый стик наклонён дальше мёртвой зоны, тёмный диск-маркер лежит на земле на этом расстоянии от куба в сторону стика. Влияет только на то, где виден маркер: куда смотрит и бьёт персонаж, задаёт направление стика. С мышью маркер — под курсором, этот параметр не используется.', u: U.bl, min: 0.5, max: 10, step: 0.1, def: 2.5 },
         { k: 'snapStep', l: 'Шаг привязки', d: 'Сейчас кодом не используется.', u: U.deg, min: 0, max: 180, step: 5 },
       ] },
       { title: 'Положение и обзор', viz: vizCamera, fields: [
@@ -485,6 +486,95 @@ const SCHEMA = {
       const w = [];
       if (num(d.minDistance) > num(d.maxDistance)) w.push('Мин. дистанция больше максимальной.');
       if (num(d.distance) < num(d.minDistance) || num(d.distance) > num(d.maxDistance)) w.push('Дистанция вне пределов мин./макс. — зум сразу её обрежет.');
+      return w;
+    },
+  },
+
+  PickupSequence: {
+    title: 'Камера: сцена подбора', desc: 'Короткая сцена при подборе нового оружия (его ещё нет на колесе) или новой лечилки: мир застывает, камера подъезжает, предмет поднимается, персонаж следит за ним глазами, затем предмет с панчем влетает в персонажа и сам надевается; крупный план радости с эффектом в цвет предмета, камера возвращается. Все времена — секунды от начала сцены (реальное время, мир стоит). Ключи не подбираются сценой. Расстояния — в блоках, углы — в градусах.',
+    sections: [
+      { title: 'Сцена целиком', viz: vizPickupTimeline, fields: [
+        { k: 'enabled', l: 'Включена', t: 'bool', d: 'Выключено — новые предметы подбираются сразу, без сцены.', def: true },
+        { k: 'duration', l: 'Длина сцены', d: 'К этому моменту камера возвращается на место, мир снова идёт и управление возвращается. Все остальные времена должны в неё укладываться.', u: U.s, min: 1, max: 12, step: 0.05, def: 5 },
+      ] },
+      { title: 'Камера', sub: 'план подъёма → крупный план → возврат', fields: [
+        { k: 'camera.approachEnd', l: 'Подъезд к плану подъёма', d: 'За сколько секунд от начала сцены камера плавно переходит от обычного вида к плану подъёма.', u: U.s, min: 0, max: 5, step: 0.05, def: 1.3 },
+        { k: 'camera.riseDistance', l: 'План подъёма: дистанция', d: 'Расстояние от камеры до точки взгляда, пока предмет поднимается и висит. Обычная камера стоит на ~22 бл.', u: U.bl, min: 1, max: 40, step: 0.1, def: 9 },
+        { k: 'camera.risePitch', l: 'План подъёма: наклон', d: 'Угол камеры над горизонтом.', u: U.deg, min: 0, max: 89, step: 1, def: 24 },
+        { k: 'camera.riseYaw', l: 'План подъёма: угол сбоку', d: 'Насколько камера отходит в сторону от «прямо в лицо» персонажу (0° — ровно спереди, 90° — сбоку). Сторона выбирается ближе к текущей камере.', u: U.deg, min: 0, max: 90, step: 1, def: 40 },
+        { k: 'camera.riseLookHeight', l: 'План подъёма: высота взгляда', d: 'На какой высоте над ногами персонажа камера держит центр кадра — чтобы в кадре были и куб, и поднятый предмет.', u: U.bl, min: 0, max: 4, step: 0.05, def: 1.2 },
+        { k: 'camera.closeUpStart', l: 'Крупный план: начало', d: 'Когда камера начинает подъезжать к крупному плану (обычно сразу перед ударом предмета).', u: U.s, min: 0, max: 10, step: 0.05, def: 2.2 },
+        { k: 'camera.closeUpEnd', l: 'Крупный план: конец подъезда', d: 'К этому моменту камера уже на крупном плане.', u: U.s, min: 0, max: 10, step: 0.05, def: 2.6 },
+        { k: 'camera.closeUpDistance', l: 'Крупный план: дистанция', d: 'Расстояние от камеры до точки взгляда на крупном плане.', u: U.bl, min: 0.5, max: 20, step: 0.1, def: 4.4 },
+        { k: 'camera.closeUpPitch', l: 'Крупный план: наклон', d: 'Угол камеры над горизонтом на крупном плане.', u: U.deg, min: 0, max: 89, step: 1, def: 16 },
+        { k: 'camera.closeUpYaw', l: 'Крупный план: угол сбоку', d: 'Отклонение от «прямо в лицо», в ту же сторону, что и на плане подъёма.', u: U.deg, min: 0, max: 90, step: 1, def: 25 },
+        { k: 'camera.closeUpLookHeight', l: 'Крупный план: высота взгляда', d: 'Высота центра кадра над ногами персонажа на крупном плане.', u: U.bl, min: 0, max: 3, step: 0.05, def: 0.95 },
+        { k: 'camera.returnStart', l: 'Возврат камеры', d: 'С этого момента до конца сцены камера плавно возвращается к обычному виду.', u: U.s, min: 0, max: 12, step: 0.05, def: 4.1 },
+        { k: 'player.punchShake', l: 'Тряска при ударе', d: 'Сила толчка камеры, когда предмет влетает в персонажа. 0 — без тряски.', u: U.pts, min: 0, max: 3, step: 0.05, def: 0.5 },
+      ] },
+      { title: 'Предмет', sub: 'подъём, замах, полёт в персонажа', fields: [
+        { k: 'item.riseStart', l: 'Подъём: начало', d: 'Когда предмет трогается вверх с места, где лежал.', u: U.s, min: 0, max: 5, step: 0.05, def: 0.15 },
+        { k: 'item.riseEnd', l: 'Подъём: конец', d: 'Когда предмет плавно зависает в верхней точке.', u: U.s, min: 0, max: 5, step: 0.05, def: 1.5 },
+        { k: 'item.riseHeight', l: 'Высота подъёма', d: 'На сколько предмет поднимается над исходной позицией.', u: U.bl, min: 0, max: 5, step: 0.05, def: 1.5 },
+        { k: 'item.riseApproach', l: 'Смещение к персонажу', d: 'Какую долю горизонтального расстояния до персонажа предмет проходит, пока поднимается.', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.35 },
+        { k: 'item.bob', l: 'Покачивание в воздухе', d: 'Амплитуда покачивания вверх-вниз, пока предмет висит.', u: U.bl, min: 0, max: 0.5, step: 0.01, def: 0.06 },
+        { k: 'item.bobSpeed', l: 'Частота покачивания', d: '', u: 'рад/с', min: 0, max: 20, step: 0.5, def: 5 },
+        { k: 'item.spin', l: 'Вращение', d: 'Скорость вращения вокруг вертикали при подъёме; к броску замедляется до нуля.', u: U.degs, min: 0, max: 1080, step: 10, def: 220 },
+        { k: 'item.throwStart', l: 'Замах: начало', d: 'Перед броском предмет чуть отходит назад-вверх…', u: U.s, min: 0, max: 8, step: 0.05, def: 1.8 },
+        { k: 'item.flyStart', l: 'Замах: конец, начало полёта', d: '…и с этого момента с разгоном летит в персонажа.', u: U.s, min: 0, max: 8, step: 0.05, def: 2.05 },
+        { k: 'item.windupDistance', l: 'Дальность замаха', d: 'Насколько далеко предмет отходит на замахе.', u: U.bl, min: 0, max: 2, step: 0.05, def: 0.35 },
+        { k: 'item.hitTime', l: 'Удар о персонажа', d: 'Конец полёта: предмет исчезает в персонаже и надевается. Отсюда же — панч, вспышка и тряска.', u: U.s, min: 0, max: 8, step: 0.05, def: 2.25 },
+        { k: 'item.hitScale', l: 'Масштаб при ударе', d: 'Предмет уменьшается к моменту удара — «входит» в персонажа. 1 — без уменьшения.', u: U.frac, min: 0.05, max: 1.5, step: 0.05, def: 0.6 },
+        { k: 'item.hitHeight', l: 'Высота точки удара', d: 'Куда над ногами персонажа прилетает предмет (0.5 — середина куба).', u: U.bl, min: 0, max: 1.5, step: 0.05, def: 0.55 },
+      ] },
+      { title: 'Персонаж: взгляд и панч', fields: [
+        { k: 'player.turnTime', l: 'Поворот к предмету', d: 'За сколько секунд в начале сцены персонаж поворачивается лицом к предмету.', u: U.s, min: 0, max: 2, step: 0.05, def: 0.3 },
+        { k: 'player.eyeUp', l: 'Глаза вверх', d: 'Насколько глаза сдвигаются по грани вверх, следя за поднимающимся предметом.', u: 'доля куба', min: 0, max: 0.4, step: 0.01, def: 0.14 },
+        { k: 'player.eyeSide', l: 'Глаза в сторону', d: 'Насколько глаза сдвигаются в сторону за предметом.', u: 'доля куба', min: 0, max: 0.4, step: 0.01, def: 0.12 },
+        { k: 'player.lookBack', l: 'Запрокидывание', d: 'Наклон верха куба назад, пока персонаж смотрит вверх на предмет.', u: U.deg, min: 0, max: 40, step: 1, def: 10 },
+        { k: 'player.punchSquash', l: 'Панч: сжатие', d: 'Деформация куба в момент удара. Минус — сплющивается, плюс — вытягивается.', u: U.frac, min: -1, max: 1, step: 0.05, def: -0.4 },
+        { k: 'player.punchImpulse', l: 'Панч: толчок пружины', d: 'Скорость, с которой пружина деформации отскакивает после сжатия — сила «желе»-отдачи.', u: U.pts, min: -10, max: 10, step: 0.1, def: -3 },
+        { k: 'player.punchBend', l: 'Панч: прогиб назад', d: 'Толчок изгиба верха куба назад от удара.', u: U.pts, min: 0, max: 10, step: 0.1, def: 3.5 },
+      ] },
+      { title: 'Персонаж: радость', sub: 'крупный план после удара', fields: [
+        { k: 'player.cheerStart', l: 'Радость: начало', d: 'Не раньше удара. Персонаж поднимает оружие, щурится и прыгает.', u: U.s, min: 0, max: 10, step: 0.05, def: 2.4 },
+        { k: 'player.cheerEnd', l: 'Радость: конец', d: 'Поза и глаза плавно возвращаются к этому моменту.', u: U.s, min: 0, max: 10, step: 0.05, def: 4.2 },
+        { k: 'player.hops', l: 'Прыжков', t: 'int', d: 'Сколько раз персонаж подпрыгивает от радости. 0 — не прыгает.', u: 'шт.', min: 0, max: 6, step: 1, def: 2 },
+        { k: 'player.hopTime', l: 'Длительность прыжка', d: 'Один прыжок вместе с приседом. Прыжки идут подряд от начала радости.', u: U.s, min: 0.1, max: 2, step: 0.05, def: 0.55 },
+        { k: 'player.hopHeight', l: 'Высота прыжка', d: '', u: U.bl, min: 0, max: 2, step: 0.05, def: 0.3 },
+        { k: 'player.hopCrouch', l: 'Доля приседа', d: 'Какая часть прыжка уходит на присед перед отрывом от земли.', u: U.frac, min: 0, max: 0.9, step: 0.05, def: 0.25 },
+        { k: 'player.hopStretch', l: 'Вытягивание в полёте', d: '', u: U.frac, min: 0, max: 0.5, step: 0.01, def: 0.12 },
+        { k: 'player.hopSquash', l: 'Сплющивание на приседе', d: 'Минус — сплющивается (на приседе и приземлении).', u: U.frac, min: -0.6, max: 0, step: 0.01, def: -0.22 },
+        { k: 'player.hopKick', l: 'Толчок на взлёте', d: 'Импульс пружины деформации при отрыве от земли — вытягивает куб на взлёте.', u: U.pts, min: 0, max: 5, step: 0.1, def: 1.2 },
+        { k: 'player.wiggle', l: 'Покачивание', d: 'Скручивание куба из стороны в сторону от радости.', u: U.deg, min: 0, max: 45, step: 1, def: 12 },
+        { k: 'player.wiggleSpeed', l: 'Частота покачивания', d: '', u: 'рад/с', min: 0, max: 40, step: 0.5, def: 14 },
+        { k: 'player.happyEyes', l: 'Прищур', d: '0 — глаза открыты, 1 — закрыты.', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.55 },
+        { k: 'player.faceCamera', l: 'Поворот к камере', d: 'На радости персонаж разворачивается к камере: 0 — смотрит, куда смотрел, 1 — прямо в камеру.', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.6 },
+      ] },
+      { title: 'Эффект и свечение', sub: 'как у лечения, без плюсиков, в цвет предмета', fields: [
+        { k: 'fx.burstTime', l: 'Вспышка эффекта', d: 'Когда вокруг персонажа вспыхивает эффект (префаб Resources/Fx/PickupBurst).', u: U.s, min: 0, max: 10, step: 0.05, def: 2.3 },
+        { k: 'fx.burstScale', l: 'Масштаб эффекта', d: '', u: U.x, min: 0.1, max: 3, step: 0.05, def: 1.1 },
+        { k: 'fx.tintToWhite', l: 'Осветление цвета', d: 'Насколько цвет эффекта светлее цвета предмета: 0 — как есть, 1 — белый.', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.15 },
+        { k: 'fx.glowStart', l: 'Свечение тела: начало', d: 'Тело персонажа вспыхивает цветом предмета и плавно гаснет.', u: U.s, min: 0, max: 10, step: 0.05, def: 2.25 },
+        { k: 'fx.glowEnd', l: 'Свечение тела: конец', d: '', u: U.s, min: 0, max: 10, step: 0.05, def: 4.2 },
+        { k: 'fx.glowTint', l: 'Подкраска тела', d: 'Сила подкраски тела цветом предмета на пике свечения.', u: U.frac, min: 0, max: 1, step: 0.01, def: 0.12 },
+        { k: 'fx.glowEmission', l: 'Яркость свечения', d: 'Яркость emission на пике свечения.', u: U.pts, min: 0, max: 2, step: 0.05, def: 0.25 },
+        { k: 'fx.hitFlash', l: 'Вспышка в точке удара', d: 'Размер белой вспышки, когда предмет влетает в персонажа. 0 — без неё.', u: U.pts, min: 0, max: 3, step: 0.05, def: 0.6 },
+      ] },
+    ],
+    validate(d) {
+      // Те же условия, что PickupSequenceConfig.OnConfigLoaded: иначе игра не загрузит конфиг.
+      const w = [], D = num(d.duration, 5), i = d.item || {}, p = d.player || {}, c = d.camera || {}, f = d.fx || {};
+      const n = (o, k, def) => num(o[k], def);
+      if (D <= 0) w.push('Длина сцены должна быть больше нуля.');
+      if (!(0 <= n(i, 'riseStart', 0.15) && n(i, 'riseStart', 0.15) <= n(i, 'riseEnd', 1.5) && n(i, 'riseEnd', 1.5) <= n(i, 'throwStart', 1.8) && n(i, 'throwStart', 1.8) <= n(i, 'flyStart', 2.05) && n(i, 'flyStart', 2.05) < n(i, 'hitTime', 2.25) && n(i, 'hitTime', 2.25) <= D))
+        w.push('Предмет: нужен порядок подъём (начало ≤ конец) ≤ замах ≤ начало полёта < удар ≤ длина сцены.');
+      if (n(p, 'cheerStart', 2.4) < n(i, 'hitTime', 2.25) || n(p, 'cheerEnd', 4.2) < n(p, 'cheerStart', 2.4) || n(p, 'cheerEnd', 4.2) > D) w.push('Радость: нужно удар ≤ начало ≤ конец ≤ длина сцены.');
+      if (n(p, 'hopCrouch', 0.25) < 0 || n(p, 'hopCrouch', 0.25) >= 1) w.push('Доля приседа должна быть от 0 до 1 (не включая 1).');
+      if (n(c, 'approachEnd', 1.3) < 0 || n(c, 'closeUpStart', 2.2) > n(c, 'closeUpEnd', 2.6) || n(c, 'closeUpEnd', 2.6) > n(c, 'returnStart', 4.1) || n(c, 'returnStart', 4.1) > D) w.push('Камера: нужно начало крупного плана ≤ его конец ≤ возврат ≤ длина сцены.');
+      if (n(c, 'riseDistance', 9) <= 0 || n(c, 'closeUpDistance', 4.4) <= 0) w.push('Дистанции камеры должны быть больше нуля.');
+      if (n(f, 'glowEnd', 4.2) < n(f, 'glowStart', 2.25) || n(f, 'glowEnd', 4.2) > D || n(f, 'burstTime', 2.3) < 0 || n(f, 'burstTime', 2.3) > D) w.push('Эффект: нужно начало свечения ≤ конец ≤ длина сцены, вспышка внутри сцены.');
+      if (p.hops != null && n(p, 'hops', 2) * n(p, 'hopTime', 0.55) > n(p, 'cheerEnd', 4.2) - n(p, 'cheerStart', 2.4) + 1e-6) w.push('Прыжки радости (число × длительность) выходят за конец радости — персонаж допрыгивает уже без радостной позы.');
       return w;
     },
   },
@@ -2066,6 +2156,39 @@ function vizCamera({ d }) {
   return `<h4>Сбоку: камера, наклон и поле зрения (масштаб общий)</h4>` + svgWrap(W, H, g)
     + facts([['В кадре по вертикали у куба', `≈ ${r2(visH, 1)} бл`], ['По горизонтали (16:9)', `≈ ${r2(visW, 1)} бл`], ['Глубина видимой земли', Number.isFinite(groundDepth) ? `≈ ${r2(groundDepth, 1)} бл` : 'до горизонта'], ['Высота камеры', `${r2(cam[1], 1)} бл`], ['Щелчков колеса от мин. до макс.', r2(Math.ceil((maxD - minD) / Math.max(0.01, num(d.zoomStep, 2))), 0)]])
     + `<div style="display:flex;gap:16px;align-items:center;margin-top:8px">${svgWrap(120, 122, top)}<div style="font-size:12.5px;color:var(--muted)">Вид сверху: камера (●) смотрит на куб под углом <b style="color:var(--text)">${r2(yaw, 0)}°</b>.${d.scheme === 'FixedAngles' ? ` Точки — фиксированные углы через ${r2(stp, 0)}°.` : ' FreeOrbit: поворот свободный.'}</div></div>`;
+}
+
+/* Сцена подбора: таймлайн всех отрезков на общей шкале длины сцены. */
+function vizPickupTimeline({ d }) {
+  const D = Math.max(0.1, num(d.duration, 5)), i = d.item || {}, p = d.player || {}, c = d.camera || {}, f = d.fx || {};
+  const hit = num(i.hitTime, 2.25);
+  const hopEnd = num(p.cheerStart, 2.4) + Math.max(0, num(p.hops, 2)) * num(p.hopTime, 0.55);
+  const rows = [
+    ['Камера', [[0, num(c.approachEnd, 1.3), C.blue, 'подъезд'], [num(c.closeUpStart, 2.2), num(c.closeUpEnd, 2.6), C.lilac, 'крупный'], [num(c.returnStart, 4.1), D, C.teal, 'возврат']]],
+    ['Предмет', [[num(i.riseStart, 0.15), num(i.riseEnd, 1.5), C.yellow, 'подъём'], [num(i.throwStart, 1.8), num(i.flyStart, 2.05), C.orange, ''], [num(i.flyStart, 2.05), hit, C.red, '']]],
+    ['Персонаж', [[0, num(p.turnTime, 0.3), C.grid2, ''], [num(p.cheerStart, 2.4), num(p.cheerEnd, 4.2), C.green, 'радость']]],
+    ['Прыжки', Array.from({ length: Math.max(0, Math.min(12, num(p.hops, 2))) }, (_, k) => [num(p.cheerStart, 2.4) + k * num(p.hopTime, 0.55), num(p.cheerStart, 2.4) + (k + 1) * num(p.hopTime, 0.55), k % 2 ? C.teal : C.green, ''])],
+    ['Свечение', [[num(f.glowStart, 2.25), num(f.glowEnd, 4.2), C.lilac, 'свечение']]],
+  ];
+  const W = 560, L = 70, R = 16, top = 22, rh = 26, H = top + rows.length * rh + 26;
+  const tMax = Math.max(D, hopEnd, ...rows.flatMap(r => r[1].map(s => s[1])));
+  const X = t => L + clamp(t, 0, tMax) / tMax * (W - L - R);
+  let g = '';
+  for (let t = 0; t <= tMax + 1e-6; t += tMax > 6 ? 1 : 0.5) g += `<line x1="${X(t)}" y1="${top - 6}" x2="${X(t)}" y2="${H - 22}" stroke="${C.grid}"/>` + T(X(t), H - 8, r2(t, 1), { anchor: 'middle', size: 10 });
+  g += `<rect x="${X(D)}" y="${top - 6}" width="${Math.max(0, X(tMax) - X(D))}" height="${H - 16 - top}" fill="${C.red}" opacity=".07"/>`;
+  rows.forEach(([name, segs], r) => {
+    const y = top + r * rh;
+    g += T(L - 8, y + 14, name, { anchor: 'end', size: 11 });
+    for (const [a, b, col, lab] of segs) {
+      const x0 = X(Math.min(a, b)), x1 = X(Math.max(a, b)), w = Math.max(2, x1 - x0);
+      g += `<rect x="${x0}" y="${y + 3}" width="${w}" height="16" rx="3" fill="${col}" opacity="${b < a ? .35 : .85}"/>`;
+      if (lab && w > 44) g += T(x0 + w / 2, y + 15, lab, { anchor: 'middle', size: 10, fill: '#fff' });
+    }
+  });
+  const mark = (t, col, lab) => `<line x1="${X(t)}" y1="${top - 8}" x2="${X(t)}" y2="${H - 22}" stroke="${col}" stroke-width="1.5" stroke-dasharray="4 3"/>` + T(X(t), top - 10, lab, { anchor: 'middle', size: 10, fill: col });
+  g += mark(hit, C.red, 'удар') + mark(num(f.burstTime, 2.3), C.dark, '') + mark(D, C.dark, 'конец');
+  return `<h4>Таймлайн сцены, секунды (замах — оранжевый, полёт — красный)</h4>` + svgWrap(W, H, g)
+    + facts([['Длина', `${r2(D)} с`], ['Предмет летит', `${r2(hit - num(i.flyStart, 2.05))} с`], ['Крупный план держится', `${r2(num(c.returnStart, 4.1) - num(c.closeUpEnd, 2.6))} с`], ['Прыжки заканчиваются', `${r2(hopEnd)} с`]]);
 }
 
 function itemDamage(it, step, combat) { return num(it.damage) * num(step.damageMultiplier, 1); }
