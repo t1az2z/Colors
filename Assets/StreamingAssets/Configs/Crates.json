@@ -1,5 +1,5 @@
 {
-  "hp": 20,
+  "hp": 6,
   "breakableBy": ["sword"],
   "color": "blue",
   "tint": "",

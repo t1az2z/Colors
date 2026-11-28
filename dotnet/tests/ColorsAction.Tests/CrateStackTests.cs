@@ -80,6 +80,27 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void CratesConfig_BreaksOnThirdBaseSwordHit()
+        {
+            var service = new ConfigService(new FileConfigSource(TestPaths.ConfigsRoot()), new NewtonsoftConfigSerializer());
+            var crates = service.Load<CrateConfig>(ConfigKeys.Crates);
+            var sword = service.LoadTable<ItemConfig>(ConfigKeys.Items).Get("sword");
+            var rules = new DamageRules(service.Load<CombatConfig>(ConfigKeys.Combat));
+
+            // Комбо по порядку и одним и тем же первым ударом — оба ломают ровно с третьего.
+            foreach (var steps in new[] { new[] { 0, 1, 2 }, new[] { 0, 0, 0 } })
+            {
+                var state = new BreakableState(crates.Hp, crates.BreakableBy);
+                for (int i = 0; i < 3; i++)
+                {
+                    var damage = rules.Calculate(sword, sword.Combo[steps[i]], crates.Color).Damage;
+                    var result = state.Hit("sword", damage);
+                    Assert.That(result == BreakHitResult.Broken, Is.EqualTo(i == 2), $"steps {string.Join(",", steps)}, hit {i + 1}");
+                }
+            }
+        }
+
+        [Test]
         public void VoxelLevel_CrateObject_GoesToLevelConfig_AndBlocksPath()
         {
             var level = new VoxelLevel();

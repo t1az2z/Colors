@@ -12,8 +12,9 @@ namespace ColorsAction.Configs
     [Preserve]
     public sealed class CrateConfig : IConfigPostLoad
     {
-        /// <summary>Здоровье стопки. Меч бьёт на 5, по своему цвету ×1.5 — 20 HP это 3 обычных удара.</summary>
-        public float Hp { get; set; } = 20f;
+        /// <summary>Здоровье стопки. Синий меч по синим ящикам бьёт ×0.4 (свой цвет на круге): 2 / 2 / 2.8 за первые
+        /// три удара комбо — 6 HP ломаются ровно третьим базовым ударом.</summary>
+        public float Hp { get; set; } = 6f;
 
         /// <summary>Id оружия из Items.json, которым ящики ломаются. Пусто — любым.</summary>
         public List<string> BreakableBy { get; set; } = new List<string> { "sword" };
