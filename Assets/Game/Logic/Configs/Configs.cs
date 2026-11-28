@@ -270,6 +270,12 @@ namespace ColorsAction.Configs
         public float RegenPerSecond { get; set; } = 22f;
         public float RegenDelay { get; set; } = 0.9f;
         public float BlockStartCost { get; set; } = 6f;
+
+        /// <summary>
+        /// Во сколько раз дороже обычного блок неблокируемого удара врага: урон проходит целиком, а выносливость
+        /// тратится как за блок этого удара × множитель.
+        /// </summary>
+        public float UnblockableBlockCostMultiplier { get; set; } = 2f;
         public float BlockRegenMultiplier { get; set; } = 0.3f;
         public float JumpCost { get; set; } = 0f;
     }

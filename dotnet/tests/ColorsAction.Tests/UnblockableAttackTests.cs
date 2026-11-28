@@ -27,6 +27,26 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void BlockingUnblockableHit_FullDamage_StaminaCostAboveNormalBlock()
+        {
+            var normal = BlockRules.Resolve(35f, 1f, 1000f, 6f, 1f);
+            var pierced = BlockRules.ResolveUnblockable(35f, 1f, 6f, 1f, 2f);
+            Assert.That(normal.Damage, Is.EqualTo(0f));
+            Assert.That(pierced.Damage, Is.EqualTo(35f), "damage goes through in full");
+            Assert.That(pierced.Held, Is.False);
+            Assert.That(pierced.StaminaCost, Is.EqualTo(normal.StaminaCost * 2f).Within(1e-4), "twice the normal block cost");
+            Assert.That(BlockRules.ResolveUnblockable(35f, 1f, 6f, 0.5f, 2f).StaminaCost,
+                Is.EqualTo(normal.StaminaCost).Within(1e-4), "cheaper-block upgrade still applies");
+        }
+
+        [Test]
+        public void ShippedPlayerConfig_UnblockableBlockCostsMoreThanNormal()
+        {
+            var configs = new ConfigService(new FileConfigSource(TestPaths.ConfigsRoot()), new NewtonsoftConfigSerializer());
+            Assert.That(configs.Load<PlayerConfig>(ConfigKeys.Player).Stamina.UnblockableBlockCostMultiplier, Is.GreaterThan(1f));
+        }
+
+        [Test]
         public void Brain_ShowsWarningOnlyDuringUnblockableWindup()
         {
             var attack = new EnemyAttackConfig

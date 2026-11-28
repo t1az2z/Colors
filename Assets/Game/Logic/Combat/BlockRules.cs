@@ -32,6 +32,20 @@ namespace ColorsAction.Combat
         /// <summary>Выносливости за единицу погашенного урона.</summary>
         public const float CostPerDamage = 1.2f;
 
+        /// <summary>
+        /// Блок неблокируемого удара врага: урон проходит целиком, выносливость — цена обычного блока этого удара
+        /// × <paramref name="unblockableCostMultiplier"/> (сколько есть, если не хватает). Блок всегда считается пробитым.
+        /// </summary>
+        public static BlockOutcome ResolveUnblockable(float damage, float absorb, float startCost, float costMultiplier,
+            float unblockableCostMultiplier)
+        {
+            damage = Math.Max(0f, damage);
+            absorb = Math.Max(0f, Math.Min(1f, absorb));
+            var cost = (startCost + damage * absorb * CostPerDamage) * Math.Max(0f, costMultiplier) *
+                       Math.Max(0f, unblockableCostMultiplier);
+            return new BlockOutcome(damage, cost, false);
+        }
+
         public static BlockOutcome Resolve(float damage, float absorb, float stamina, float startCost, float costMultiplier)
         {
             damage = Math.Max(0f, damage);

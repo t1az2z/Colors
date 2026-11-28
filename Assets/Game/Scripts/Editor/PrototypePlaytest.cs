@@ -677,6 +677,8 @@ namespace ColorsAction.Unity.Editor
             var slamThroughBlock = false;
             var crossBlocked = false;
             var crossLeaked = false;
+            var slamSpent = 0f;
+            var slamNormalCost = 0f;
             var shot = false;
             input.ScriptHold(GameAction.Secondary, true);
             for (int f = 0; f < 60 * 20 && !(slamThroughBlock && crossBlocked && markSeen); f++)
@@ -702,7 +704,12 @@ namespace ColorsAction.Unity.Editor
                 if (vitals.Health.Current.Value < vitals.Health.Max - 0.01f)
                 {
                     if (slam && combat.Blocking)
+                    {
                         slamThroughBlock = true;
+                        slamSpent = session.Stamina.Max - session.Stamina.Current.Value;
+                        slamNormalCost = ColorsAction.Combat.BlockRules.Resolve(brain.RootAttack.Damage, combat.BlockAbsorb,
+                            session.Stamina.Max, 6f, combat.BlockCostMultiplier).StaminaCost;
+                    }
                     else if (!slam)
                         crossLeaked = true;
                     vitals.Health.Restore();
@@ -721,6 +728,8 @@ namespace ColorsAction.Unity.Editor
             Check(markSeen, "unblockable slam: \"!\" shows above the elite during the windup", "UnblockableMarkVisible in windup");
             Check(!markOnBlockable, "no \"!\" for blockable cross strikes", "hidden for blockable attacks");
             Check(slamThroughBlock, "unblockable slam goes through a held shield block", "health dropped while blocking the slam");
+            Check(slamSpent > slamNormalCost, $"blocking the unblockable slam costs more stamina than a normal block: {slamSpent:F0} vs {slamNormalCost:F0}",
+                "spent > normal block cost");
             Check(crossBlocked && !crossLeaked, $"cross strikes are still blocked: blocked {crossBlocked}, leaked {crossLeaked}", "blocked, no damage");
 
             // б) Парирования: первые два только поглощают удар, третье заполняет шкалу (300) и ошеломляет.

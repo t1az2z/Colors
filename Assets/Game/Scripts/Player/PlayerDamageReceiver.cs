@@ -76,8 +76,9 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>
-        /// Удар врага. true — урон прошёл. <paramref name="unblockable"/> — неблокируемый удар: блок его не гасит,
-        /// только парирование (перекат по-прежнему уворачивает).
+        /// Удар врага. true — урон прошёл. <paramref name="unblockable"/> — неблокируемый удар: блок его не гасит
+        /// (урон целиком) и стоит выносливости больше обычного, сорвать его можно только парированием
+        /// (перекат по-прежнему уворачивает).
         /// </summary>
         public bool ReceiveEnemyHit(float damage, Vector3 from, float knockback, bool unblockable = false)
         {
@@ -92,8 +93,14 @@ namespace ColorsAction.Unity
             away = away.sqrMagnitude > 0.001f ? away.normalized : -controller.Forward;
 
             // Блок: удар спереди гасится за выносливость (щит — целиком, дробовик — часть); не хватило — блок пробит.
-            // Неблокируемый удар проходит сквозь блок целиком.
-            if (combat != null && combat.Blocking && !unblockable && BlockCovers(-away))
+            // Неблокируемый удар проходит сквозь блок целиком, а выносливости за блок уходит больше обычного.
+            if (combat != null && combat.Blocking && unblockable && BlockCovers(-away))
+            {
+                var pierced = BlockRules.ResolveUnblockable(damage, combat.BlockAbsorb, config.Stamina.BlockStartCost,
+                    combat.BlockCostMultiplier, config.Stamina.UnblockableBlockCostMultiplier);
+                session.Stamina.TrySpend(pierced.StaminaCost);
+            }
+            else if (combat != null && combat.Blocking && BlockCovers(-away))
             {
                 // Апгрейд 1: блок дешевле.
                 var block = BlockRules.Resolve(damage, combat.BlockAbsorb, session.Stamina.Current.Value,

@@ -47,6 +47,7 @@
     "regenPerSecond": 63,
     "regenDelay": 0.7,
     "blockStartCost": 6,
+    "unblockableBlockCostMultiplier": 2,
     "blockRegenMultiplier": 0.3,
     "jumpCost": 0
   },
