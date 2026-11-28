@@ -17,7 +17,15 @@ namespace ColorsAction.Level
     [Preserve]
     public sealed class VoxelLevelData : IConfigPostLoad
     {
+        /// <summary>
+        /// Версия формата. 1 — клетка разводного моста была ближним краем опущенной створки; с 2 — якорь на берегу
+        /// за дальним краем (<see cref="DrawBridgeShape"/>). Файлы версии 1 переводятся при чтении (<see cref="Apply"/>).
+        /// Нет поля в файле — 1.
+        /// </summary>
         public int Format { get; set; } = 1;
+
+        /// <summary>Версия, которую пишет <see cref="From"/> (и веб-редактор).</summary>
+        public const int CurrentFormat = 2;
         public string Name { get; set; }
         public List<FloorData> Floors { get; set; } = new List<FloorData>();
         public List<string> Blocks { get; set; } = new List<string>();
@@ -122,7 +130,7 @@ namespace ColorsAction.Level
                 Floors.Select(f => new Floor { Id = f.Id, Name = f.Name, BaseY = f.BaseY }),
                 Objects.Select(o => new LevelObject
                 {
-                    Id = o.Id, Kind = o.Kind, Cell = Int3.Parse(o.Cell), Yaw = o.Yaw, Color = o.Color,
+                    Id = o.Id, Kind = o.Kind, Cell = ReadCell(o), Yaw = o.Yaw, Color = o.Color,
                     Barrier = o.Barrier, Height = o.Height, Item = o.Item, Count = Math.Max(1, o.Count),
                     AggroRadius = Math.Max(0f, o.AggroRadius ?? LevelEnemy.DefaultAggroRadius),
                     Key = string.IsNullOrEmpty(o.Key) ? null : o.Key
@@ -135,11 +143,19 @@ namespace ColorsAction.Level
                 }));
         }
 
+        /// <summary>Клетка объекта; мост из файла версии 1 — переводится с начала моста на якорь.</summary>
+        private Int3 ReadCell(ObjectData o)
+        {
+            var cell = Int3.Parse(o.Cell);
+            return o.Kind == LevelObjectKind.DrawBridge && Format < 2 ? DrawBridgeShape.AnchorOf(cell, o.Yaw) : cell;
+        }
+
         /// <summary>Снимок уровня для сохранения. Блоки упорядочены (y, z, x), чтобы diff файла был читаемым.</summary>
         public static VoxelLevelData From(VoxelLevel level)
         {
             return new VoxelLevelData
             {
+                Format = CurrentFormat,
                 Name = level.Name,
                 Floors = level.Floors.Select(f => new FloorData { Id = f.Id, Name = f.Name, BaseY = f.BaseY }).ToList(),
                 Blocks = level.Blocks
@@ -292,10 +308,11 @@ namespace ColorsAction.Level
 
             foreach (var b in config.Bridges)
             {
+                var anchor = DrawBridgeShape.AnchorOf(new Int3(b.X, 0, b.Z), b.Yaw);
                 level.PutObject(new LevelObject
                 {
                     Id = string.IsNullOrEmpty(b.Id) ? level.NewObjectId(LevelObjectKind.DrawBridge) : b.Id,
-                    Kind = LevelObjectKind.DrawBridge, Cell = StandCell(b.X, b.Z), Yaw = b.Yaw, Height = DrawBridgeShape.Height
+                    Kind = LevelObjectKind.DrawBridge, Cell = new Int3(anchor.X, StandCell(b.X, b.Z).Y, anchor.Z), Yaw = b.Yaw, Height = DrawBridgeShape.Height
                 });
             }
 

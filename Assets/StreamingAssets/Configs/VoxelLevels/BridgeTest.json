@@ -1,5 +1,5 @@
 {
-  "format": 1,
+  "format": 2,
   "name": "BridgeTest",
   "floors": [
     {
@@ -466,7 +466,7 @@
     {
       "id": "drawbridge_1",
       "kind": "DrawBridge",
-      "cell": "4,0,2",
+      "cell": "12,0,2",
       "height": 4
     },
     {

@@ -7,7 +7,7 @@ using UnityEngine;
 namespace ColorsAction.Unity.Editor
 {
     /// <summary>
-    /// Автопрогон разводного моста на карте VoxelLevels/BridgeTest (коридор, мост drawbridge_1 8×3 от x=4 по +X, z=2..4,
+    /// Автопрогон разводного моста на карте VoxelLevels/BridgeTest (коридор, мост drawbridge_1 8×3 от x=4 по +X, z=2..4, якорь в карте — 12,0,2 на дальнем берегу,
     /// дальняя створка на шарнире x=12, под ней поперёк коридора — пропасть x=8..11): поднятая створка не пускает пешком и прыжком, меч цепь не рвёт, фиксация
     /// берёт цепь, над мостом горит «!», выстрел из дробовика без фиксации (в створку или цепь) её рвёт, «!» гаснет, створка падает, по мосту можно пройти над пропастью.
     /// Нужен дробовик в руке (окно «Параметры запуска»). Меню: ColorsAction → Debug → Run Bridge Playtest (в Play Mode).
@@ -135,6 +135,9 @@ namespace ColorsAction.Unity.Editor
             Check(bridge != null, $"{BridgeId} spawned from the voxel map: not found", "bridge object exists");
             if (bridge == null)
                 yield break;
+            // Якорь в карте — на дальнем берегу (12,0,2), мост строится от начала (4,·,2) на высоте опоры якоря.
+            var at = bridge.transform.position;
+            Check(Vector3.Distance(at, new Vector3(4.5f, 0f, 2.5f)) < 0.01f, $"bridge built from the anchor: {at}", "(4.5, 0, 2.5)");
             var chain = bridge.Chain;
             Check(chain != null && !chain.Broken && chain.Lockable, $"chain is intact and lockable: {(chain == null ? "no chain" : $"broken={chain.Broken} lockable={chain.Lockable}")}", "chain exists, not broken, lockable");
             Check(Mathf.Approximately(bridge.LeafAngle, bridge.Config.RaisedAngle), $"far leaf is raised: {bridge.LeafAngle:F0}°", $"{bridge.Config.RaisedAngle:F0}°");

@@ -128,9 +128,9 @@ namespace ColorsAction.Tests
         [Test]
         public void RaisedBridgeBlocks_LoweredBridgeConnectsBanks()
         {
-            // Берег 0..2, пропасть 3..10 под мостом 8×3, берег 11..13. Мост от x=3 вдоль +X.
+            // Берег 0..2, пропасть 3..10 под мостом 8×3, берег 11..13. Мост от x=3 вдоль +X, якорь на дальнем берегу (x=11).
             var level = Corridor(14, 3, 4, 5, 6, 7, 8, 9, 10);
-            level.PutObject(new LevelObject { Id = "bridge_1", Kind = LevelObjectKind.DrawBridge, Cell = new Int3(3, 0, 0), Yaw = 0f });
+            level.PutObject(new LevelObject { Id = "bridge_1", Kind = LevelObjectKind.DrawBridge, Cell = new Int3(11, 0, 0), Yaw = 0f });
             var open = new HashSet<string>();
             var reach = new EnemyReach(level, open.Contains, () => open.Count);
             Assert.That(reach.CanReach(Walker, 12.5f, 0.1f, 0.5f, 1.5f, 0.1f, 0.5f), Is.False, "raised leaf");
@@ -143,7 +143,7 @@ namespace ColorsAction.Tests
         {
             // Пропасть под мостом; поднятая дальняя створка стоит в клетке 7 (x=10), под клетками 4–6 (x=7..9) пусто.
             var level = Corridor(14, 3, 4, 5, 6, 7, 8, 9, 10);
-            level.PutObject(new LevelObject { Id = "bridge_1", Kind = LevelObjectKind.DrawBridge, Cell = new Int3(3, 0, 0), Yaw = 0f });
+            level.PutObject(new LevelObject { Id = "bridge_1", Kind = LevelObjectKind.DrawBridge, Cell = new Int3(11, 0, 0), Yaw = 0f });
             var open = new HashSet<string>();
             var reach = new EnemyReach(level, open.Contains, () => open.Count);
             Assert.That(reach.CanReach(Walker, 1.5f, 0.1f, 0.5f, 5.5f, 0.1f, 0.5f), Is.True, "near leaf is always down");

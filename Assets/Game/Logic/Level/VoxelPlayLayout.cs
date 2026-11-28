@@ -71,8 +71,15 @@ namespace ColorsAction.Level
                         config.Chests.Add(Point(new LevelChest { Id = o.Id, Item = o.Item, Count = Math.Max(1, o.Count) }, o, y));
                         break;
                     case LevelObjectKind.DrawBridge:
-                        config.Bridges.Add(Point(new LevelBridge { Id = o.Id }, o, y));
+                    {
+                        // В карте — якорь на берегу за дальним краем, игре нужно начало моста; высота настила — опора якоря.
+                        var bridge = Point(new LevelBridge { Id = o.Id }, o, y);
+                        var origin = DrawBridgeShape.Origin(o.Cell, o.Yaw);
+                        bridge.X = origin.X;
+                        bridge.Z = origin.Z;
+                        config.Bridges.Add(bridge);
                         break;
+                    }
                     default:
                         skipped?.Add($"{o.Id}: {o.Kind} пока не поддерживается в игре");
                         break;

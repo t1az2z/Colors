@@ -3,9 +3,12 @@ using System;
 namespace ColorsAction.Level
 {
     /// <summary>
-    /// Форма разводного моста: 8 клеток в длину, 3 в ширину, поднятая створка — 4 в высоту. Клетка объекта — ближний край опущенной
-    /// створки; длина идёт по локальной +X, повёрнутой на yaw (как у <see cref="CrateStackShape"/>: 0° — +X, 90° — −Z,
-    /// 180° — −X, 270° — +Z), ширина — по локальной +Z (слева по ходу: при 0° это +Z, при 270° — −X).
+    /// Форма разводного моста: 8 клеток в длину, 3 в ширину, поднятая створка — 4 в высоту. Клетка объекта — якорь: клетка
+    /// на берегу сразу за дальним краем моста (за поднятой створкой, в ряду ширины 0), высота настила — высота опоры якоря,
+    /// так мост пристраивается к обрыву. Начало моста (<see cref="Origin"/>) — ближний край опущенной створки,
+    /// <see cref="Length"/> клеток от якоря назад; от начала длина идёт по локальной +X, повёрнутой на yaw
+    /// (как у <see cref="CrateStackShape"/>: 0° — +X, 90° — −Z, 180° — −X, 270° — +Z), ширина — по локальной +Z
+    /// (слева по ходу: при 0° это +Z, при 270° — −X).
     /// Ближняя створка (клетки длины 0–3) всегда опущена; дальняя (4–7) поднята на шарнире у дальнего края моста
     /// (с наклоном к ближней) и стоит стеной в клетке длины <see cref="RaisedColumn"/> высотой <see cref="Height"/>,
     /// пока цепи целы. Клетки длины 4–6 при этом пусты — под ними обычно пропасть.
@@ -45,12 +48,27 @@ namespace ColorsAction.Level
             }
         }
 
-        /// <summary>Клетка моста: <paramref name="along"/> — 0..Length−1 по длине, <paramref name="across"/> — 0..Width−1.</summary>
-        public static Int3 Cell(Int3 anchor, float yaw, int along, int across)
+        /// <summary>Начало моста (клетка длины 0, ряд 0) по якорю: <see cref="Length"/> клеток от якоря против yaw.</summary>
+        public static Int3 Origin(Int3 anchor, float yaw)
         {
             var (ax, az) = Along(yaw);
+            return new Int3(anchor.X - ax * Length, anchor.Y, anchor.Z - az * Length);
+        }
+
+        /// <summary>Якорь по началу моста (обратное к <see cref="Origin"/>): клетка сразу за дальним краем.</summary>
+        public static Int3 AnchorOf(Int3 origin, float yaw)
+        {
+            var (ax, az) = Along(yaw);
+            return new Int3(origin.X + ax * Length, origin.Y, origin.Z + az * Length);
+        }
+
+        /// <summary>Клетка моста: <paramref name="along"/> — 0..Length−1 по длине от начала, <paramref name="across"/> — 0..Width−1.</summary>
+        public static Int3 Cell(Int3 anchor, float yaw, int along, int across)
+        {
+            var o = Origin(anchor, yaw);
+            var (ax, az) = Along(yaw);
             var (cx, cz) = Across(yaw);
-            return new Int3(anchor.X + ax * along + cx * across, anchor.Y, anchor.Z + az * along + cz * across);
+            return new Int3(o.X + ax * along + cx * across, o.Y, o.Z + az * along + cz * across);
         }
 
         /// <summary>Индексы (вдоль, поперёк) столбца (x, z) на мосту или null, если столбец не под мостом.</summary>
@@ -82,6 +100,9 @@ namespace ColorsAction.Level
         /// <summary>Центр моста по X/Z (в метрах, клетка 1×1 начинается в целых координатах).</summary>
         public static (float x, float z) Center(int anchorX, int anchorZ, float yaw)
         {
+            var o = Origin(new Int3(anchorX, 0, anchorZ), yaw);
+            anchorX = o.X;
+            anchorZ = o.Z;
             var (ax, az) = Along(yaw);
             var (cx, cz) = Across(yaw);
             const float halfLength = (Length - 1) * 0.5f;

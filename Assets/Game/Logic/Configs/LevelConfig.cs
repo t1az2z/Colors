@@ -302,7 +302,8 @@ namespace ColorsAction.Configs
     /// створки, мост тянется на 8 клеток в сторону <see cref="LevelPoint.Yaw"/> (0 — +X, 90 — −Z, 180 — −X, 270 — +Z)
     /// и на 3 клетки в ширину (остальные — слева по ходу). Дальняя створка поднята и держится на цепях: выстрел из дробовика
     /// рвёт цепи, створка падает и открывает проход навсегда (<see cref="GameSession.OpenedBridges"/>).
-    /// Параметры — Configs/Bridges.json.
+    /// Параметры — Configs/Bridges.json. В воксельной карте у объекта моста другая клетка — якорь на берегу за дальним краем
+    /// (<see cref="ColorsAction.Level.DrawBridgeShape.Origin"/> переводит её сюда).
     /// </summary>
     [Preserve]
     public sealed class LevelBridge : LevelPoint
