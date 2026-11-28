@@ -395,9 +395,9 @@ namespace ColorsAction.Animation
         {
             var toss = Toss(inspect, u);
             var lift = toss.Lift * weight;
-            // Глаза и верх куба следят за оружием: вбок — по руке/полёту, вверх — по дуге броска.
+            // Глаза и верх куба следят за оружием весь полёт: вбок — за рукой/полётом, вверх — по дуге броска.
             EyeX = toss.Side * inspect.EyeShift * lift;
-            EyeY = (0.2f + toss.Arc * 0.8f) * inspect.EyeShift * 0.6f * lift;
+            EyeY = (0.15f + toss.Arc * 0.85f) * inspect.EyeShift * lift;
             Twist = toss.Side * inspect.FollowTwist * lift;
             Pitch = inspect.Pitch * lift;
             Squash = -toss.Dip * inspect.CatchSquash * lift;
