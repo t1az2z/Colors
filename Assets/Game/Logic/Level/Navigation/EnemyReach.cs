@@ -70,6 +70,39 @@ namespace ColorsAction.Level.Navigation
             return reachable.Contains(goal.Index);
         }
 
+        /// <summary>Текущая версия мира (меняется, когда что-то открылось).</summary>
+        public int WorldVersion => worldVersion();
+
+        /// <summary>
+        /// Путь A* от узла <paramref name="start"/> к <paramref name="goal"/> в текущем состоянии мира; если цель
+        /// недостижима — к ближайшему к ней месту (<see cref="PathResult.Partial"/>).
+        /// </summary>
+        public PathResult FindPath(MovementProfile profile, NavNode start, NavNode goal, List<PathStep> path, int maxExpanded = 6000) =>
+            finder.FindOrClosest(start, goal, profile, context, path, maxExpanded);
+
+        /// <summary>
+        /// Можно ли из узла <paramref name="from"/> шагнуть (или спрыгнуть, если профиль позволяет) в соседний столбец
+        /// (<paramref name="cellX"/>, <paramref name="cellZ"/>): там есть узел, связь с которым проходима. Нет — там стена,
+        /// закрытый объект или обрыв глубже <see cref="MovementProfile.MaxDrop"/>.
+        /// </summary>
+        public bool CanStep(MovementProfile profile, NavNode from, int cellX, int cellZ)
+        {
+            if (from == null || (from.Block.X == cellX && from.Block.Z == cellZ))
+                return true;
+            foreach (var link in from.Links)
+            {
+                if (link.Kind != NavLinkKind.Move)
+                    continue;
+                var to = graph.Nodes[link.To];
+                if (to.Block.X != cellX || to.Block.Z != cellZ)
+                    continue;
+                if (graph.Classify(link, profile, context) != NavMove.None)
+                    return true;
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// Копия уровня с опорами под всеми клетками разводных мостов (настил на высоте клетки моста).
         /// <paramref name="farDecks"/> — добавленные опоры под дальней створкой (клетки длины от

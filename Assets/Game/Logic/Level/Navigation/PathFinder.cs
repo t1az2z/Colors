@@ -18,6 +18,17 @@ namespace ColorsAction.Level.Navigation
         }
     }
 
+    public enum PathResult
+    {
+        /// <summary>Пути нет и подойти ближе нельзя.</summary>
+        None,
+
+        /// <summary>Цель недостижима: путь ведёт к ближайшему к ней узлу.</summary>
+        Partial,
+
+        Found
+    }
+
     /// <summary>A* по <see cref="NavGraph"/> с учётом профиля перемещения и состояния мира.</summary>
     public sealed class PathFinder
     {
@@ -87,6 +98,78 @@ namespace ColorsAction.Level.Navigation
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// A* до цели, а если цель недостижима (или поиск упёрся в <paramref name="maxExpanded"/>) — путь до узла,
+        /// ближайшего к цели по горизонтали среди раскрытых. <see cref="PathResult.None"/> — ближе старта ничего нет.
+        /// </summary>
+        public PathResult FindOrClosest(NavNode start, NavNode goal, MovementProfile profile, INavContext context,
+            List<PathStep> path, int maxExpanded)
+        {
+            path.Clear();
+            LastExpanded = 0;
+            if (start == null || goal == null)
+                return PathResult.None;
+            Prepare();
+            query++;
+
+            Visit(start.Index, 0f, -1, null, NavMove.None);
+            open.Clear();
+            open.Push(start.Index, Heuristic(start, goal));
+            var best = start.Index;
+            var bestDistance = HorizontalSqr(start, goal);
+            var bestCost = 0f;
+
+            while (open.Count > 0)
+            {
+                var current = open.Pop();
+                if (closed[current])
+                    continue;
+                closed[current] = true;
+                if (current == goal.Index)
+                {
+                    Reconstruct(goal.Index, path);
+                    return PathResult.Found;
+                }
+
+                var node = graph.Nodes[current];
+                var d = HorizontalSqr(node, goal);
+                if (d < bestDistance - 1e-4f || (Math.Abs(d - bestDistance) <= 1e-4f && g[current] < bestCost))
+                {
+                    best = current;
+                    bestDistance = d;
+                    bestCost = g[current];
+                }
+
+                if (++LastExpanded > maxExpanded)
+                    break;
+
+                foreach (var link in node.Links)
+                {
+                    var move = graph.Classify(link, profile, context);
+                    if (move == NavMove.None)
+                        continue;
+                    var next = link.To;
+                    var cost = g[current] + graph.Cost(link, move, profile);
+                    if (stamp[next] == query && (closed[next] || cost >= g[next]))
+                        continue;
+                    Visit(next, cost, current, link, move);
+                    open.Push(next, cost + Heuristic(graph.Nodes[next], goal));
+                }
+            }
+
+            if (best == start.Index)
+                return PathResult.None;
+            Reconstruct(best, path);
+            return PathResult.Partial;
+        }
+
+        private static float HorizontalSqr(NavNode a, NavNode b)
+        {
+            var dx = a.Block.X - b.Block.X;
+            var dz = a.Block.Z - b.Block.Z;
+            return dx * dx + dz * dz;
         }
 
         /// <summary>Все узлы, достижимые из старта (для наложения «куда пройдёт персонаж»).</summary>

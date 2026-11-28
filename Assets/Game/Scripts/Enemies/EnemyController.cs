@@ -31,6 +31,9 @@ namespace ColorsAction.Unity
         private EnemyReach reach;
 
         private MovementProfile movement;
+
+        /// <summary>Ведёт врага по карте пути (A*); null — без карты, враг идёт к игроку напрямую.</summary>
+        private EnemyNavigator navigator;
         private Mesh bodyMesh;
         private Material[] bodyMaterials;
 
@@ -142,6 +145,8 @@ namespace ColorsAction.Unity
                 var profiles = configs.LoadTable<MovementProfile>(MovementProfileKey);
                 if (!profiles.TryGet(config.Movement ?? string.Empty, out movement))
                     Debug.LogWarning($"[Enemy] '{typeId}': movement profile '{config.Movement}' not in Movement.json — reachability not checked.");
+                else
+                    navigator = new EnemyNavigator(reach, movement);
             }
 
             brain.StateChanged += OnStateChanged;
@@ -239,12 +244,31 @@ namespace ColorsAction.Unity
             toPlayer.y = 0f;
             var distance = toPlayer.magnitude;
             var available = player != null && (playerDamage == null || !playerDamage.Dead) && vertical < 3f;
-            var intent = brain.Tick(dt, distance, available, PlayerReachable(available, distance));
+
+            // Путь к игроку по карте (A*): пока враг обходит препятствие, до игрока «далеко» по пути —
+            // так он не бьёт через пропасть или стену. Предел — чуть меньше радиуса потери, чтобы не терять игрока из-за обхода.
+            var chaseSteer = ChaseSteer(dt, available);
+            var brainDistance = chaseSteer.Mode == NavSteerMode.Path
+                ? Mathf.Max(distance, Mathf.Min(chaseSteer.Remaining, brain.LoseRadius - 0.05f))
+                : distance;
+            var intent = brain.Tick(dt, brainDistance, available, PlayerReachable(available, distance));
             var dir = distance > 0.001f ? toPlayer / distance : transform.forward;
 
-            // Движение: к игроку / от игрока, а в очереди — к точке за спиной игрока;
+            // Движение: к игроку / от игрока, а в очереди — к точке за спиной игрока; по пути A*, если прямо не пройти;
             // плюс мягкое расталкивание с соседями и отбрасывание от ударов.
-            var desired = (intent.Flank ? FlankVelocity(intent, toPlayer, distance) : dir * intent.MoveSpeed) + Separation();
+            var pathing = false;
+            Vector3 desired;
+            if (intent.Flank)
+                desired = FlankVelocity(intent, toPlayer, distance, dt, ref pathing);
+            else if (intent.MoveSpeed > 0f && navigator != null && chaseSteer.Mode != NavSteerMode.Direct)
+            {
+                pathing = true;
+                desired = SteerVelocity(chaseSteer, intent.MoveSpeed);
+            }
+            else
+                desired = dir * intent.MoveSpeed;
+
+            desired = GuardLedges(desired + Separation());
             velocity = Vector3.MoveTowards(velocity, desired, 30f * dt);
             push = Vector3.MoveTowards(push, Vector3.zero, 6f * dt);
             var lunge = Lunge(dir);
@@ -263,8 +287,8 @@ namespace ColorsAction.Unity
                 }
             }
 
-            if (intent.FacePlayer && distance > 0.01f)
-                yaw = Mathf.MoveTowardsAngle(yaw, Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg, config.TurnSpeed * dt);
+            if (intent.FacePlayer && distance > 0.01f && !pathing)
+                yaw =Mathf.MoveTowardsAngle(yaw, Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg, config.TurnSpeed * dt);
             else if (velocity.sqrMagnitude > 0.2f)
                 yaw = Mathf.MoveTowardsAngle(yaw, Mathf.Atan2(velocity.x, velocity.z) * Mathf.Rad2Deg, config.TurnSpeed * dt);
             body.rotation = Quaternion.Euler(0, yaw, 0);
@@ -309,11 +333,56 @@ namespace ColorsAction.Unity
             return reach.CanReach(movement, from.x, from.y + 0.1f, from.z, to.x, to.y + 0.1f, to.z);
         }
 
+        /// <summary>Путь к игроку в погоне; вне погони (и без карты пути) — «иди напрямую».</summary>
+        private NavSteer ChaseSteer(float dt, bool available)
+        {
+            if (navigator == null || !available || brain.State != EnemyState.Chase)
+                return new NavSteer(NavSteerMode.Direct);
+            var p = transform.position;
+            var t = player.transform.position;
+            return navigator.Steer(dt, p.x, p.y, p.z, t.x, t.y, t.z);
+        }
+
+        /// <summary>Скорость к точке пути; перед уступом, на который надо запрыгнуть, — прыжок.</summary>
+        private Vector3 SteerVelocity(NavSteer steer, float speed)
+        {
+            if (steer.Mode != NavSteerMode.Path)
+                return Vector3.zero;
+            var to = new Vector3(steer.X - transform.position.x, 0f, steer.Z - transform.position.z);
+            var d = to.magnitude;
+            if (d < 0.05f)
+                return Vector3.zero;
+            if (steer.Jump && motor.Grounded && d < 1.1f && motor.VerticalVelocity <= 0.01f)
+            {
+                // Высота прыжка с запасом на край опоры; гравитация врага на подъёме — 30 м/с².
+                motor.VerticalVelocity = Mathf.Sqrt(2f * 30f * (steer.JumpRise + 0.35f));
+                deformer.SetSquash(0.3f, 3f);
+            }
+
+            return to / d * speed;
+        }
+
+        /// <summary>
+        /// Не даёт шагнуть с обрыва (глубже, чем враг спрыгивает), в стену или закрытый проход: по каждой оси
+        /// проверяем клетку впереди по карте пути. Отбрасывание от ударов (<see cref="push"/>) не ограничивается.
+        /// </summary>
+        private Vector3 GuardLedges(Vector3 desired)
+        {
+            if (navigator == null || !motor.Grounded)
+                return desired;
+            var p = transform.position;
+            if (Mathf.Abs(desired.x) > 0.01f && !navigator.CanMove(p.x, p.y, p.z, desired.x, 0f))
+                desired.x = 0f;
+            if (Mathf.Abs(desired.z) > 0.01f && !navigator.CanMove(p.x, p.y, p.z, 0f, desired.z))
+                desired.z = 0f;
+            return desired;
+        }
+
         /// <summary>
         /// Ждущий в очереди обходит игрока по дуге к точке за его спиной (свои места для каждого в очереди),
         /// следующий по очереди подходит на дистанцию удара.
         /// </summary>
-        private Vector3 FlankVelocity(EnemyIntent intent, Vector3 toPlayer, float distance)
+        private Vector3 FlankVelocity(EnemyIntent intent, Vector3 toPlayer, float distance, float dt, ref bool pathing)
         {
             var playerForward = player != null ? player.Forward : Vector3.forward;
             var behind = -playerForward;
@@ -328,6 +397,20 @@ namespace ColorsAction.Unity
             var d = to.magnitude;
             if (d < 0.25f)
                 return Vector3.zero;
+
+            // Место за спиной не видно напрямую (стена, уступ) — идём к нему по пути.
+            if (navigator != null)
+            {
+                var p = transform.position;
+                var steer = navigator.Steer(dt, p.x, p.y, p.z, target.x, player.transform.position.y, target.z);
+                if (steer.Mode == NavSteerMode.Stay)
+                    return Vector3.zero;
+                if (steer.Mode == NavSteerMode.Path)
+                {
+                    pathing = true;
+                    return SteerVelocity(steer, Mathf.Min(intent.MoveSpeed, steer.Remaining * 4f));
+                }
+            }
 
             // Обходим по дуге: не проходим сквозь игрока, а огибаем его на дистанции ожидания.
             var radial = -fromPlayer;
@@ -617,8 +700,11 @@ namespace ColorsAction.Unity
                         GroundSlam(brain.Attack);
                     break;
                 case EnemyState.Staggered:
+                    marker.Hide();
+                    break;
                 case EnemyState.Idle:
                     marker.Hide();
+                    navigator?.Reset();
                     break;
                 case EnemyState.Stunned:
                     // Оглушён со стороны: вздрогнул и обмяк, оружие опускается (поза — StunnedPose).
