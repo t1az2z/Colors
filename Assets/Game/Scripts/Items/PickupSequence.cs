@@ -96,6 +96,9 @@ namespace ColorsAction.Unity
             // Лечилка без места в инвентаре подбирается обычным путём (там и сообщение «инвентарь полон»).
             if (!item.IsWeapon && session.Inventory.Capacity(item) <= 0)
                 return false;
+            // Вторая рука другого оружия (щит меча) отдельно не подбирается: сцена съела бы предмет с земли впустую.
+            if (itemsDb.IsOffhandOnly(item.Id))
+                return false;
 
             if (controller == null)
             {
@@ -300,7 +303,8 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>Предмет влетел в персонажа: панч, вспышка, толчок камеры; предмет в инвентарь, оружие — в руки.</summary>
-        private void Hit()
+        /// <param name="effects">false — сцену прервали (компонент выключен, выход из Play Mode): предмет только кладётся в инвентарь, без вспышки и толчков.</param>
+        private void Hit(bool effects = true)
         {
             hit = true;
             var p = config.Player;
@@ -309,6 +313,13 @@ namespace ColorsAction.Unity
             {
                 Destroy(model.gameObject);
                 model = null;
+            }
+
+            if (!effects)
+            {
+                if (session.PickUp(itemId) && isWeapon)
+                    session.Inventory.SetActive(itemId);
+                return;
             }
 
             if (config.Fx.HitFlash > 0f)
@@ -360,12 +371,12 @@ namespace ColorsAction.Unity
 
         // ------------------------------------------------------------------ конец
 
-        private void Finish()
+        private void Finish(bool effects = true)
         {
             if (!active)
                 return;
             if (!hit)
-                Hit();
+                Hit(effects);
             active = false;
             Playing = false;
             if (controller != null)
@@ -391,6 +402,6 @@ namespace ColorsAction.Unity
             GameTimeScale.SetCinematic(false);
         }
 
-        private void OnDisable() => Finish();
+        private void OnDisable() => Finish(false);
     }
 }
