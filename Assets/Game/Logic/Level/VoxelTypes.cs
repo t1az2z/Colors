@@ -203,7 +203,13 @@ namespace ColorsAction.Level
         /// проход по Z; 90 — вдоль Z), <see cref="LevelObject.Height"/> клеток в высоту. Открывается с любой стороны ключом,
         /// который выпадает из врага с <see cref="LevelObject.Key"/> = id этой двери, и дальше остаётся открытой.
         /// </summary>
-        KeyDoor
+        KeyDoor,
+
+        /// <summary>
+        /// Предмет на земле (не оружие): <see cref="LevelObject.Item"/> — id расходника из Items.json (kind Consumable),
+        /// например фляга-лечилка "flask". В игре — то же, что оружие на постаменте (<see cref="WeaponPedestal"/>): подбирается на F / X.
+        /// </summary>
+        Item
     }
 
     /// <summary>Тип цветного барьера (раздел 8 GDD).</summary>

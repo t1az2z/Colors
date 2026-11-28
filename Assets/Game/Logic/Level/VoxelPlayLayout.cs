@@ -29,8 +29,9 @@ namespace ColorsAction.Level
                         hasSpawn = true;
                         break;
                     case LevelObjectKind.WeaponPedestal:
+                    case LevelObjectKind.Item:
                         if (string.IsNullOrEmpty(o.Item))
-                            skipped?.Add($"{o.Id}: оружие не выбрано");
+                            skipped?.Add(o.Kind == LevelObjectKind.Item ? $"{o.Id}: предмет не выбран" : $"{o.Id}: оружие не выбрано");
                         else
                             config.Items.Add(Point(new LevelItem { Item = o.Item }, o, y));
                         break;

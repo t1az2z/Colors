@@ -151,7 +151,9 @@ let PALETTE = {
 };
 // Оружие на постаментах (Items.json, kind Weapon). Щит — часть синего «меча и щита», отдельно не лежит.
 let ITEMS = ['sword', 'shotgun'];
-let ITEM_NAMES = { sword: 'Меч и щит', shotgun: 'Дробовик' };
+let ITEM_NAMES = { sword: 'Меч и щит', shotgun: 'Дробовик', flask: 'Лечилка' };
+/** Предметы на земле (не оружие): расходники из Items.json. */
+let PICKUPS = ['flask'];
 // Ресурсы для прокачки (Items.json, kind Resource): лежат в сундуках. id → название и цвет.
 let RESOURCE_INFO = { metal: { name: 'Металл', color: 'blue' }, gears: { name: 'Шестерёнки', color: 'red' } };
 let RESOURCES = Object.keys(RESOURCE_INFO);
@@ -186,6 +188,8 @@ const HINT_OPTIONS = [
   ['cameraTurn', 'Поворот камеры (Q E / LB RB)'],
 ];
 const HINTS = HINT_OPTIONS.map(([v]) => v);
+/** Объекты, которых нет в палитре «Новый объект» (цветной барьер больше не ставится; старые на картах остаются). */
+const HIDDEN_KINDS = new Set(['Barrier']);
 const WORLD_COLOR = '#e4e5e9';
 
 const SHAPES = {
@@ -203,6 +207,7 @@ const OBJECT_KINDS = {
   PlayerSpawn:    { name: 'Старт игрока',   mk: '★', col: '#23262b' },
   Barrier:        { name: 'Цветной барьер', mk: '▮', col: '#E8413C' },
   WeaponPedestal: { name: 'Оружие',         mk: '⚔', col: '#2F6BFF' },
+  Item:           { name: 'Предмет',        mk: '✚', col: '#3DBE5A' },
   Bonfire:        { name: 'Костёр',         mk: '♨', col: '#FF8A1F' },
   EnemySpawn:     { name: 'Враг',           mk: '☗', col: '#7a1f1c' },
   Npc:            { name: 'NPC',            mk: '☺', col: '#3DBE5A' },
@@ -729,6 +734,8 @@ async function loadSiteData() {
     const offhands = new Set(Object.values(items).map(v => v?.offhand).filter(Boolean));
     ITEMS = Object.keys(items).filter(k => (items[k]?.kind === 'Weapon' || items[k]?.kind === 'OneHanded' || items[k]?.kind === 'TwoHanded') && !offhands.has(k));
     for (const [k, v] of Object.entries(items)) if (v && v.name) ITEM_NAMES[k] = v.name;
+    const pickups = Object.keys(items).filter(k => items[k]?.kind === 'Consumable');
+    if (pickups.length) PICKUPS = pickups;
     const res = {};
     for (const [k, v] of Object.entries(items)) if (v?.kind === 'Resource') res[k] = { name: v.name || k, color: v.color || null };
     if (Object.keys(res).length) { RESOURCE_INFO = res; RESOURCES = Object.keys(res); if (!res[st.objResource]) st.objResource = RESOURCES[0]; }
@@ -761,7 +768,7 @@ const st = {
   height: 1, top: '', rot: 0, color: null, brush: 1, slab: false,
   blockShape: 'F', blockMode: 'add',
   paintColumn: false,
-  objKind: 'WeaponPedestal', objItem: 'sword', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, keyDoorYaw: 0, crateYaw: 0, crateHeight: 2, bridgeYaw: 0,
+  objKind: 'WeaponPedestal', objItem: 'sword', objPickup: 'flask', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, keyDoorYaw: 0, crateYaw: 0, crateHeight: 2, bridgeYaw: 0,
   objResource: 'metal', chestCount: 1, enemyAggro: DEFAULT_AGGRO,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
@@ -821,9 +828,9 @@ function colorChips(cur, set, allowWorld) {
     h('button', { class: 'swatch' + (cur === k ? ' on' : ''), title: name, style: `background:${hex}`, on: { click: () => { set(k); renderPanel(); } } })));
 }
 /** Выпадающий список оружия из Items.json (с названиями). Неизвестный id из файла уровня тоже показывается, чтобы не потерять его. */
-function itemSelect(val, set, allowNone, extra = []) {
-  const ids = [...new Set([...ITEMS, ...extra, ...(val ? [val] : [])])];
-  const opts = ids.map(id => [id, (ITEM_NAMES[id] ? ITEM_NAMES[id] + ' (' + id + ')' : id) + (ITEMS.includes(id) ? '' : ' — нет в Items.json')]);
+function itemSelect(val, set, allowNone, extra = [], list = ITEMS) {
+  const ids = [...new Set([...list, ...extra, ...(val ? [val] : [])])];
+  const opts = ids.map(id => [id, (ITEM_NAMES[id] ? ITEM_NAMES[id] + ' (' + id + ')' : id) + (list.includes(id) ? '' : ' — нет в Items.json')]);
   return selectInput(val, allowNone ? [[null, '— нет —'], ...opts] : opts, set);
 }
 function stepper(val, set, min, max, fmt, step = 1) {
@@ -924,7 +931,7 @@ function objectPanel() {
   const out = [];
   const o = sel.obj && L.objects.find(x => x.id === sel.obj);
   out.push(desc('Тап по пустой клетке ставит объект, тап по объекту выбирает его, выбранный можно перетащить.'), warningsBox());
-  out.push(H3('Новый объект'), h('div', { class: 'list' }, Object.entries(OBJECT_KINDS).map(([k, v]) =>
+  out.push(H3('Новый объект'), h('div', { class: 'list' }, Object.entries(OBJECT_KINDS).filter(([k]) => !HIDDEN_KINDS.has(k)).map(([k, v]) =>
     h('button', { class: st.objKind === k ? 'on' : '', on: { click: () => { st.objKind = k; renderPanel(); } } },
       h('span', { class: 'mk', style: `background:${v.col}` }, v.mk), v.name))));
   if (st.objKind === 'Barrier') out.push(H3('Цвет барьера'), colorChips(st.objColor, v => st.objColor = v, false),
@@ -933,6 +940,9 @@ function objectPanel() {
   if (st.objKind === 'WeaponPedestal') out.push(
     desc('Оружие на постаменте: игрок берёт его (F / X), оно сразу встаёт на колесо в сектор своего цвета. Проходы его цвета открываются только им.'),
     row('Оружие', itemSelect(st.objItem, v => st.objItem = v)));
+  if (st.objKind === 'Item') out.push(
+    desc('Предмет на земле: игрок подбирает его (F / X). Лечилка встаёт в быстрый слот 1, если он пуст.'),
+    row('Предмет', itemSelect(st.objPickup, v => st.objPickup = v, false, [], PICKUPS)));
   if (st.objKind === 'Hint') out.push(desc('Подсказка на полу: значок кнопки действия под устройство игрока (клавиатура или геймпад). Действие выбирается у поставленной подсказки.'));
   if (st.objKind === 'ShortcutDoor') out.push(
     desc('Дверь открывается только со стороны стрелки и дальше остаётся открытой. Ставьте её в проём стены.'),
@@ -959,7 +969,7 @@ function objectPanel() {
     out.push(H3('Выбран: ' + o.id));
     const edit = fn => { touchMarkup(); fn(); commit(); renderPanel(); };
     out.push(row('Id', textInput(o.id, v => { if (v && !L.objects.some(x => x !== o && x.id === v)) edit(() => { renameRefs(o.id, v, 'obj'); o.id = v; sel.obj = v; }); else renderPanel(); })));
-    out.push(row('Тип', selectInput(o.kind, Object.entries(OBJECT_KINDS).map(([k, v]) => [k, v.name]), v => edit(() => {
+    out.push(row('Тип', selectInput(o.kind, Object.entries(OBJECT_KINDS).filter(([k]) => !HIDDEN_KINDS.has(k) || k === o.kind).map(([k, v]) => [k, v.name]), v => edit(() => {
       // Дверь стоит строго поперёк прохода: поворот только по 90°, высота по умолчанию — как у стены.
       if (v === 'ShortcutDoor' && o.kind !== v) { o.yaw = doorSide(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
       if (v === 'CrateStack' && o.kind !== v) { o.yaw = crateDir(o.yaw); o.height = st.crateHeight; o.color = null; o.item = null; }
@@ -1007,6 +1017,7 @@ function objectPanel() {
       row('Количество', stepper(o.count || 1, v => edit(() => o.count = v), 1, 99)));
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack' && o.kind !== 'DrawBridge' && o.kind !== 'KeyDoor')
       out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v)))
+        : o.kind === 'Item' ? row('Предмет', itemSelect(o.item, v => edit(() => o.item = v), false, [], PICKUPS))
         : o.kind === 'Hint' ? row('Подсказка', selectInput(o.item || 'interact',
             HINT_OPTIONS.some(([v]) => v === o.item) || !o.item ? HINT_OPTIONS : [...HINT_OPTIONS, [o.item, o.item + ' (неизвестно)']],
             v => edit(() => o.item = v || 'interact'))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
@@ -2036,7 +2047,7 @@ function objectTap(px, py) {
     id: kind === 'PlayerSpawn' && !L.objects.some(o => o.id === 'spawn') ? 'spawn' : newId(kind.toLowerCase() + '_', L.objects),
     kind, cell, yaw: kind === 'ShortcutDoor' ? st.doorYaw : kind === 'KeyDoor' ? st.keyDoorYaw : kind === 'CrateStack' ? st.crateYaw : kind === 'DrawBridge' ? st.bridgeYaw : 0, color: kind === 'Barrier' ? st.objColor : null, barrier: st.barrier,
     height: kind === 'Barrier' ? st.barrierHeight : kind === 'ShortcutDoor' || kind === 'KeyDoor' ? st.doorHeight : kind === 'CrateStack' ? st.crateHeight : kind === 'DrawBridge' ? BRIDGE_H : 2,
-    item: kind === 'WeaponPedestal' ? st.objItem : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : kind === 'Chest' ? st.objResource : null,
+    item: kind === 'WeaponPedestal' ? st.objItem : kind === 'Item' ? st.objPickup : kind === 'EnemySpawn' ? st.objEnemy : kind === 'Hint' ? 'interact' : kind === 'Chest' ? st.objResource : null,
     count: kind === 'Chest' ? st.chestCount : 1,
     aggroRadius: kind === 'EnemySpawn' ? st.enemyAggro : null,
     key: null,
