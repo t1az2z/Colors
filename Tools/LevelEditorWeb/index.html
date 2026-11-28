@@ -204,6 +204,25 @@ const HINT_OPTIONS = [
   ['cameraTurn', 'Поворот камеры (Q E / LB RB)'],
 ];
 const HINTS = HINT_OPTIONS.map(([v]) => v);
+// Кнопки действий подсказок для превью — копия привязок Assets/Game/Scripts/Core/GameInput.cs: [клавиатура/мышь, геймпад].
+// Подписи — controls из Configs/Localization/ru.json (как в игре), текст подсказки — strings["hint.<действие>"].
+const HINT_KEYS = {
+  interact: [['<Keyboard>/f'], ['<Gamepad>/buttonWest']],
+  jump: [['<Keyboard>/space'], ['<Gamepad>/buttonSouth']],
+  roll: [['<Keyboard>/leftAlt'], ['<Gamepad>/buttonEast']],
+  attack: [['<Mouse>/leftButton'], ['<Gamepad>/rightTrigger']],
+  block: [['<Mouse>/rightButton'], ['<Gamepad>/leftTrigger']],
+  parry: [['<Mouse>/rightButton'], ['<Gamepad>/leftTrigger']],
+  wheel: [['<Keyboard>/tab'], ['<Gamepad>/buttonNorth']],
+  inventory: [['<Keyboard>/i'], ['<Gamepad>/select']],
+  items: [['<Keyboard>/1', '<Keyboard>/2', '<Keyboard>/3', '<Keyboard>/4'], ['<Gamepad>/dpad/up', '<Gamepad>/dpad/right', '<Gamepad>/dpad/down', '<Gamepad>/dpad/left']],
+  run: [['<Keyboard>/leftShift'], ['<Gamepad>/leftStickPress']],
+  lockOn: [['<Mouse>/middleButton'], ['<Gamepad>/rightStickPress']],
+  cameraTurn: [['<Keyboard>/q', '<Keyboard>/e'], ['<Gamepad>/leftShoulder', '<Gamepad>/rightShoulder']],
+  switchTarget: [['<Mouse>/delta'], ['<Gamepad>/rightStick']],
+};
+/** Строки языка (Configs/Localization/ru.json), если сайт их отдаёт; иначе превью подсказок — по названиям из списка. */
+let LOC = null;
 /** Объекты, которых нет в палитре «Новый объект» (цветной барьер больше не ставится; старые на картах остаются). */
 const HIDDEN_KINDS = new Set(['Barrier']);
 const WORLD_COLOR = '#e4e5e9';
@@ -745,6 +764,8 @@ async function loadSiteData() {
   if (Array.isArray(combat?.colorWheel) && combat.colorWheel.length) WHEEL = combat.colorWheel;
   // Только цвета круга, в его порядке: прочие (none и старые) в палитру не попадают.
   if (colors) { const p = {}; for (const k of WHEEL) if (colors[k]) p[k] = colors[k]; if (Object.keys(p).length) PALETTE = p; }
+  LOC = await tryJson('configs/Localization/ru.json');
+  needMarkers = true;
   const items = await tryJson('configs/Items.json');
   if (items) {
     // На постамент — только оружие; щит, который носится вместе с оружием (offhand), отдельно не ставится.
@@ -785,7 +806,7 @@ const st = {
   height: 1, top: '', rot: 0, color: null, brush: 1, slab: false,
   blockShape: 'F', blockMode: 'add',
   paintColumn: false,
-  objKind: 'WeaponPedestal', objItem: 'sword', objPickup: 'flask', objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, keyDoorYaw: 0, crateYaw: 0, crateHeight: 2, bridgeYaw: 0,
+  objKind: 'WeaponPedestal', objItem: 'sword', objPickup: 'flask', hintPad: false, objEnemy: 'club_cube', objColor: 'red', barrier: 'Wall', barrierHeight: 2, doorHeight: 3, doorYaw: 0, keyDoorYaw: 0, crateYaw: 0, crateHeight: 2, bridgeYaw: 0,
   objResource: 'metal', chestCount: 1, enemyAggro: DEFAULT_AGGRO, enemyColor: null,
   action: 'ShieldSlide',
   heightTint: true, smoothing: true, upper: 'ghost', darkBelow: true, labels: true,
@@ -960,7 +981,8 @@ function objectPanel() {
   if (st.objKind === 'Item') out.push(
     desc('Предмет на земле: игрок подбирает его (F / X). Лечилка встаёт в быстрый слот 1, если он пуст.'),
     row('Предмет', itemSelect(st.objPickup, v => st.objPickup = v, false, [], PICKUPS)));
-  if (st.objKind === 'Hint') out.push(desc('Подсказка на полу: значок кнопки действия под устройство игрока (клавиатура или геймпад). Действие выбирается у поставленной подсказки.'));
+  if (st.objKind === 'Hint') out.push(desc('Подсказка на полу: текст с кнопкой действия под устройство игрока (клавиатура или геймпад), в редакторе — в игровом размере. Стрелка — куда смотрит верх надписи (игрок читает её, глядя по стрелке). Действие и поворот задаются у поставленной подсказки.'),
+    hintDeviceRow());
   if (st.objKind === 'ShortcutDoor') out.push(
     desc('Дверь открывается только со стороны стрелки и дальше остаётся открытой. Ставьте её в проём стены.'),
     row('Открывается со стороны', chips(DOOR_SIDES, st.doorYaw, v => { st.doorYaw = v; renderPanel(); })),
@@ -1019,7 +1041,7 @@ function objectPanel() {
           v => edit(() => { for (const e of L.objects) if (e.kind === 'EnemySpawn' && (e.key === o.id || e.id === v)) e.key = e.id === v ? o.id : null; }))),
         holder ? null : h('div', { class: 'note warn' }, '⚠ Ни у одного врага нет ключа от этой двери — её не открыть.'));
     }
-    else out.push(row('Поворот ' + Math.round(o.yaw || 0) + '°', h('span', { class: 'chips' },
+    else out.push(o.kind === 'Hint' ? hintDeviceRow() : null, row('Поворот ' + Math.round(o.yaw || 0) + '°', h('span', { class: 'chips' },
       h('button', { on: { click: () => edit(() => o.yaw = norm180((o.yaw || 0) - 45)) } }, '⟲ 45'),
       h('button', { on: { click: () => edit(() => o.yaw = norm180((o.yaw || 0) + 45)) } }, '⟳ 45'))));
     if (o.kind === 'Barrier') {
@@ -1432,7 +1454,7 @@ function buildMeshes() {
 let markerGroup = new THREE.Group(); root.add(markerGroup);
 function buildMarkers() {
   needMarkers = false;
-  markerGroup.children.forEach(c => { c.geometry.dispose(); c.material.dispose(); });
+  markerGroup.children.forEach(c => { c.geometry.dispose(); c.material.map?.dispose(); c.material.dispose(); });
   markerGroup.clear();
   for (const g of shortcutDoorGroups()) addDoorMesh(g);
   for (const o of L.objects) {
@@ -1442,6 +1464,7 @@ function buildMarkers() {
     if (o.kind === 'Chest') { addChestMesh(o); continue; }
     if (o.kind === 'DrawBridge') { addBridgeMesh(o); continue; }
     if (o.kind === 'PlayerSpawn') { addBodyMesh(o, PLAYER_SIZE, '#b9bcc2'); continue; }
+    if (o.kind === 'Hint') { addHintMesh(o); continue; }
     if (o.kind === 'EnemySpawn') { addBodyMesh(o, ENEMY_INFO[o.item]?.size || 1, o.item === 'dummy' ? '#c9a27a' : enemyObjHex(o)); continue; }
     if (o.kind !== 'Barrier') continue;
     const hgt = Math.max(1, o.height ?? 2);
@@ -1456,6 +1479,90 @@ function buildMarkers() {
     m.visible = !hidden; m.renderOrder = 3;
     markerGroup.add(m);
   }
+}
+// ---- Превью подсказки на полу: тот же вид и размер, что HintMarker + PromptLine в игре (шрифт 64 px, 1 px = 0.006 м).
+const HINT_PX = 0.006, HINT_FONT = 64, HINT_INK = '#52545e', HINT_KEY_TEXT = '#ededeb';
+const HINT_FACE = { buttonSouth: '#5cb847', buttonEast: '#db4540', buttonWest: '#3880e6', buttonNorth: '#edb829' };
+function hintDeviceRow() {
+  return row('Превью кнопок', chips([[false, 'Клавиатура'], [true, 'Геймпад']], !!st.hintPad, v => { st.hintPad = v; needMarkers = true; }));
+}
+function controlLabel(path) {
+  const l = LOC?.controls?.[path];
+  if (l) return l;
+  const tail = path.slice(path.indexOf('/') + 1);
+  return tail.length === 1 ? tail.toUpperCase() : tail;
+}
+function hintText(action) {
+  const t = LOC?.strings?.['hint.' + action];
+  if (t) return t;
+  const name = (HINT_OPTIONS.find(([v]) => v === action)?.[1] || action).replace(/\s*\(.*\)$/, '').toLowerCase();
+  return `{action:${action}} ${name}`;
+}
+/** Куски подсказки: текст и кнопки, как PromptText.Parse + PromptLine.Rebuild. */
+function hintParts(action, pad) {
+  const parts = [], re = /\{action:([^}]+)\}/g, text = hintText(action);
+  let last = 0, m;
+  const pushText = t => { t = t.replace(/\{\{/g, '{').replace(/\}\}/g, '}').trim(); if (t) parts.push({ text: t }); };
+  while ((m = re.exec(text))) {
+    pushText(text.slice(last, m.index));
+    const keys = (HINT_KEYS[m[1].trim()] || [[m[1]], [m[1]]])[pad ? 1 : 0];
+    keys.forEach((path, i) => {
+      if (i > 0 && keys.length === 2) parts.push({ text: '/' });
+      const control = path.slice(path.indexOf('/') + 1);
+      parts.push({ key: controlLabel(path), face: pad && control.startsWith('button'), tint: pad ? HINT_FACE[control] : null });
+    });
+    last = re.lastIndex;
+  }
+  pushText(text.slice(last));
+  return parts;
+}
+function hintCanvas(action, pad) {
+  const S = 2, F = HINT_FONT, keyH = Math.round(F * 1.3), gap = Math.max(2, F * 0.25), lineH = Math.max(keyH, Math.round(F * 1.15));
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  const font = px => `bold ${px}px Arial, "Liberation Sans", sans-serif`;
+  const parts = hintParts(action, pad);
+  for (const p of parts) {
+    if (p.text !== undefined) { g.font = font(F); p.w = g.measureText(p.text).width; continue; }
+    p.size = Math.round(F * (p.key.length > 2 ? 0.72 : 0.85));
+    g.font = font(p.size);
+    p.w = p.face ? keyH : Math.max(keyH, g.measureText(p.key).width + F * 0.6);
+  }
+  const w = Math.ceil(parts.reduce((a, p) => a + p.w, 0) + gap * Math.max(0, parts.length - 1)) + 4, hgt = lineH + 4;
+  c.width = w * S; c.height = hgt * S;
+  g.scale(S, S); g.textAlign = 'center'; g.textBaseline = 'middle';
+  let x = 2;
+  const cy = hgt / 2;
+  for (const p of parts) {
+    if (p.text !== undefined) { g.font = font(F); g.fillStyle = HINT_INK; g.fillText(p.text, x + p.w / 2, cy + F * 0.04); }
+    else {
+      g.fillStyle = p.tint || HINT_INK;
+      g.beginPath();
+      if (p.face) g.arc(x + p.w / 2, cy, keyH / 2, 0, Math.PI * 2);
+      else if (g.roundRect) g.roundRect(x, cy - keyH / 2, p.w, keyH, keyH * 0.25);
+      else g.rect(x, cy - keyH / 2, p.w, keyH);
+      g.fill();
+      g.font = font(p.size); g.fillStyle = p.tint ? '#ffffff' : HINT_KEY_TEXT; g.fillText(p.key, x + p.w / 2, cy + p.size * 0.04);
+    }
+    x += p.w + gap;
+  }
+  return { canvas: c, w, h: hgt };
+}
+function addHintMesh(o) {
+  const fi = floorIndexOf(o.cell[1]);
+  if (fi > activeFloor && st.upper === 'hide') return;
+  const { canvas, w, h: hgt } = hintCanvas(o.item || 'interact', !!st.hintPad);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.anisotropy = 4;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: fi > activeFloor ? 0.35 : 1 });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w * HINT_PX, hgt * HINT_PX), mat);
+  // Как HintMarker в Unity (Euler(90, yaw, 0)): верх надписи смотрит по yaw (sin, cos), правый край — (cos, −sin).
+  // Базис левый, как координаты Unity: отражённый кадр редактора (YAW_SIGN) показывает надпись не зеркальной.
+  const yaw = (o.yaw || 0) * Math.PI / 180;
+  m.matrixAutoUpdate = false;
+  m.matrix.makeBasis(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), new THREE.Vector3(0, 1, 0))
+    .setPosition(o.cell[0] + .5, surfaceOf(o.cell) + 0.03, o.cell[2] + .5);
+  m.renderOrder = 4;
+  markerGroup.add(m);
 }
 // Двери-срезки, стоящие вплотную в линию, — одна широкая дверь (ShortcutDoorGroups в Unity): одна сторона, один этаж,
 // одна высота, соседи вдоль плиты (лицом в ±Z — по X, лицом в ±X — по Z). Формат карты тот же: каждая клетка — своя дверь.
@@ -1811,17 +1918,18 @@ function drawOverlay() {
   // объекты и точки
   const r = Math.max(9, Math.min(17, ppu * 0.36));
   const markers = [];
-  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' || o.kind === 'KeyDoor' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? '' : o.kind === 'KeyDoor' ? (keyHolders(o.id).some(isEnemy) ? 'на ключ' : '⚠ нет ключа') : o.kind === 'EnemySpawn' ? enemyName(o.item) + (o.key ? ' · ключ' : '') : o.kind === 'Chest' ? chestLabel(o) : o.item, badge: o.kind === 'Chest', kind: 'obj' });
+  for (const o of L.objects) markers.push({ id: o.id, cell: o.cell, col: objColor(o), mk: OBJECT_KINDS[o.kind]?.mk || '?', sel: sel.obj === o.id, yaw: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' || o.kind === 'KeyDoor' ? null : o.yaw || 0, label: o.kind === 'Barrier' || o.kind === 'CrateStack' || o.kind === 'DrawBridge' ? '' : o.kind === 'KeyDoor' ? (keyHolders(o.id).some(isEnemy) ? 'на ключ' : '⚠ нет ключа') : o.kind === 'EnemySpawn' ? enemyName(o.item) + (o.key ? ' · ключ' : '') : o.kind === 'Chest' ? chestLabel(o) : o.kind === 'Hint' ? '' : o.item, badge: o.kind === 'Chest', kind: 'obj', hint: o.kind === 'Hint' });
   for (const p of L.points) markers.push({ id: p.id, cell: p.cell, col: '#8a5cf0', mk: '◆', sel: sel.point === p.id, diamond: true, label: ACTIONS[p.action]?.name, kind: 'pt' });
   for (const m of markers) {
     const fi = floorIndexOf(m.cell[1]);
     if (fi > activeFloor && st.upper === 'hide') continue;
-    const [sx, sy] = project(m.cell[0] + .5, surfaceOf(m.cell) + (m.kind === 'pt' ? .05 : .45), m.cell[2] + .5);
+    // Значок подсказки висит повыше, чтобы не закрывать её превью на полу.
+    const [sx, sy] = project(m.cell[0] + .5, surfaceOf(m.cell) + (m.kind === 'pt' ? .05 : m.hint ? 1.1 : .45), m.cell[2] + .5);
     octx.globalAlpha = fi === activeFloor ? 1 : 0.45;
     if (m.yaw !== null && m.yaw !== undefined && m.kind === 'obj') {
       // стрелка направления
       const yawR = m.yaw * Math.PI / 180;
-      const tip = project(m.cell[0] + .5 + Math.sin(yawR) * .75, surfaceOf(m.cell) + .45, m.cell[2] + .5 + Math.cos(yawR) * .75);
+      const tip = project(m.cell[0] + .5 + Math.sin(yawR) * .75, surfaceOf(m.cell) + (m.hint ? 1.1 : .45), m.cell[2] + .5 + Math.cos(yawR) * .75);
       octx.strokeStyle = m.col; octx.lineWidth = 3;
       octx.beginPath(); octx.moveTo(sx, sy); octx.lineTo(tip[0], tip[1]); octx.stroke();
     }

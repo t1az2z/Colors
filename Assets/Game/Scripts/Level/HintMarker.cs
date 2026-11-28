@@ -40,7 +40,9 @@ namespace ColorsAction.Unity
             Refresh();
         }
 
-        public static HintMarker Create(Transform parent, Vector3 position, string action, InputGlyphs glyphs, Font font)
+        /// <param name="yaw">Поворот вокруг вертикали, градусы: верх надписи смотрит в эту сторону (0 — +Z, 90 — +X),
+        /// игрок читает её, глядя по направлению yaw. Превью в веб-редакторе уровней — тот же размер и поворот.</param>
+        public static HintMarker Create(Transform parent, Vector3 position, string action, InputGlyphs glyphs, Font font, float yaw = 0f)
         {
             var go = new GameObject($"Hint_{action}", typeof(RectTransform));
             go.transform.SetParent(parent, false);
@@ -49,7 +51,7 @@ namespace ColorsAction.Unity
             var rect = (RectTransform)go.transform;
             rect.sizeDelta = new Vector2(400, 120);
             rect.position = position + Vector3.up * 0.02f;
-            rect.rotation = Quaternion.Euler(90f, 0f, 0f);
+            rect.rotation = Quaternion.Euler(90f, yaw, 0f);
             rect.localScale = Vector3.one * 0.006f;
 
             var marker = go.AddComponent<HintMarker>();

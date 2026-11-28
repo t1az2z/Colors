@@ -538,7 +538,7 @@ namespace ColorsAction.Unity
             {
                 if (session != null && session.CompletedHints.Contains(hint.Id))
                     continue;
-                var marker = HintMarker.Create(root, PointPosition(hint), hint.Action, glyphs, hintFont);
+                var marker = HintMarker.Create(root, PointPosition(hint), hint.Action, glyphs, hintFont, hint.Yaw);
                 hints.Add(marker);
                 HintTargets.Resolve(config, hint, itemIndices, doorIndices);
                 if (itemIndices.Count == 0 && doorIndices.Count == 0)

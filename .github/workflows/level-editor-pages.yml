@@ -42,6 +42,8 @@ jobs:
           mkdir -p _site/configs _site/levels
           cp Tools/LevelEditorWeb/index.html Tools/LevelEditorWeb/three.min.js _site/
           cp Assets/StreamingAssets/Configs/*.json _site/configs/
+          mkdir -p _site/configs/Localization
+          cp Assets/StreamingAssets/Configs/Localization/*.json _site/configs/Localization/
           if ls Assets/StreamingAssets/Configs/VoxelLevels/*.json >/dev/null 2>&1; then
             cp Assets/StreamingAssets/Configs/VoxelLevels/*.json _site/levels/
           fi
