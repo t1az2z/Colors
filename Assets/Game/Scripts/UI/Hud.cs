@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ColorsAction.Inventory;
+using ColorsAction.Localization;
 using GameCore.DI;
 using GameCore.Events;
 using UnityEngine;
@@ -53,6 +54,11 @@ namespace ColorsAction.Unity
 
         private GameSession session;
         private GameInput input;
+        private InputGlyphs glyphs;
+        private Strings strings;
+        private PromptLine promptLine;
+        private PromptLine toastLine;
+        private PromptLine schemeLine;
         private Palette palette;
         private IEventBus events;
         private readonly List<IDisposable> subscriptions = new List<IDisposable>();
@@ -72,6 +78,8 @@ namespace ColorsAction.Unity
         {
             session = resolver.Resolve<GameSession>();
             input = resolver.Resolve<GameInput>();
+            glyphs = resolver.Resolve<InputGlyphs>();
+            strings = resolver.Resolve<Strings>();
             palette = resolver.Resolve<Palette>();
             events = resolver.Resolve<IEventBus>();
         }
@@ -90,20 +98,22 @@ namespace ColorsAction.Unity
             staminaWidth = st.x;
             staminaHeight = st.y;
             toast.text = string.Empty;
+            // Тексты с кнопками ({action:id}) рисуют строки подсказок поверх прежних Text префаба.
+            promptLine = PromptLine.Replace(prompt, glyphs);
+            toastLine = PromptLine.Replace(toast, glyphs);
+            schemeLine = PromptLine.Replace(schemeLabel, glyphs);
             started = true;
 
             subscriptions.Add(session.ControlScheme.Subscribe(scheme =>
-                ShowToast(scheme == ColorsAction.Configs.CameraScheme.FixedAngles
-                    ? "Схема Б: 4 угла камеры, взгляд — мышь / правый стик"
-                    : "Схема А: свободная камера"), false));
+                ShowToast(strings.Get(scheme == ColorsAction.Configs.CameraScheme.FixedAngles
+                    ? "toast.scheme.fixed"
+                    : "toast.scheme.free")), false));
 
             subscriptions.Add(events.Subscribe<ItemPickedUp>(e =>
-                ShowToast(e.Item.Config.IsWeapon
-                    ? $"{e.Item.Config.Name} на колесе  ·  [{input.Label("wheel")}] сменить оружие"
-                    : $"{e.Item.Config.Name} в инвентаре  ·  [{input.Label("inventory")}] открыть")));
-            subscriptions.Add(events.Subscribe<InventoryFull>(_ => ShowToast("Инвентарь полон")));
+                ShowToast(strings.Format(e.Item.Config.IsWeapon ? "toast.weaponPicked" : "toast.itemPicked", e.Item.Config.Name))));
+            subscriptions.Add(events.Subscribe<InventoryFull>(_ => ShowToast(strings.Get("toast.inventoryFull"))));
             subscriptions.Add(events.Subscribe<ResourcesGained>(e =>
-                ShowToast($"{e.Item.Name} +{e.Count}  (всего {e.Total})")));
+                ShowToast(strings.Format("toast.resources", e.Item.Name, e.Count, e.Total))));
             subscriptions.Add(events.Subscribe<DamageDealt>(OnDamage));
             subscriptions.Add(events.Subscribe<QuickItemUsed>(OnQuickItemUsed));
             subscriptions.Add(session.Vitals.Health.Current.Subscribe(_ => healthShake = 0.35f, false));
@@ -122,7 +132,8 @@ namespace ColorsAction.Unity
 
         private void ShowToast(string text)
         {
-            toast.text = text;
+            toastLine.SetText(text);
+            toastLine.Alpha = 1f;
             toastTimer = 3f;
         }
 
@@ -168,27 +179,25 @@ namespace ColorsAction.Unity
             staminaLag.rectTransform.sizeDelta = new Vector2(staminaWidth * staminaShown, staminaHeight);
             staminaLag.enabled = staminaShown > 0.001f;
 
-            xpText.text = $"Опыт  {session.Experience.Value}";
+            xpText.text = strings.Format("hud.experience", session.Experience.Value);
 
             // Подпись кружка — кнопка колеса: им оружие и меняется.
             if (primaryWeapon != null)
-                primaryWeapon.SetKey(input.Label("wheel"));
+                primaryWeapon.SetKey(glyphs.Label("wheel"));
 
-            schemeLabel.text = session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FixedAngles
-                ? $"Схема Б  ·  [{input.Label("cameraTurn")}] поворот камеры  ·  [{input.Label("lockOn")}] фиксация  ·  [{input.Label("switchScheme")}] схема А"
-                : $"Схема А  ·  [{input.Label("lockOn")}] фиксация  ·  [{input.Label("switchScheme")}] схема Б";
+            schemeLine.SetText(strings.Get(session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FixedAngles
+                ? "hud.scheme.fixed"
+                : "hud.scheme.free"));
 
             var target = interactor != null ? interactor.Target : null;
-            prompt.text = target == null ? string.Empty
-                : interactor.TargetUsable ? $"[{input.Label("interact")}]  {target.Prompt}"
-                : target.BlockedPrompt;
+            promptLine.SetText(target == null ? string.Empty
+                : interactor.TargetUsable ? strings.Format("hud.interact", strings.Get(target.Prompt))
+                : strings.Get(target.BlockedPrompt));
 
             if (toastTimer > 0f)
             {
                 toastTimer -= dt;
-                var c = toast.color;
-                c.a = Mathf.Clamp01(toastTimer / 0.5f);
-                toast.color = c;
+                toastLine.Alpha = Mathf.Clamp01(toastTimer / 0.5f);
             }
 
             UpdateNumbers(dt);

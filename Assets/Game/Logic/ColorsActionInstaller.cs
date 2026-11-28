@@ -1,6 +1,7 @@
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
+using ColorsAction.Localization;
 using ColorsAction.Progression;
 using ColorsAction.States;
 using GameCore.Config;
@@ -23,6 +24,7 @@ namespace ColorsAction
         {
             container
                 .Register(r => new ItemDatabase(r.Resolve<ConfigService>()))
+                .Register(r => Strings.Load(r.Resolve<ConfigService>(), Strings.DefaultLanguage))
                 .Register(r => new DamageRules(r.Resolve<ConfigService>().Load<CombatConfig>(ConfigKeys.Combat)))
                 .Register(r =>
                 {

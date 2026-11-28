@@ -1,3 +1,4 @@
+using ColorsAction.Localization;
 using GameCore.DI;
 using GameCore.Events;
 using UnityEngine;
@@ -39,8 +40,8 @@ namespace ColorsAction.Unity
 
         public bool Available => events != null;
         public Vector3 InteractPoint => transform.position;
-        public string Prompt => "отдохнуть у костра";
-        public string BlockedPrompt => string.Empty;
+        public LocText Prompt => "prompt.bonfire";
+        public LocText BlockedPrompt => LocText.None;
         public bool CanInteract(Vector3 from) => true;
 
         public void Interact(Vector3 from) => events?.Publish(new BonfireRestRequested(id));

@@ -46,6 +46,8 @@ namespace ColorsAction.Unity
 
         private InventoryScreenViewModel vm;
         private GameInput input;
+        private InputGlyphs glyphs;
+        private PromptLine helpLine;
         private Palette palette;
         private CharacterPreview preview;
         private readonly Dictionary<SlotRef, SlotView> slots = new Dictionary<SlotRef, SlotView>();
@@ -69,6 +71,7 @@ namespace ColorsAction.Unity
         {
             vm = model;
             input = resolver.Resolve<GameInput>();
+            glyphs = resolver.Resolve<InputGlyphs>();
             palette = resolver.Resolve<Palette>();
             if (dragGhost != null)
             {
@@ -165,9 +168,9 @@ namespace ColorsAction.Unity
             if (vm == null || vm.IsDisposed)
                 return;
 
-            help.text = input.UsingGamepad
-                ? "D-pad — выбор   ·   A — взять / положить   ·   правый стик — повернуть   ·   B — закрыть"
-                : "Перетащите расходник в слот 1–4   ·   ПКМ — в слот / обратно   ·   тяните персонажа мышью   ·   I — закрыть";
+            if (helpLine == null && help != null && glyphs != null)
+                helpLine = PromptLine.Replace(help, glyphs);
+            helpLine?.SetText(glyphs.Strings.Get(input.UsingGamepad ? "inventory.help.gamepad" : "inventory.help.keyboard"));
 
             if (preview != null)
                 preview.Rotate(input.PreviewStick.x, Time.unscaledDeltaTime);

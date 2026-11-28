@@ -43,6 +43,7 @@ namespace ColorsAction.Unity
         private WaterConfig water;
         private GameBootstrap bootstrap;
         private GameInput input;
+        private InputGlyphs glyphs;
         private GameSession session;
         private CombatDirector director;
         private Transform root;
@@ -75,6 +76,7 @@ namespace ColorsAction.Unity
 
             bootstrap = resolver.Resolve<GameBootstrap>();
             input = resolver.Resolve<GameInput>();
+            glyphs = resolver.Resolve<InputGlyphs>();
             session = resolver.Resolve<GameSession>();
             director = resolver.Resolve<CombatDirector>();
             var events = resolver.Resolve<IEventBus>();
@@ -536,7 +538,7 @@ namespace ColorsAction.Unity
             {
                 if (session != null && session.CompletedHints.Contains(hint.Id))
                     continue;
-                var marker = HintMarker.Create(root, PointPosition(hint), hint.Action, input, hintFont);
+                var marker = HintMarker.Create(root, PointPosition(hint), hint.Action, glyphs, hintFont);
                 hints.Add(marker);
                 HintTargets.Resolve(config, hint, itemIndices, doorIndices);
                 if (itemIndices.Count == 0 && doorIndices.Count == 0)
@@ -560,7 +562,7 @@ namespace ColorsAction.Unity
                         if (d != null && !d.IsOpen)
                             return false;
                     return true;
-                }, () => session?.CompletedHints.Add(id), boundPickups.Count == 0 ? "открыть" : null);
+                }, () => session?.CompletedHints.Add(id), boundPickups.Count == 0 ? HintMarker.OpenKey : null);
             }
         }
 

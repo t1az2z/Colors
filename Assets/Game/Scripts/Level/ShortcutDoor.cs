@@ -1,3 +1,4 @@
+using ColorsAction.Localization;
 using ColorsAction.Level;
 using GameCore.DI;
 using UnityEngine;
@@ -40,8 +41,8 @@ namespace ColorsAction.Unity
 
         public bool Available => state != null && !state.IsOpen;
         public Vector3 InteractPoint => transform.position;
-        public string Prompt => "открыть дверь";
-        public string BlockedPrompt => "Не открывается с этой стороны";
+        public LocText Prompt => "prompt.shortcut";
+        public LocText BlockedPrompt => "prompt.shortcut.blocked";
 
         /// <summary>Вызвать до Inject: id клеток по порядку вдоль плиты, высота в метрах, материал мира (будет затемнён).</summary>
         public void Init(string[] doorIds, float doorHeight, Material worldMaterial)

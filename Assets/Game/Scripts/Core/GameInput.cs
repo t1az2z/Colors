@@ -314,28 +314,75 @@ namespace ColorsAction.Unity
             DeviceChanged?.Invoke(value);
         }
 
-        /// <summary>Подпись кнопки действия для подсказок с учётом устройства.</summary>
-        public string Label(string action)
+        /// <summary>
+        /// Семейство подключённого геймпада для подписей кнопок: "ps" (DualShock / DualSense) или "xbox" (остальные).
+        /// </summary>
+        public string GamepadFamily => Gamepad.current is UnityEngine.InputSystem.DualShock.DualShockGamepad ? "ps" : "xbox";
+
+        /// <summary>
+        /// Действия Input System за id действия из подсказок ("interact", "attack", "items"…): обычно одно, у составных —
+        /// несколько ("cameraTurn" — влево и вправо, "items" — слоты 1–4). Неизвестный id — пусто.
+        /// </summary>
+        public System.Collections.Generic.List<InputAction> ActionsFor(string id)
         {
-            switch (action)
+            var result = new System.Collections.Generic.List<InputAction>();
+            switch ((id ?? string.Empty).ToLowerInvariant())
             {
-                case "interact": return UsingGamepad ? "X" : "F";
-                case "jump": return UsingGamepad ? "A" : "Пробел";
-                case "roll": return UsingGamepad ? "B" : "Alt";
-                case "inventory": return UsingGamepad ? "Select" : "I";
-                case "wheel": return UsingGamepad ? "Y" : "TAB";
-                case "attack": return UsingGamepad ? "RT" : "ЛКМ";
-                case "secondary":
+                case "attack": result.Add(Primary); break;
                 case "block":
-                case "parry": return UsingGamepad ? "LT" : "ПКМ";
-                case "items": return UsingGamepad ? "D-pad" : "1–4";
-                case "run": return UsingGamepad ? "L3" : "Shift";
-                case "cameraTurn": return UsingGamepad ? "LB / RB" : "Q / E";
-                case "switchScheme": return "F1";
-                case "lockOn": return UsingGamepad ? "R3" : "СКМ";
-                default: return action;
+                case "parry": result.Add(Secondary); break;
+                case "cameraturn": result.Add(CameraLeft); result.Add(CameraRight); break;
+                case "items": result.AddRange(QuickItems); break;
+                case "camera": result.Add(CameraStick); break;
+                default:
+                    var action = player?.FindAction(id) ?? ui?.FindAction(id);
+                    if (action != null)
+                        result.Add(action);
+                    break;
             }
+
+            return result;
         }
+
+        /// <summary>
+        /// Пути кнопок действия для устройства (<c>&lt;Keyboard&gt;/f</c>, <c>&lt;Gamepad&gt;/buttonWest</c>): первая подходящая привязка
+        /// (с учётом переназначения — <c>effectivePath</c>); у составной привязки (WASD) — все её части.
+        /// </summary>
+        public System.Collections.Generic.List<string> ControlPaths(InputAction action, bool gamepad)
+        {
+            var result = new System.Collections.Generic.List<string>();
+            if (action == null)
+                return result;
+            var bindings = action.bindings;
+            for (int i = 0; i < bindings.Count; i++)
+            {
+                var b = bindings[i];
+                if (b.isComposite)
+                {
+                    var parts = new System.Collections.Generic.List<string>();
+                    for (int j = i + 1; j < bindings.Count && bindings[j].isPartOfComposite; j++)
+                        if (IsGamepadPath(bindings[j].effectivePath) == gamepad)
+                            parts.Add(bindings[j].effectivePath);
+                    if (parts.Count > 0)
+                        return parts;
+                    continue;
+                }
+
+                if (b.isPartOfComposite || string.IsNullOrEmpty(b.effectivePath))
+                    continue;
+                if (IsGamepadPath(b.effectivePath) == gamepad)
+                {
+                    result.Add(b.effectivePath);
+                    return result;
+                }
+            }
+
+            return result;
+        }
+
+        private static bool IsGamepadPath(string path) =>
+            !(path.StartsWith("<Keyboard>", StringComparison.Ordinal) || path.StartsWith("<Mouse>", StringComparison.Ordinal)
+                                                                       || path.StartsWith("<Pointer>", StringComparison.Ordinal));
 
         private void OnDestroy()
         {

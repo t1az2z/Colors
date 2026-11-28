@@ -1,3 +1,4 @@
+using ColorsAction.Localization;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -15,14 +16,14 @@ namespace ColorsAction.Unity
         /// <summary>Точка, до которой меряется расстояние (на уровне пола).</summary>
         Vector3 InteractPoint { get; }
 
-        /// <summary>Подсказка с кнопкой: «взять: Меч», «открыть дверь».</summary>
-        string Prompt { get; }
+        /// <summary>Подсказка (ключ локализации с аргументами): «взять: Меч», «открыть дверь»; кнопку добавляет HUD.</summary>
+        LocText Prompt { get; }
 
         /// <summary>Можно ли воспользоваться из этой позиции игрока.</summary>
         bool CanInteract(Vector3 from);
 
-        /// <summary>Текст без кнопки, когда воспользоваться нельзя («Не открывается с этой стороны»).</summary>
-        string BlockedPrompt { get; }
+        /// <summary>Текст без кнопки, когда воспользоваться нельзя («Не открывается с этой стороны»); пусто — ничего.</summary>
+        LocText BlockedPrompt { get; }
 
         void Interact(Vector3 from);
     }

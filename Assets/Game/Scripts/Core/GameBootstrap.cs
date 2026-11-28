@@ -42,7 +42,8 @@ namespace ColorsAction.Unity
                     .RegisterInstance(input)
                     .RegisterInstance(this)
                     .RegisterInstance(LaunchOptionsStore.Load())
-                    .Register(r => new Palette(r.Resolve<GameCore.Config.ConfigService>()))));
+                    .Register(r => new Palette(r.Resolve<GameCore.Config.ConfigService>()))
+                    .Register(r => new InputGlyphs(input, r.Resolve<ColorsAction.Localization.Strings>()))));
         }
 
         protected override void OnHostCreated(GameHost host)

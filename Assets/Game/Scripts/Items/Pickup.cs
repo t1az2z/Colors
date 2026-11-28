@@ -1,3 +1,4 @@
+using ColorsAction.Localization;
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
 using ColorsAction.Level;
@@ -33,8 +34,8 @@ namespace ColorsAction.Unity
         public string DisplayName => itemsDb != null && itemsDb.Exists(itemId) ? itemsDb.Get(itemId).Name : itemId;
         public bool Available => !taken;
         public Vector3 InteractPoint => transform.position;
-        public string Prompt => "взять: " + DisplayName;
-        public string BlockedPrompt => string.Empty;
+        public LocText Prompt => new LocText("prompt.pickup", DisplayName);
+        public LocText BlockedPrompt => LocText.None;
         public bool CanInteract(Vector3 from) => !taken;
         public void Interact(Vector3 from) => TryTake();
 

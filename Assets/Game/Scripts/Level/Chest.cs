@@ -1,3 +1,4 @@
+using ColorsAction.Localization;
 using ColorsAction.Configs;
 using ColorsAction.Inventory;
 using GameCore.Config;
@@ -61,8 +62,8 @@ namespace ColorsAction.Unity
 
         public bool Available => config != null && !opened;
         public Vector3 InteractPoint => transform.position;
-        public string Prompt => config?.Prompt ?? "открыть сундук";
-        public string BlockedPrompt => string.Empty;
+        public LocText Prompt => string.IsNullOrEmpty(config?.Prompt) ? "prompt.chest" : config.Prompt;
+        public LocText BlockedPrompt => LocText.None;
         public bool CanInteract(Vector3 from) => true;
 
         /// <summary>Вызвать до Inject: id, ресурс (id из Items.json) и количество, материал мира.</summary>

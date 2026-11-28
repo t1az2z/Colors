@@ -34,6 +34,8 @@ namespace ColorsAction.Unity
 
         private BonfireScreenViewModel vm;
         private GameInput input;
+        private InputGlyphs glyphs;
+        private PromptLine helpLine;
         private Palette palette;
         private readonly List<BonfireCell> cells = new List<BonfireCell>();
         private Vector2 navHeld;
@@ -62,6 +64,7 @@ namespace ColorsAction.Unity
         {
             vm = model;
             input = resolver.Resolve<GameInput>();
+            glyphs = resolver.Resolve<InputGlyphs>();
             palette = resolver.Resolve<Palette>();
             rowTemplate.SetActive(false);
 
@@ -122,9 +125,9 @@ namespace ColorsAction.Unity
             if (vm == null || vm.IsDisposed)
                 return;
 
-            help.text = input.UsingGamepad
-                ? "D-pad — выбор   ·   A — изучить   ·   B — уйти от костра"
-                : "Стрелки / мышь — выбор   ·   Enter / щелчок — изучить   ·   Esc — уйти от костра";
+            if (helpLine == null && help != null && glyphs != null)
+                helpLine = PromptLine.Replace(help, glyphs);
+            helpLine?.SetText(glyphs.Strings.Get(input.UsingGamepad ? "bonfire.help.gamepad" : "bonfire.help.keyboard"));
 
             var nav = input.NavigateVector;
             var dir = new Vector2(Mathf.Abs(nav.x) > 0.5f ? Mathf.Sign(nav.x) : 0f, Mathf.Abs(nav.y) > 0.5f ? Mathf.Sign(nav.y) : 0f);

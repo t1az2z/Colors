@@ -31,8 +31,8 @@ namespace ColorsAction.Configs
         /// <summary>Полоса на крышке в цвете ресурса: видно, что внутри.</summary>
         public bool ShowResourceColor { get; set; } = true;
 
-        /// <summary>Подсказка взаимодействия.</summary>
-        public string Prompt { get; set; } = "открыть сундук";
+        /// <summary>Подсказка взаимодействия: ключ строки в Configs/Localization (или готовый текст).</summary>
+        public string Prompt { get; set; } = "prompt.chest";
 
         /// <summary>Сжатие перед открытием, секунды (как у куба перед прыжком).</summary>
         public float SquashTime { get; set; } = 0.12f;

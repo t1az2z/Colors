@@ -1,3 +1,4 @@
+using ColorsAction.Localization;
 using ColorsAction.Level;
 using GameCore.DI;
 using UnityEngine;
@@ -38,8 +39,8 @@ namespace ColorsAction.Unity
 
         public bool Available => !IsOpen;
         public Vector3 InteractPoint => transform.position;
-        public string Prompt => "открыть ключом";
-        public string BlockedPrompt => "Заперто: нужен ключ";
+        public LocText Prompt => "prompt.keyDoor";
+        public LocText BlockedPrompt => "prompt.keyDoor.locked";
 
         /// <summary>Вызвать до Inject: id, высота в метрах, материал мира.</summary>
         public void Init(string doorId, float doorHeight, Material worldMaterial)
