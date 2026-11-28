@@ -183,7 +183,7 @@ const TOP_SHAPES = [
 ];
 /** Неполный верх столбца для дробной высоты (шаг 0.25). */
 const PART_SHAPE = { 1: 'S', 2: 'H', 3: 'Q' };
-const fmtHeight = v => v === -1 ? 'яма' : fmtH(v);
+const fmtHeight = v => v === -1 ? 'удаление' : fmtH(v);
 const OBJECT_KINDS = {
   PlayerSpawn:    { name: 'Старт игрока',   mk: '★', col: '#23262b' },
   Barrier:        { name: 'Цветной барьер', mk: '▮', col: '#E8413C' },
@@ -848,10 +848,13 @@ function columnOptions(withBrush) {
     isSlope(st.top) ? [H3('Подъём слопа'), rotChips(st.rot, v => st.rot = v)] : null,
     st.top ? null : [
       H3('Высота столбца'),
-      desc(top ? 'Сколько кубов над землёй, шаг 0.25 (0 — ровная земля, −1 — яма).' : 'Сколько кубов над низом этажа, шаг 0.25 (0 — пусто).'),
-      stepper(st.height, v => st.height = v, top ? -1 : 0, 40, fmtHeight, 0.25),
-      h('div', { class: 'chips', style: 'margin-top:6px' }, [0, 1, 2, 3, 4, 6, 8].map(v =>
-        h('button', { class: st.height === v ? 'on' : '', style: `border-bottom:4px solid ${heightCss(v + (activeFloor ? L.floors[activeFloor].baseY : 0))}`, on: { click: () => { st.height = v; renderPanel(); } } }, String(v)))),
+      desc(top ? 'Сколько кубов над землёй, шаг 0.25 (0 — ровная земля). «Удалить» стирает клетку вместе с землёй.' : 'Сколько кубов над низом этажа, шаг 0.25. «Удалить» стирает столбец.'),
+      stepper(st.height < 0 ? 0 : st.height, v => st.height = v, 0, 40, fmtH, 0.25),
+      h('div', { style: 'display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:6px' }, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(v =>
+        h('button', { class: st.height === v ? 'on' : '', style: `border-bottom:4px solid ${heightCss(v + (activeFloor ? L.floors[activeFloor].baseY : 0))}`, on: { click: () => { st.height = v; renderPanel(); hud(); } } }, String(v)))),
+      h('div', { class: 'chips', style: 'margin-top:6px' },
+        h('button', { class: 'danger' + ((top ? st.height === -1 : st.height === 0) ? ' on' : ''), title: top ? 'Стереть клетку целиком, включая землю' : 'Стереть столбец этажа',
+          on: { click: () => { st.height = top ? -1 : 0; renderPanel(); hud(); } } }, '✕ Удалить высоту')),
     ],
     H3('Цвет'),
     colorChips(st.color, v => st.color = v, true),
