@@ -55,6 +55,7 @@ namespace ColorsAction.Unity
         private Transform pivot;
         private CubeDeformer deformer;
         private Transform hand;
+        private float weaponGripRoll;
         private Renderer bodyRenderer;
         private MaterialPropertyBlock block;
         private AlertMarker marker;
@@ -147,6 +148,7 @@ namespace ColorsAction.Unity
             }
 
             playerConfig = configs.Load<PlayerConfig>(ConfigKeys.Player);
+            weaponGripRoll = GripRollFor(configs, config.WeaponPrefab);
             session = resolver.Resolve<GameSession>();
             palette = resolver.Resolve<Palette>();
             events = resolver.Resolve<IEventBus>();
@@ -219,6 +221,8 @@ namespace ColorsAction.Unity
             if (prefab != null)
             {
                 var weapon = Instantiate(prefab, hand, false);
+                // Тот же хват, что у игрока с этим оружием (gripRoll предмета в Items.json): поворот вокруг оси клинка.
+                weapon.transform.localRotation = Quaternion.Euler(0f, weaponGripRoll, 0f);
                 foreach (var c in weapon.GetComponentsInChildren<Collider>())
                     Destroy(c);
             }
@@ -228,6 +232,17 @@ namespace ColorsAction.Unity
             marker = AlertMarker.Create(transform, size + 0.75f);
             bars = EnemyBars.Create(transform, size + 0.5f, Mathf.Max(1.5f, size * 1.9f), brain.Poise.Max > 0f);
             body.rotation = Quaternion.Euler(0, yaw, 0);
+        }
+
+        /// <summary>gripRoll предмета из Items.json с тем же префабом, что у оружия врага; 0, если такого нет.</summary>
+        private static float GripRollFor(ConfigService configs, string weaponPrefab)
+        {
+            if (string.IsNullOrEmpty(weaponPrefab) || !configs.Exists(ConfigKeys.Items))
+                return 0f;
+            foreach (var item in configs.LoadTable<ItemConfig>(ConfigKeys.Items).Values)
+                if (item != null && item.Prefab == weaponPrefab)
+                    return item.GripRoll;
+            return 0f;
         }
 
         private void ApplyColor()
