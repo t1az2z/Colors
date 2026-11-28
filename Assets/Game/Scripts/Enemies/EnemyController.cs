@@ -170,7 +170,8 @@ namespace ColorsAction.Unity
         {
             var size = config.Size;
             motor = gameObject.AddComponent<BoxMotor>();
-            motor.Configure(0.9f * size, size, 0.3f);
+            // Коллизия по видимому кубу: ширина и глубина — Width × Size, высота — Size.
+            motor.Configure(config.Width * size, size, 0.3f);
             // Не сталкиваемся с другими врагами (их разводит мягкое отталкивание) и с осколками.
             motor.CollisionMask = ~((1 << EnemyLayer) | (1 << Debris.Layer));
 
@@ -189,6 +190,7 @@ namespace ColorsAction.Unity
             bodyRenderer.sharedMaterials = bodyMaterials;
             deformer = meshGo.AddComponent<CubeDeformer>();
             deformer.Configure(200f, 9f);
+            deformer.Width = config.Width;
 
             color = palette.Get(config.Color);
             block = new MaterialPropertyBlock();
@@ -636,15 +638,17 @@ namespace ColorsAction.Unity
                 // Удар по области: всех в круге вокруг точки удара.
                 var toPlayer = player.transform.position - AreaCenter(attack);
                 toPlayer.y = 0f;
-                return toPlayer.magnitude - 0.45f <= attack.AreaRadius;
+                return toPlayer.magnitude - PlayerHalfWidth <= attack.AreaRadius;
             }
 
-            // Дальность до тела игрока (его полуширина ~0.45).
-            if (distance - 0.45f > attack.Range)
+            // Дальность до тела игрока, а не до его центра.
+            if (distance - PlayerHalfWidth > attack.Range)
                 return false;
             var forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
             return distance <= 0.5f || Vector3.Angle(forward, dirToPlayer) <= attack.Arc * 0.5f;
         }
+
+        private float PlayerHalfWidth => player != null && player.Config != null ? player.Config.ColliderWidth * 0.5f : 0.4f;
 
         private void DealHit(EnemyAttackConfig attack)
         {

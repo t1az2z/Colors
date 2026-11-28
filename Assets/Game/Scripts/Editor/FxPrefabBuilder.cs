@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ColorsAction.Unity.Editor
 {
     /// <summary>
-    /// Собирает префабы эффектов на Particle System (Resources/Fx): след меча, вспышку заряда, удар по земле.
+    /// Собирает префабы эффектов на Particle System (Resources/Fx): след меча, вспышку заряда, удар по земле, брызги воды.
     /// Префабы потом можно править руками в инспекторе — повторная сборка их перезапишет.
     /// Цвет оружия задаётся в игре через startColor (см. <see cref="ParticleFx"/>): в префабах цвета белые/светлые.
     /// </summary>
@@ -52,8 +52,22 @@ namespace ColorsAction.Unity.Editor
             Save(BuildChargeFlash(soft, solid, cube), "ChargeFlash");
             Save(BuildGroundSlam(soft, ringMat, solid, cube), "GroundSlam");
             Save(BuildHitFlash(soft, solid, cube), "HitFlash");
+            BuildWaterSplashOnly();
             AssetDatabase.SaveAssets();
             Debug.Log("ColorsAction: FX prefabs built in " + FxPrefabs);
+        }
+
+        /// <summary>Пересобрать только брызги воды (остальные префабы, поправленные руками, не трогаются).</summary>
+        [MenuItem("ColorsAction/Build FX Prefabs (Water Splash only)")]
+        public static void BuildWaterSplashOnly()
+        {
+            EnsureFolder(Root + "/Art", "Fx");
+            EnsureFolder(Root + "/Resources", "Fx");
+            var water = EnsureMaterial("FxWater", null, Color.white);
+            var foam = AssetDatabase.LoadAssetAtPath<Material>($"{FxArt}/FxRing.mat");
+            var cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            Save(BuildWaterSplash(water, foam, cube), "WaterSplash");
+            AssetDatabase.SaveAssets();
         }
 
         // ------------------------------------------------------------------ след меча
@@ -272,6 +286,83 @@ namespace ColorsAction.Unity.Editor
             SizeOverLifetime(dust, Curve(0.6f, 1.3f));
             ColorOverLifetime(dust, Fade(1f, 0.6f, 0f));
             dust.transform.localPosition = Vector3.up * 0.15f;
+            return go;
+        }
+
+        // ------------------------------------------------------------------ брызги воды
+
+        /// <summary>
+        /// Падение в воду: кубики-капли разлетаются в стороны и вверх по кругу и падают обратно, крупные — веером
+        /// пониже, мелкие — выше и дальше; по воде расходится светлое кольцо. Капли не светятся (материал без HDR),
+        /// цвет — цвет брызг из Water.json (tint), у мелких чуть светлее. Время игровое.
+        /// </summary>
+        private static GameObject BuildWaterSplash(Material water, Material ring, Mesh cube)
+        {
+            var go = new GameObject("WaterSplash");
+            var drops = go.AddComponent<ParticleSystem>();
+            Setup(drops, water, loop: false, unscaled: false, maxParticles: 48);
+            var main = drops.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.55f, 0.85f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.1f, 0.2f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(3f, 5.5f);
+            main.gravityModifier = 1.6f;
+            main.startRotation3D = true;
+            main.startRotationX = main.startRotationY = main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            Burst(drops, 22);
+            // Широкий конус вверх: капли летят в стороны по кругу и чуть вверх.
+            var shape = drops.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Cone;
+            shape.angle = 62f;
+            shape.radius = 0.35f;
+            shape.radiusThickness = 0.2f;
+            shape.rotation = new Vector3(-90f, 0f, 0f);
+            SizeOverLifetime(drops, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(0.75f, 0.85f), new Keyframe(1f, 0f)));
+            var rot = drops.rotationOverLifetime;
+            rot.enabled = true;
+            rot.separateAxes = true;
+            rot.x = rot.y = rot.z = new ParticleSystem.MinMaxCurve(-6f, 6f);
+            MeshRender(drops, cube);
+
+            var spray = Child(go, "Spray");
+            Setup(spray, water, loop: false, unscaled: false, maxParticles: 48);
+            main = spray.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 0.8f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.09f);
+            main.startSpeed = new ParticleSystem.MinMaxCurve(4.5f, 7f);
+            main.startColor = new Color(0.8f, 0.92f, 1f, 1f);
+            main.gravityModifier = 1.8f;
+            main.startRotation3D = true;
+            main.startRotationX = main.startRotationY = main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+            Burst(spray, 20);
+            var ss = spray.shape;
+            ss.enabled = true;
+            ss.shapeType = ParticleSystemShapeType.Cone;
+            ss.angle = 38f;
+            ss.radius = 0.2f;
+            ss.rotation = new Vector3(-90f, 0f, 0f);
+            SizeOverLifetime(spray, Curve(1f, 0f));
+            MeshRender(spray, cube);
+
+            if (ring != null)
+            {
+                var wave = Child(go, "Ring");
+                Setup(wave, ring, loop: false, unscaled: false, maxParticles: 2);
+                main = wave.main;
+                main.startLifetime = 0.5f;
+                main.startSize = 2.4f;
+                main.startSpeed = 0f;
+                main.startColor = new Color(0.75f, 0.9f, 1f, 0.8f);
+                Burst(wave, 1);
+                SizeOverLifetime(wave, new AnimationCurve(new Keyframe(0f, 0.3f, 0f, 2.5f), new Keyframe(1f, 1f)));
+                ColorOverLifetime(wave, Fade(1f, 0.6f, 0f));
+                var wr = wave.GetComponent<ParticleSystemRenderer>();
+                wr.alignment = ParticleSystemRenderSpace.World;
+                main.startRotation3D = true;
+                main.startRotationX = Mathf.PI * 0.5f;
+                wave.transform.localPosition = Vector3.up * 0.03f;
+            }
+
             return go;
         }
 

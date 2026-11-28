@@ -115,7 +115,7 @@ namespace ColorsAction.Unity
                 var corners = new[] { new Vector3(0.5f, 1f, 0.5f), new Vector3(-0.5f, 1f, -0.5f), new Vector3(0.5f, 0f, -0.5f) };
                 deformer.SetChips(corners, 0.34f);
                 foreach (var c in corners)
-                    Debris.Burst(deformer.transform.TransformPoint(c), chipColor, 3, 0.09f * deformer.transform.lossyScale.x / 0.8f);
+                    Debris.Burst(deformer.transform.TransformPoint(deformer.DeformPoint(c)), chipColor, 3, 0.09f * deformer.transform.lossyScale.x / 0.8f);
             }
         }
 

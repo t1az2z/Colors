@@ -13,6 +13,8 @@ namespace ColorsAction.Unity
         public const string ChargeFlash = "ChargeFlash";
         public const string GroundSlam = "GroundSlam";
         public const string SwordTrail = "SwordTrail";
+        /// <summary>Брызги при падении в воду: кубики-капли разлетаются в стороны. Цвет — цвет брызг воды (tint).</summary>
+        public const string WaterSplash = "WaterSplash";
         /// <summary>Тёплая белая вспышка: парирование, удар по цепи, дуло дробовика, лечение. Цвет — из префаба.</summary>
         public const string HitFlash = "HitFlash";
 

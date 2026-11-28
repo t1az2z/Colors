@@ -17,5 +17,7 @@
   "waveDirection": 30,
   "specular": 0.25,
   "facets": 0.6,
-  "splash": true
+  "splash": true,
+  "splashColor": "#3E9BE6",
+  "splashSize": 1
 }

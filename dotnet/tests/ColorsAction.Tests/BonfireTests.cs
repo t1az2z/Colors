@@ -273,7 +273,8 @@ namespace ColorsAction.Tests
         public void FallDamage_StepsFromPlayerConfig_AndIgnoresInvulnerability()
         {
             using var host = CreateHost();
-            var fall = host.Container.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player).FallDamage;
+            var player = host.Container.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player);
+            var fall = player.FallDamage;
             Assert.That(fall.DamageFraction(3.7f), Is.Zero, "a jump off a 3-block ledge is safe");
             Assert.That(fall.DamageFraction(3.99f), Is.EqualTo(0.2f).Within(0.02f), "exactly 4 blocks, minus collision skin");
             Assert.That(fall.DamageFraction(4.5f - FallDamageConfig.HeightTolerance), Is.EqualTo(0.45f).Within(0.001f), "halfway 4..5 grows smoothly");
@@ -281,6 +282,14 @@ namespace ColorsAction.Tests
             Assert.That(fall.DamageFraction(5f), Is.EqualTo(0.7f).Within(0.02f));
             Assert.That(fall.DamageFraction(6f), Is.EqualTo(1f));
             Assert.That(fall.DamageFraction(40f), Is.EqualTo(1f));
+
+            // В игре ступени подняты на высоту прыжка (1.5): сойти с уступа в 4 блока безопасно, прыгнуть с него — больно.
+            Assert.That(player.JumpHeight, Is.EqualTo(1.5f).Within(0.001f));
+            Assert.That(player.FallDamageFraction(4f - 0.02f), Is.Zero, "walking off a 4-block ledge is safe");
+            Assert.That(player.FallDamageFraction(3f + player.JumpHeight), Is.Zero, "a jump off a 3-block ledge is safe");
+            Assert.That(player.FallDamageFraction(4f + player.JumpHeight - 0.02f), Is.EqualTo(0.2f).Within(0.02f), "a jump off a 4-block ledge hurts");
+            Assert.That(player.FallDamageFraction(5.5f - 0.01f), Is.EqualTo(0.2f).Within(0.02f), "walking off a 5.5-block ledge hurts");
+            Assert.That(player.FallDamageFraction(6f + player.JumpHeight), Is.EqualTo(1f), "a jump off a 6-block ledge kills");
 
             var off = new FallDamageConfig { Enabled = false };
             Assert.That(off.DamageFraction(40f), Is.Zero);

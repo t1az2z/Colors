@@ -68,8 +68,11 @@ namespace ColorsAction.Configs
         public float BlockMoveMultiplier { get; set; } = 0.45f;
         public float AttackMoveMultiplier { get; set; } = 0.25f;
 
-        // Коллизия: куб 1×1, шаг на ступень без прыжка
-        public float ColliderWidth { get; set; } = 0.9f;
+        // Коллизия: куб 0.8×0.8 и высотой 1, шаг на ступень без прыжка
+        public float ColliderWidth { get; set; } = 0.8f;
+
+        /// <summary>Ширина и глубина видимого куба (меш 1×1 сжимается по X/Z, высота остаётся 1).</summary>
+        public float BodyWidth { get; set; } = 0.8f;
         public float ColliderHeight { get; set; } = 1f;
         public float StepHeight { get; set; } = 0.3f;
 
@@ -93,7 +96,10 @@ namespace ColorsAction.Configs
         /// <summary>Здоровье: максимум, прирост за уровень, неуязвимость и мигание после урона.</summary>
         public PlayerHealthConfig Health { get; set; } = new PlayerHealthConfig();
 
-        /// <summary>Урон от падения с высоты: ступени высоты и доли здоровья.</summary>
+        /// <summary>
+        /// Урон от падения с высоты: ступени высоты и доли здоровья. Высоты ступеней — уступ, прыжок с которого
+        /// ранит: к ним прибавляется <see cref="JumpHeight"/> (см. <see cref="FallDamageFraction"/>).
+        /// </summary>
         public FallDamageConfig FallDamage { get; set; } = new FallDamageConfig();
 
         /// <summary>Отбрасывание игрока при получении урона, метры.</summary>
@@ -110,6 +116,8 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException("walkSpeed and gravity must be positive, jumpHeight not negative");
             if (StepHeight >= ColliderHeight)
                 throw new InvalidOperationException("stepHeight must be less than colliderHeight");
+            if (ColliderWidth <= 0 || BodyWidth <= 0)
+                throw new InvalidOperationException("colliderWidth and bodyWidth must be positive");
             Deformation ??= new DeformationConfig();
             Stamina ??= new StaminaConfig();
             Health ??= new PlayerHealthConfig();
@@ -122,6 +130,13 @@ namespace ColorsAction.Configs
 
         /// <summary>Начальная скорость прыжка для высоты JumpHeight: v = sqrt(2gh).</summary>
         public float JumpVelocity => (float)Math.Sqrt(2.0 * Gravity * JumpHeight);
+
+        /// <summary>
+        /// Доля здоровья, которую снимает падение с высоты <paramref name="fallHeight"/> (от верхней точки полёта):
+        /// ступени <see cref="FallDamage"/> подняты на высоту прыжка, поэтому сойти с уступа в 4 блока безопасно,
+        /// а прыгнуть с него — уже больно.
+        /// </summary>
+        public float FallDamageFraction(float fallHeight) => FallDamage.DamageFraction(fallHeight - JumpHeight);
     }
 
     /// <summary>Здоровье игрока (Player.json → health).</summary>

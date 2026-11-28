@@ -69,8 +69,14 @@ namespace ColorsAction.Configs
         /// <summary>Насколько резко видны грани: 0 — ровная заливка, 1 — наклон граней для света усилен в 6 раз.</summary>
         public float Facets { get; set; } = 0.6f;
 
-        /// <summary>Брызги, когда игрок падает в воду.</summary>
+        /// <summary>Брызги, когда игрок падает в воду: синие кубики-капли разлетаются в стороны (Resources/Fx/WaterSplash).</summary>
         public bool Splash { get; set; } = true;
+
+        /// <summary>Цвет капель брызг.</summary>
+        public string SplashColor { get; set; } = "#3E9BE6";
+
+        /// <summary>Масштаб брызг: размер капель и дальность разлёта.</summary>
+        public float SplashSize { get; set; } = 1f;
 
         public void OnConfigLoaded()
         {
@@ -86,6 +92,7 @@ namespace ColorsAction.Configs
             WaveLength = Math.Max(0.5f, WaveLength);
             Specular = Math.Max(0f, Math.Min(1f, Specular));
             Facets = Math.Max(0f, Math.Min(1f, Facets));
+            SplashSize = Math.Max(0.1f, SplashSize);
         }
     }
 }

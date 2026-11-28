@@ -113,6 +113,7 @@ namespace ColorsAction.Unity
             }
             motor.Landed += OnLanded;
             deformer.Configure(config.Deformation.Stiffness, config.Deformation.Damping);
+            deformer.Width = config.BodyWidth;
             yaw = body.eulerAngles.y;
             if (Camera.main != null)
                 cameraTransform = Camera.main.transform;

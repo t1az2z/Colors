@@ -55,6 +55,12 @@ namespace ColorsAction.Unity
 
         public float Squash => squash.Value;
 
+        /// <summary>
+        /// Ширина и глубина куба относительно меша (меш 1×1, высота не меняется): точки меша и сокеты рук
+        /// сжимаются по X/Z до деформации. Позы рук и сколы задаются для куба 1×1, сжатие их подгоняет.
+        /// </summary>
+        public float Width { get; set; } = 1f;
+
         /// <summary>Исходный меш (до копирования для деформации) — для врагов того же вида.</summary>
         public Mesh SourceMesh => source;
 
@@ -190,8 +196,8 @@ namespace ColorsAction.Unity
             var sxz = 1f / Mathf.Sqrt(Mathf.Max(0.2f, sy));
             var t = Mathf.Clamp01(p.y / height);
             var t2 = t * t;
-            var x = p.x * sxz;
-            var z = p.z * sxz;
+            var x = p.x * sxz * Width;
+            var z = p.z * sxz * Width;
             var y = p.y * sy;
             // Сжатие вдоль направления: проекция на ось масштабируется, объём уходит вверх.
             var ds = dirSquash.Value;

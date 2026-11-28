@@ -119,14 +119,14 @@ namespace ColorsAction.Unity
         }
 
         /// <summary>
-        /// Урон от падения с высоты <paramref name="height"/> по ступеням <see cref="FallDamageConfig"/>:
+        /// Урон от падения с высоты <paramref name="height"/> по ступеням <see cref="FallDamageConfig"/>, поднятым на высоту прыжка:
         /// ни перекат, ни щит, ни неуязвимость после удара его не гасят. true — урон прошёл.
         /// </summary>
         public bool ReceiveFallDamage(float height)
         {
             if (Dead || controller == null)
                 return false;
-            var fraction = config.FallDamage.DamageFraction(height);
+            var fraction = config.FallDamageFraction(height);
             if (fraction <= 0f)
                 return false;
 

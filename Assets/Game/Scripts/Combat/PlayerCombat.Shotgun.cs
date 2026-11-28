@@ -267,8 +267,10 @@ namespace ColorsAction.Unity
         {
             var hold = hand.Item.Ranged.AimHold;
             var right = Vector3.Cross(Vector3.up, flat);
-            return transform.position + Vector3.up * (hold.Height + MuzzleOffset.y) + right * (hold.Side * hand.Side) +
-                   flat * (hold.Forward + MuzzleOffset.z);
+            // Поза задана для куба 1×1: по ширине тела её сжимает деформер — так же сдвигаем дуло.
+            var width = controller.Deformer != null ? controller.Deformer.Width : 1f;
+            return transform.position + Vector3.up * (hold.Height + MuzzleOffset.y) + right * (hold.Side * hand.Side * width) +
+                   flat * (hold.Forward * width + MuzzleOffset.z);
         }
 
         /// <summary>

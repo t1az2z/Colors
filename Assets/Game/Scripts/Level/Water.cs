@@ -28,6 +28,7 @@ namespace ColorsAction.Unity
         private static readonly int WaveDirectionId = Shader.PropertyToID("_WaveDirection");
         private static readonly int SpecularId = Shader.PropertyToID("_Specular");
         private static readonly int FacetsId = Shader.PropertyToID("_Facets");
+        private static readonly Color DefaultSplashColor = new Color(0.24f, 0.61f, 0.9f);
 
         private WaterConfig config;
         private WaterLayout layout;
@@ -35,6 +36,7 @@ namespace ColorsAction.Unity
         private Material material;
         private Mesh mesh;
         private bool wasAbove = true;
+        private Color splashColor;
 
         public WaterLayout Layout => layout;
         public Material Material => material;
@@ -55,6 +57,7 @@ namespace ColorsAction.Unity
             r.reflectionProbeUsage = ReflectionProbeUsage.Off;
             material = CreateMaterial(config);
             r.sharedMaterial = material;
+            splashColor = Hex(config.SplashColor, DefaultSplashColor);
         }
 
         private static Material CreateMaterial(WaterConfig config)
@@ -155,7 +158,7 @@ namespace ColorsAction.Unity
             var p = player.position;
             var above = p.y > layout.Surface;
             if (wasAbove && !above && Inside(p))
-                ParticleFx.Play(ParticleFx.GroundSlam, new Vector3(p.x, layout.Surface + 0.05f, p.z), material.GetColor(FoamId), 1.2f);
+                ParticleFx.Play(ParticleFx.WaterSplash, new Vector3(p.x, layout.Surface + 0.02f, p.z), splashColor, config.SplashSize);
             wasAbove = above;
         }
 
