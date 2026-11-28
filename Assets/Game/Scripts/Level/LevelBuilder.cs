@@ -461,7 +461,7 @@ namespace ColorsAction.Unity
             foreach (var e in config.Enemies)
             {
                 var enemy = EnemyController.Spawn(e.Type, PointPosition(e), e.Yaw, root, bootstrap, mesh, materials,
-                    e.AggroRadius, reach);
+                    e.Color, e.AggroRadius, reach);
                 enemies.Add(enemy);
                 // Ключ выпадает один раз: возрождённый у костра враг его уже не носит.
                 if (!string.IsNullOrEmpty(e.Key) && !session.DroppedKeys.Contains(e.Key) && !session.OpenedKeyDoors.Contains(e.Key))

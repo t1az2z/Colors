@@ -115,22 +115,26 @@ level = {
     "items": [
         {"item": "sword", "x": 12, "z": 13, "yaw": 30},
         {"item": "shield", "x": 15, "z": 12, "yaw": -20},
+        {"item": "flask", "x": 8, "z": 12, "yaw": 0},
         {"item": "shotgun", "x": 9, "z": 66, "yaw": 0},
     ],
     # Враги на ровной площадке за блоками-образцами: трое, чтобы видеть, что атакует только один.
+    # Тип — "Куб с дубиной" (club_cube), цвет — у каждого врага свой (один из круга Combat.json colorWheel).
     "enemies": [
-        {"type": "club_cube", "aggroRadius": 7, "x": 16, "z": 29, "yaw": 180},
-        {"type": "club_cube", "aggroRadius": 7, "x": 20, "z": 31, "yaw": 200},
-        {"type": "club_cube", "aggroRadius": 7, "x": 12, "z": 31, "yaw": 160},
+        {"type": "club_cube", "color": "green", "aggroRadius": 7, "x": 16, "z": 29, "yaw": 180},
+        {"type": "club_cube", "color": "green", "aggroRadius": 7, "x": 20, "z": 31, "yaw": 200},
+        {"type": "club_cube", "color": "green", "aggroRadius": 7, "x": 12, "z": 31, "yaw": 160},
         # Тир на поле за северной стеной: 4 оранжевых (слабы к мечу) и 3 зелёных (слабы к дробовику),
         # шахматкой в 2-3 клетках друг от друга, в 9-15 клетках от прохода.
-        {"type": "club_cube_orange", "aggroRadius": 8, "x": 6, "z": 74, "yaw": 180},
-        {"type": "club_cube", "aggroRadius": 7, "x": 9, "z": 76, "yaw": 180},
-        {"type": "club_cube_orange", "aggroRadius": 8, "x": 12, "z": 74, "yaw": 180},
-        {"type": "club_cube", "aggroRadius": 7, "x": 15, "z": 76, "yaw": 180},
-        {"type": "club_cube_orange", "aggroRadius": 8, "x": 18, "z": 74, "yaw": 180},
-        {"type": "club_cube", "aggroRadius": 7, "x": 21, "z": 76, "yaw": 180},
-        {"type": "club_cube_orange", "aggroRadius": 8, "x": 24, "z": 74, "yaw": 180},
+        {"type": "club_cube", "color": "orange", "aggroRadius": 8, "x": 6, "z": 74, "yaw": 180},
+        {"type": "club_cube", "color": "green", "aggroRadius": 7, "x": 9, "z": 76, "yaw": 180},
+        {"type": "club_cube", "color": "orange", "aggroRadius": 8, "x": 12, "z": 74, "yaw": 180},
+        {"type": "club_cube", "color": "green", "aggroRadius": 7, "x": 15, "z": 76, "yaw": 180},
+        {"type": "club_cube", "color": "orange", "aggroRadius": 8, "x": 18, "z": 74, "yaw": 180},
+        {"type": "club_cube", "color": "green", "aggroRadius": 7, "x": 21, "z": 76, "yaw": 180},
+        {"type": "club_cube", "color": "orange", "aggroRadius": 8, "x": 24, "z": 74, "yaw": 180},
+        # Элитный мечник в глубине тира.
+        {"type": "elite_sword", "color": "orange", "aggroRadius": 7, "x": 48, "z": 79, "yaw": 180},
     ],
     "dummies": [
         {"x": 18, "z": 15, "yaw": 200},

@@ -3996,8 +3996,9 @@
       "kind": "EnemySpawn",
       "cell": "14,1,13",
       "yaw": 90,
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
@@ -4005,8 +4006,9 @@
       "kind": "EnemySpawn",
       "cell": "7,2,11",
       "yaw": 135,
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
@@ -4014,16 +4016,18 @@
       "kind": "EnemySpawn",
       "cell": "9,2,17",
       "yaw": 180,
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
       "id": "enemyspawn_5",
       "kind": "EnemySpawn",
       "cell": "6,2,6",
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
@@ -4031,8 +4035,9 @@
       "kind": "EnemySpawn",
       "cell": "8,2,23",
       "yaw": 180,
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
@@ -4040,8 +4045,9 @@
       "kind": "EnemySpawn",
       "cell": "12,2,22",
       "yaw": 180,
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
@@ -4049,6 +4055,7 @@
       "kind": "EnemySpawn",
       "cell": "11,2,24",
       "yaw": 180,
+      "color": "green",
       "height": 2,
       "item": "club_cube",
       "aggroRadius": 7
@@ -4066,6 +4073,7 @@
       "kind": "EnemySpawn",
       "cell": "5,4,40",
       "yaw": 135,
+      "color": "orange",
       "height": 2,
       "item": "elite_sword",
       "aggroRadius": 7
@@ -4082,8 +4090,9 @@
       "kind": "EnemySpawn",
       "cell": "29,0,25",
       "yaw": 135,
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
@@ -4091,8 +4100,9 @@
       "kind": "EnemySpawn",
       "cell": "32,0,25",
       "yaw": 180,
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
@@ -4100,6 +4110,7 @@
       "kind": "EnemySpawn",
       "cell": "34,0,30",
       "yaw": 180,
+      "color": "orange",
       "height": 2,
       "item": "elite_sword",
       "aggroRadius": 7
@@ -4109,6 +4120,7 @@
       "kind": "EnemySpawn",
       "cell": "29,0,31",
       "yaw": 180,
+      "color": "orange",
       "height": 2,
       "item": "elite_sword",
       "aggroRadius": 7
@@ -4118,8 +4130,9 @@
       "kind": "EnemySpawn",
       "cell": "2,1,25",
       "yaw": 90,
+      "color": "orange",
       "height": 2,
-      "item": "club_cube_orange",
+      "item": "club_cube",
       "aggroRadius": 7
     },
     {
@@ -4127,6 +4140,7 @@
       "kind": "EnemySpawn",
       "cell": "2,1,24",
       "yaw": 90,
+      "color": "green",
       "height": 2,
       "item": "club_cube",
       "aggroRadius": 7
@@ -4136,6 +4150,7 @@
       "kind": "EnemySpawn",
       "cell": "22,1,25",
       "yaw": -180,
+      "color": "green",
       "height": 2,
       "item": "club_cube",
       "aggroRadius": 4.5

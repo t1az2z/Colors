@@ -26,6 +26,9 @@ namespace ColorsAction.Unity
         public static IReadOnlyList<EnemyController> All => all;
 
         private string typeId;
+
+        /// <summary>Цвет этого врага из карты (<see cref="LevelEnemy.Color"/>); null — цвет типа.</summary>
+        private string colorId;
         private float aggroRadius = LevelEnemy.DefaultAggroRadius;
 
         /// <summary>Проверка "дойдёт ли до игрока" (воксельные уровни); null — не проверяем.</summary>
@@ -82,7 +85,7 @@ namespace ColorsAction.Unity
 
         /// <summary>Статус-эффекты врага (живут в <see cref="EnemyBrain.Status"/>).</summary>
         public StatusEffects Status => brain?.Status;
-        public string ColorId => config != null ? config.Color : "blue";
+        public string ColorId => config != null ? EnemyTypes.ColorOf(config, colorId) : "blue";
         public Vector3 HitPoint => transform.position + Vector3.up * (config != null ? config.Size * 0.6f : 0.5f);
         public bool Dead => brain != null && brain.State == EnemyState.Dead;
 
@@ -93,10 +96,11 @@ namespace ColorsAction.Unity
         public event System.Action<EnemyController> Died;
 
         /// <summary>Создать врага на сцене. Тело — тот же скруглённый куб с глазами, что у игрока, другого цвета и размера.</summary>
+        /// <param name="color">Цвет этого врага (из уровня); null — цвет типа из Enemies.json.</param>
         /// <param name="aggroRadius">Радиус агро этого врага (из уровня).</param>
         /// <param name="reach">Проверка достижимости игрока; null — враг замечает игрока по одной дистанции.</param>
         public static EnemyController Spawn(string type, Vector3 position, float yaw, Transform parent, GameBootstrap bootstrap,
-            Mesh mesh, Material[] materials, float aggroRadius = LevelEnemy.DefaultAggroRadius, EnemyReach reach = null)
+            Mesh mesh, Material[] materials, string color = null, float aggroRadius = LevelEnemy.DefaultAggroRadius, EnemyReach reach = null)
         {
             var go = new GameObject($"Enemy_{type}");
             go.transform.SetParent(parent, false);
@@ -104,6 +108,7 @@ namespace ColorsAction.Unity
             go.layer = EnemyLayer;
             var enemy = go.AddComponent<EnemyController>();
             enemy.typeId = type;
+            enemy.colorId = string.IsNullOrEmpty(color) ? null : color;
             enemy.bodyMesh = mesh;
             enemy.bodyMaterials = materials;
             enemy.yaw = yaw;
@@ -129,7 +134,10 @@ namespace ColorsAction.Unity
         protected override void OnConstruct(IResolver resolver)
         {
             var configs = resolver.Resolve<ConfigService>();
-            if (!configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies).TryGet(typeId ?? string.Empty, out config))
+            var table = configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies);
+            // Старые карты: цвет в id типа (club_cube_orange) → тип club_cube, цвет orange.
+            if (!EnemyTypes.Resolve(typeId, colorId, t => table.TryGet(t, out _), out typeId, out colorId) ||
+                !table.TryGet(typeId, out config))
             {
                 // Опечатка или переименованный тип в уровне: не роняем остальных врагов, просто не создаём этого.
                 Debug.LogError($"[Enemy] Unknown enemy type '{typeId}' at {transform.position} — not in Enemies.json, skipped.");
@@ -201,7 +209,7 @@ namespace ColorsAction.Unity
             deformer = meshGo.AddComponent<CubeDeformer>();
             deformer.Configure(200f, 9f);
 
-            color = palette.Get(config.Color);
+            color = palette.Get(ColorId);
             block = new MaterialPropertyBlock();
             ApplyColor();
 

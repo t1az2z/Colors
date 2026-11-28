@@ -25,32 +25,6 @@
     "poise": 100,
     "deflectDuration": 0.4
   },
-  "club_cube_orange": {
-    "name": "Оранжевый куб с дубиной",
-    "color": "orange",
-    "size": 0.9,
-    "maxHealth": 55,
-    "weaponPrefab": "Items/Club",
-    "loseRadius": 20,
-    "alertDuration": 1,
-    "moveSpeed": 7,
-    "turnSpeed": 540,
-    "waitDistance": 3.2,
-    "attackCooldown": 0.8,
-    "staggerDuration": 0.35,
-    "hitPushback": 0.45,
-    "experience": 14,
-    "deathPieces": 14,
-    "experiencePieces": 10,
-    "attacks": [
-      { "motion": "Sweep", "windup": 0.4, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07 },
-      { "motion": "Overhead", "windup": 0.6, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.04, "parryTo": 0.06 }
-    ],
-    "flankBias": 0.7,
-    "parriedDuration": 2,
-    "poise": 100,
-    "deflectDuration": 0.4
-    },
   "elite_sword": {
     "name": "Элитный мечник",
     "color": "orange",

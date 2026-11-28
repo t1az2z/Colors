@@ -138,7 +138,10 @@ namespace ColorsAction.Configs
         public string Id { get; set; }
         public string Name { get; set; }
 
-        /// <summary>Цвет врага (Colors.json): бонус урона оружием того же цвета.</summary>
+        /// <summary>
+        /// Цвет врага этого типа по умолчанию (круг Combat.json <c>colorWheel</c>): бонус урона оружием того же цвета.
+        /// Каждому поставленному врагу цвет задаётся в карте (<see cref="LevelEnemy.Color"/>), этот — когда там пусто.
+        /// </summary>
         public string Color { get; set; } = "blue";
 
         /// <summary>Размер куба в блоках (куб размера 1 — как игрок по высоте).</summary>

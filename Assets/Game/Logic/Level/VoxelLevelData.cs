@@ -230,7 +230,7 @@ namespace ColorsAction.Level
                 level.PutObject(new LevelObject
                 {
                     Id = level.NewObjectId(LevelObjectKind.EnemySpawn), Kind = LevelObjectKind.EnemySpawn,
-                    Cell = StandCell(e.X, e.Z), Yaw = e.Yaw, Item = e.Type, AggroRadius = e.AggroRadius, Key = e.Key
+                    Cell = StandCell(e.X, e.Z), Yaw = e.Yaw, Item = e.Type, Color = e.Color, AggroRadius = e.AggroRadius, Key = e.Key
                 });
             }
 

@@ -551,7 +551,7 @@ namespace ColorsAction.Unity.Editor
                 }
 
                 Check(!playerDied && (target == null || target.Dead),
-                    $"enemy dies from sword hits ({inv.Active?.Config.Color} sword vs {first.Brain.Config.Color} enemy){(playerDied ? ": player died first" : "")}", "enemy dead, player alive");
+                    $"enemy dies from sword hits ({inv.Active?.Config.Color} sword vs {first.ColorId} enemy){(playerDied ? ": player died first" : "")}", "enemy dead, player alive");
                 yield return 150;
                 Check(session.Experience.Value > xpBefore, $"shards fly to the player as experience: {xpBefore} -> {session.Experience.Value}", $"experience > {xpBefore}");
 
@@ -643,8 +643,8 @@ namespace ColorsAction.Unity.Editor
             if (elite == null)
                 yield break;
             var brain = elite.Brain;
-            Check(brain.Config.Color == "orange" && Mathf.Approximately(brain.Config.Size, 1.3f) && brain.Poise.Max > 0f,
-                $"elite: color {brain.Config.Color}, size {brain.Config.Size}, poise {brain.Poise.Max}", "orange, 1.3, has a poise bar");
+            Check(elite.ColorId == "orange" && Mathf.Approximately(brain.Config.Size, 1.3f) && brain.Poise.Max > 0f,
+                $"elite: color {elite.ColorId}, size {brain.Config.Size}, poise {brain.Poise.Max}", "orange, 1.3, has a poise bar");
 
             var ep = elite.transform.position;
             player.Teleport(new Vector3(ep.x, ep.y, ep.z - 3f), 0f);

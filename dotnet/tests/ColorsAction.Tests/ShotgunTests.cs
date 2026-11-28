@@ -50,15 +50,15 @@ namespace ColorsAction.Tests
             var items = configs.LoadTable<ItemConfig>(ConfigKeys.Items);
             var shotgun = items.Get("shotgun");
             var sword = items.Get("sword");
-            var enemies = configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies);
-            var orange = enemies.Get("club_cube_orange");
-            var green = enemies.Get("club_cube");
-            Assert.That(orange.Color, Is.EqualTo("orange"));
-            Assert.That(green.Color, Is.EqualTo("green"));
-            Assert.That(rules.Calculate(shotgun, null, green.Color).Effect, Is.EqualTo(ColorEffect.Antipode), "red is opposite green");
-            Assert.That(rules.Calculate(shotgun, null, orange.Color).Effect, Is.EqualTo(ColorEffect.Weak), "red is next to orange");
-            Assert.That(rules.Calculate(sword, null, orange.Color).Effect, Is.EqualTo(ColorEffect.Antipode), "blue is opposite orange");
-            Assert.That(rules.Calculate(sword, null, green.Color).Effect, Is.EqualTo(ColorEffect.Weak), "blue is next to green");
+            var club = configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies).Get("club_cube");
+            var orange = EnemyTypes.ColorOf(club, "orange");
+            var green = EnemyTypes.ColorOf(club, null);
+            Assert.That(orange, Is.EqualTo("orange"), "colour of the placed enemy wins");
+            Assert.That(green, Is.EqualTo("green"), "no colour on the map: type default");
+            Assert.That(rules.Calculate(shotgun, null, green).Effect, Is.EqualTo(ColorEffect.Antipode), "red is opposite green");
+            Assert.That(rules.Calculate(shotgun, null, orange).Effect, Is.EqualTo(ColorEffect.Weak), "red is next to orange");
+            Assert.That(rules.Calculate(sword, null, orange).Effect, Is.EqualTo(ColorEffect.Antipode), "blue is opposite orange");
+            Assert.That(rules.Calculate(sword, null, green).Effect, Is.EqualTo(ColorEffect.Weak), "blue is next to green");
             Assert.That(rules.Calculate(shotgun, null, "red").Damage, Is.EqualTo(shotgun.Damage * combat.ColorDistanceMultipliers[0]).Within(1e-4), "own colour");
         }
 
@@ -97,8 +97,8 @@ namespace ColorsAction.Tests
             var configs = Configs();
             var level = configs.Load<LevelConfig>("Levels/Test");
             var field = level.Enemies.Where(e => e.Z >= 64).ToList();
-            Assert.That(field.Count(e => e.Type == "club_cube_orange"), Is.EqualTo(4));
-            Assert.That(field.Count(e => e.Type == "club_cube"), Is.EqualTo(3));
+            Assert.That(field.Count(e => e.Type == "club_cube" && e.Color == "orange"), Is.EqualTo(4));
+            Assert.That(field.Count(e => e.Type == "club_cube" && e.Color == "green"), Is.EqualTo(3));
             Assert.That(level.Items.Any(i => i.Item == "shotgun"), Is.True);
         }
     }

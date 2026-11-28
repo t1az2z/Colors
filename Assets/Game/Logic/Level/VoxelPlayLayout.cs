@@ -46,7 +46,7 @@ namespace ColorsAction.Level
                         {
                             config.Enemies.Add(Point(new LevelEnemy
                             {
-                                Type = o.Item, AggroRadius = o.AggroRadius, Key = string.IsNullOrEmpty(o.Key) ? null : o.Key
+                                Type = o.Item, Color = string.IsNullOrEmpty(o.Color) ? null : o.Color, AggroRadius = o.AggroRadius, Key = string.IsNullOrEmpty(o.Key) ? null : o.Key
                             }, o, y));
                         }
                         break;

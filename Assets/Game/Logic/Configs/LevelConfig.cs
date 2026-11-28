@@ -236,6 +236,12 @@ namespace ColorsAction.Configs
 
         public string Type { get; set; }
 
+        /// <summary>
+        /// Цвет этого врага (один из круга Combat.json <c>colorWheel</c>): бонус урона оружием того же цвета.
+        /// null — цвет типа по умолчанию (<see cref="EnemyConfig.Color"/>).
+        /// </summary>
+        public string Color { get; set; }
+
         /// <summary>Зона агро, м: игрок ближе — враг замечает его (если может до него дойти).</summary>
         public float AggroRadius { get; set; } = DefaultAggroRadius;
 
