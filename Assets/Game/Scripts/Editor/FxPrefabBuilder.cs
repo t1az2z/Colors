@@ -54,6 +54,7 @@ namespace ColorsAction.Unity.Editor
             Save(BuildHitFlash(soft, solid, cube), "HitFlash");
             BuildWaterSplashOnly();
             BuildHealOnly();
+            BuildPickupOnly();
             AssetDatabase.SaveAssets();
             Debug.Log("ColorsAction: FX prefabs built in " + FxPrefabs);
         }
@@ -74,6 +75,25 @@ namespace ColorsAction.Unity.Editor
         /// <summary>Пересобрать только эффект лечения (остальные префабы не трогаются).</summary>
         [MenuItem("ColorsAction/Build FX Prefabs (Heal only)")]
         public static void BuildHealOnly()
+        {
+            HealMaterials(out var soft, out var plusMat, out var squareMat, out var ribbonMat);
+            Save(BuildHealBurst(soft, plusMat, squareMat, ribbonMat, false), "HealBurst");
+            AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>
+        /// Пересобрать только эффект подбора предмета (<see cref="PickupSequence"/>): то же, что лечение, но без плюсиков,
+        /// белый (красится в цвет предмета) и по реальному времени — мир в сцене подбора стоит.
+        /// </summary>
+        [MenuItem("ColorsAction/Build FX Prefabs (Pickup only)")]
+        public static void BuildPickupOnly()
+        {
+            HealMaterials(out var soft, out var plusMat, out var squareMat, out var ribbonMat);
+            Save(BuildHealBurst(soft, plusMat, squareMat, ribbonMat, true), "PickupBurst");
+            AssetDatabase.SaveAssets();
+        }
+
+        private static void HealMaterials(out Material soft, out Material plusMat, out Material squareMat, out Material ribbonMat)
         {
             EnsureFolder(Root + "/Art", "Fx");
             EnsureFolder(Root + "/Resources", "Fx");
@@ -97,12 +117,10 @@ namespace ColorsAction.Unity.Editor
                 return Mathf.Pow(a, 1.6f);
             });
 
-            var soft = EnsureMaterial("FxSoft", dot, new Color(1.6f, 1.6f, 1.6f, 1f));
-            var plusMat = EnsureMaterial("FxPlus", plus, new Color(1.7f, 1.7f, 1.7f, 1f));
-            var squareMat = EnsureMaterial("FxSquare", square, new Color(2f, 2f, 2f, 1f));
-            var ribbonMat = EnsureMaterial("FxRibbon", ribbon, new Color(2.4f, 2.4f, 2.4f, 1f));
-            Save(BuildHealBurst(soft, plusMat, squareMat, ribbonMat), "HealBurst");
-            AssetDatabase.SaveAssets();
+            soft = EnsureMaterial("FxSoft", dot, new Color(1.6f, 1.6f, 1.6f, 1f));
+            plusMat = EnsureMaterial("FxPlus", plus, new Color(1.7f, 1.7f, 1.7f, 1f));
+            squareMat = EnsureMaterial("FxSquare", square, new Color(2f, 2f, 2f, 1f));
+            ribbonMat = EnsureMaterial("FxRibbon", ribbon, new Color(2.4f, 2.4f, 2.4f, 1f));
         }
 
         /// <summary>Расстояние до контура плюса (отрицательное внутри); координаты -1..1.</summary>
@@ -134,15 +152,18 @@ namespace ColorsAction.Unity.Editor
         /// Лечение (по референсу): мягкое зелёное сияние вокруг куба, две спиральные ленты закручиваются вверх,
         /// зелёные искры-квадратики и плюсы (один крупный над головой) поднимаются вверх и гаснут.
         /// Все системы в локальном пространстве: эффект идёт за игроком. Время игровое. Опора — точка у ног куба.
+        /// <paramref name="pickup"/> — вариант для сцены подбора предмета (PickupBurst): без плюсиков, белый
+        /// (ParticleFx красит его в цвет предмета), время реальное.
         /// </summary>
-        private static GameObject BuildHealBurst(Material soft, Material plus, Material square, Material ribbon)
+        private static GameObject BuildHealBurst(Material soft, Material plus, Material square, Material ribbon, bool pickup)
         {
-            var green = new Color(0.5f, 1f, 0.32f, 1f);
+            var green = pickup ? Color.white : new Color(0.5f, 1f, 0.32f, 1f);
             var light = new Color(0.62f, 1f, 0.45f, 1f);
+            var unscaled = pickup;
 
-            var go = new GameObject("HealBurst");
+            var go = new GameObject(pickup ? "PickupBurst" : "HealBurst");
             var glow = go.AddComponent<ParticleSystem>();
-            Setup(glow, soft, loop: false, unscaled: false, maxParticles: 2);
+            Setup(glow, soft, loop: false, unscaled: unscaled, maxParticles: 2);
             Local(glow);
             var main = glow.main;
             main.duration = 1f;
@@ -157,7 +178,7 @@ namespace ColorsAction.Unity.Editor
 
             // Ленты: голова частицы летит по спирали (орбита вокруг оси Y + подъём), за ней — след-лента.
             var ribbons = Child(go, "Ribbons");
-            Setup(ribbons, ribbon, loop: false, unscaled: false, maxParticles: 4);
+            Setup(ribbons, ribbon, loop: false, unscaled: unscaled, maxParticles: 4);
             Local(ribbons);
             main = ribbons.main;
             main.startLifetime = 0.9f;
@@ -201,7 +222,7 @@ namespace ColorsAction.Unity.Editor
 
             // Искры-квадратики: разлетаются вокруг куба и всплывают.
             var sparks = Child(go, "Sparks");
-            Setup(sparks, square, loop: false, unscaled: false, maxParticles: 32);
+            Setup(sparks, square, loop: false, unscaled: unscaled, maxParticles: 32);
             Local(sparks);
             main = sparks.main;
             main.startLifetime = new ParticleSystem.MinMaxCurve(0.6f, 1.1f);
@@ -221,6 +242,8 @@ namespace ColorsAction.Unity.Editor
             SizeOverLifetime(sparks, new AnimationCurve(new Keyframe(0f, 0.3f), new Keyframe(0.15f, 1f), new Keyframe(0.7f, 1f), new Keyframe(1f, 0f)));
             ColorOverLifetime(sparks, Fade(1f, 1f, 0f));
             sparks.transform.localPosition = Vector3.up * 0.6f;
+            if (pickup)
+                return go;
 
             // Мелкие плюсы: появляются вокруг куба с «пружинкой» и поднимаются.
             var pluses = Child(go, "Pluses");

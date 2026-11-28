@@ -157,7 +157,7 @@ namespace ColorsAction.Unity
                 icons = hud != null ? hud.Icons : null;
             }
 
-            var wantOpen = WheelHeld && session.PlayerControl.Value;
+            var wantOpen = WheelHeld && session.PlayerControl.Value && !PickupSequence.Playing;
             if (wantOpen && !wasOpen)
                 Open();
             else if (!wantOpen && wasOpen)

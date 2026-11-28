@@ -27,7 +27,17 @@ namespace ColorsAction.Unity
             input = resolver.Resolve<GameInput>();
             session = resolver.Resolve<GameSession>();
             config = resolver.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player);
+            // Сцена подбора нового оружия или лечилки: живёт на игроке рядом с взаимодействием.
+            sequence = GetComponent<PickupSequence>();
+            if (sequence == null)
+                sequence = gameObject.AddComponent<PickupSequence>();
+            sequence.Construct(resolver);
         }
+
+        private PickupSequence sequence;
+
+        /// <summary>Сцена подбора предмета на этом игроке.</summary>
+        public PickupSequence Sequence => sequence;
 
         private void Update()
         {
@@ -76,7 +86,12 @@ namespace ColorsAction.Unity
                 return;
             TargetUsable = usable != null;
             if (TargetUsable && controller != null && controller.HasControl && input.Pressed(GameAction.Interact))
+            {
+                // Новое оружие или лечилка — сценой подбора; остальное (ключ, уже знакомый предмет) — сразу.
+                if (Target is Pickup pickup && sequence != null && sequence.TryBegin(pickup))
+                    return;
                 Target.Interact(position);
+            }
         }
     }
 }

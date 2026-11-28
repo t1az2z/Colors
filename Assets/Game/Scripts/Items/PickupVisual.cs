@@ -105,6 +105,23 @@ namespace ColorsAction.Unity
             beam.SetPropertyBlock(beamBlock);
         }
 
+        /// <summary>
+        /// Отдать модель сцене подбора (<see cref="PickupSequence"/>): она отцепляется от плиты (поза в мире сохраняется),
+        /// дальше её ведёт сцена; луч и искры гаснут. Возвращает модель (null — модели нет).
+        /// </summary>
+        public Transform ReleaseModel()
+        {
+            var released = model != null && model != transform ? model : null;
+            if (released != null)
+                released.SetParent(null, true);
+            model = null;
+            if (beam != null)
+                beam.enabled = false;
+            if (sparkles != null)
+                sparkles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+            return released;
+        }
+
         /// <summary>Анимация подбора: модель взлетает (масштаб корня уменьшает <see cref="Pickup"/>).</summary>
         public void TickTaken(float dt)
         {

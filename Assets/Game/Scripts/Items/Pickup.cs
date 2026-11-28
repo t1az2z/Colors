@@ -28,6 +28,7 @@ namespace ColorsAction.Unity
         private PickupVisual visual;
         private bool taken;
         private float takeTimer;
+        private float takeTime = 0.25f;
 
         public static System.Collections.Generic.IReadOnlyList<Pickup> All => all;
         public string ItemId => itemId;
@@ -181,16 +182,33 @@ namespace ColorsAction.Unity
                 return;
             if (taken)
             {
-                takeTimer += Time.deltaTime;
-                var k = Mathf.Clamp01(takeTimer / 0.25f);
+                // Реальное время: в сцене подбора мир стоит, а плита всё равно уходит.
+                var dt = Time.unscaledDeltaTime;
+                takeTimer += dt;
+                var k = Mathf.Clamp01(takeTimer / takeTime);
                 transform.localScale = Vector3.one * (1f - k);
-                visual.TickTaken(Time.deltaTime);
+                visual.TickTaken(dt);
                 if (k >= 1f)
                     Destroy(gameObject);
                 return;
             }
 
             visual.Tick(Time.deltaTime);
+        }
+
+        /// <summary>
+        /// Начать сцену подбора (<see cref="PickupSequence"/>): предмет больше не подбирается, его модель отцепляется
+        /// и переходит сцене, плита с лучом медленно уходит. В инвентарь предмет кладёт сцена (<see cref="GameSession.PickUp"/>).
+        /// Возвращает модель предмета (null — модели нет).
+        /// </summary>
+        public Transform BeginSequence(float baseFadeTime)
+        {
+            if (taken)
+                return null;
+            taken = true;
+            all.Remove(this);
+            takeTime = Mathf.Max(0.05f, baseFadeTime);
+            return visual != null ? visual.ReleaseModel() : null;
         }
 
         /// <summary>Подобрать. false — инвентарь полон.</summary>

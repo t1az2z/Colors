@@ -95,7 +95,8 @@ namespace ColorsAction.Unity
         {
             base.Update();
             // I / Select открывает и закрывает инвентарь: состояния FSM сами решают, что делать.
-            if (Host != null && input != null && input.Pressed(GameAction.Inventory))
+            // Во время сцены подбора предмета инвентарь не открывается.
+            if (Host != null && input != null && input.Pressed(GameAction.Inventory) && !PickupSequence.Playing)
                 Host.Events.Publish(new InventoryToggleRequested());
         }
 

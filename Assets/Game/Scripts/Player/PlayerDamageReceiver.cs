@@ -231,6 +231,23 @@ namespace ColorsAction.Unity
         private float blinkApplied;
         private float healApplied;
 
+        // Свечение тела в цвет подобранного предмета (сцена подбора): цвет, подкраска 0..1 и яркость emission.
+        private Color pickupGlowColor;
+        private float pickupTint;
+        private float pickupEmission;
+        private float pickupApplied;
+
+        /// <summary>
+        /// Свечение тела цветом <paramref name="color"/> (сцена подбора предмета): <paramref name="tint"/> — насколько
+        /// цвет тела тянется к нему (0..1), <paramref name="emission"/> — яркость свечения. Нули — выключить.
+        /// </summary>
+        public void SetPickupGlow(Color color, float tint, float emission)
+        {
+            pickupGlowColor = color;
+            pickupTint = Mathf.Clamp01(tint);
+            pickupEmission = Mathf.Max(0f, emission);
+        }
+
         /// <summary>
         /// Белое свечение тела (подматериал 0, глаза не трогаем) и оружия в руках: цвет тянется к белому,
         /// emission даёт bloom. Материалам нужен _EMISSION — берём светящиеся копии (<see cref="GlowMaterials"/>).
@@ -258,16 +275,21 @@ namespace ColorsAction.Unity
                 blinkBlock = new MaterialPropertyBlock();
             }
 
-            if (Mathf.Approximately(amount, blinkApplied) && Mathf.Approximately(heal, healApplied))
+            var pickup = pickupTint + pickupEmission;
+            if (Mathf.Approximately(amount, blinkApplied) && Mathf.Approximately(heal, healApplied)
+                && Mathf.Approximately(pickup, pickupApplied))
                 return;
             blinkApplied = amount;
             healApplied = heal;
+            pickupApplied = pickup;
             var health = config.Health;
             var color = Color.Lerp(bodyColor, HealColor, heal * health.HealGlowStrength);
+            color = Color.Lerp(color, pickupGlowColor, pickupTint);
             bodyRenderer.GetPropertyBlock(blinkBlock, 0);
             blinkBlock.SetColor(BaseColorId, Color.Lerp(color, Color.white, amount));
             blinkBlock.SetColor(EmissionColorId,
-                bodyEmission + Color.white * (amount * glow) + HealColor * (heal * health.HealGlow));
+                bodyEmission + Color.white * (amount * glow) + HealColor * (heal * health.HealGlow)
+                + pickupGlowColor * pickupEmission);
             bodyRenderer.SetPropertyBlock(blinkBlock, 0);
         }
 

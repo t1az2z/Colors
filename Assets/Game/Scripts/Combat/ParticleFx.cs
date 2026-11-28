@@ -23,6 +23,12 @@ namespace ColorsAction.Unity
         /// </summary>
         public const string HealBurst = "HealBurst";
 
+        /// <summary>
+        /// Подбор нового предмета (<see cref="PickupSequence"/>): как <see cref="HealBurst"/>, но без плюсиков, белый —
+        /// красится в цвет предмета (tint), и по реальному времени (мир в сцене стоит). Идёт за игроком (<see cref="Follow"/>).
+        /// </summary>
+        public const string PickupBurst = "PickupBurst";
+
         private static readonly Dictionary<string, ComponentPool<ParticleFx>> pools = new Dictionary<string, ComponentPool<ParticleFx>>();
         private static readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
 

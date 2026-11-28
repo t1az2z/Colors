@@ -11,6 +11,7 @@ namespace ColorsAction.Unity
     {
         private static float slowMotion = 1f;
         private static bool frozen;
+        private static bool cinematic;
 
         /// <summary>Замедление времени (1 — нормальная скорость).</summary>
         public static void SetSlowMotion(float scale)
@@ -26,13 +27,26 @@ namespace ColorsAction.Unity
             Apply();
         }
 
+        /// <summary>
+        /// Мир застыл на время сцены (подбор нового предмета): время стоит, пока флаг поднят. Отдельно от фриз-кадров,
+        /// чтобы конец фриза удара не запустил время посреди сцены.
+        /// </summary>
+        public static void SetCinematic(bool value)
+        {
+            cinematic = value;
+            Apply();
+        }
+
+        public static bool Cinematic => cinematic;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetState()
         {
             slowMotion = 1f;
             frozen = false;
+            cinematic = false;
         }
 
-        private static void Apply() => Time.timeScale = frozen ? 0f : slowMotion;
+        private static void Apply() => Time.timeScale = frozen || cinematic ? 0f : slowMotion;
     }
 }

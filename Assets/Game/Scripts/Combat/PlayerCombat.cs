@@ -634,12 +634,20 @@ namespace ColorsAction.Unity
 
         // ------------------------------------------------------------------ позы рук
 
+        /// <summary>Позы рук идут по реальному времени: сцена подбора предмета, пока мир стоит.</summary>
+        public bool UnscaledTime { get; set; }
+
+        /// <summary>
+        /// Радость в сцене подбора 0..1: оружие поднимается над головой (вторая рука — чуть вверх), 0 — обычные позы.
+        /// </summary>
+        public float Cheer { get; set; }
+
         private void LateUpdate()
         {
             if (playerConfig == null || controller == null)
                 return;
             var deformer = controller.Deformer;
-            var dt = Time.deltaTime;
+            var dt = UnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime;
             foreach (var hand in hands)
             {
                 if (hand.Socket == null)
@@ -656,6 +664,8 @@ namespace ColorsAction.Unity
                     pose = BlockPose(hand);
                 else
                     pose = RestPose(hand);
+                if (Cheer > 0f && attacking != hand)
+                    pose = Blend(pose, CheerPose(hand), Cheer);
 
                 // Плавный возврат после отмены удара и при смене позы.
                 var k = attacking == hand || gunHand || bashHand == hand ? 1f : 1f - Mathf.Exp(-dt * 25f);
@@ -692,6 +702,23 @@ namespace ColorsAction.Unity
                 return new Pose(new Vector3(0.7f * s, 0.42f, 0.12f), Quaternion.Euler(18f, 0f, -24f * s));
             return new Pose(new Vector3(0.64f * s, 0.38f, 0.12f), Quaternion.identity);
         }
+
+        /// <summary>Радость: оружие в правой руке поднято над головой (клинок остриём вверх), щит чуть приподнят сбоку.</summary>
+        private Pose CheerPose(HandState hand)
+        {
+            var s = hand.Side;
+            if (hand.Item != null && hand.Item.Kind == ItemKind.Shield)
+                return new Pose(new Vector3(0.7f * s, 0.78f, 0.18f), Quaternion.Euler(-10f, 50f * s, 12f * s));
+            if (hand.Visual == null)
+                return new Pose(new Vector3(0.66f * s, 0.62f, 0.12f), Quaternion.identity);
+            // Ружьё — над головой стволом вперёд-вверх.
+            if (hand.Item != null && hand.Item.IsRanged)
+                return new Pose(new Vector3(0.12f * s, 1.22f, 0.05f), Quaternion.Euler(-30f, 0f, 0f));
+            return new Pose(new Vector3(0.62f * s, 0.92f, 0.08f), Quaternion.Euler(-12f, 0f, -12f * s));
+        }
+
+        private static Pose Blend(Pose from, Pose to, float k) =>
+            new Pose(Vector3.Lerp(from.position, to.position, k), Quaternion.Slerp(from.rotation, to.rotation, k));
 
         private static Pose BlockPose(HandState hand)
         {

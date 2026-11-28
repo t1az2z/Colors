@@ -37,6 +37,81 @@ namespace ColorsAction.Unity
         private Transform deathAnchor;
         private bool followingDeath;
 
+        // Кадр сцены (подбор предмета): камера стоит там, куда её ставит сцена, ввод не крутит её.
+        private bool shotActive;
+        private Transform shotAnchor;
+        private CinemachineBrain brain;
+        private bool brainIgnoredTimeScale;
+        private Vector3 trackerDamping;
+
+        /// <summary>Текущий угол камеры по горизонтали, градусы (куда смотрит камера).</summary>
+        public float Yaw => yaw;
+
+        /// <summary>Обычный наклон камеры, градусы.</summary>
+        public float Pitch => config != null ? config.Pitch : 35f;
+
+        /// <summary>Обычное расстояние до игрока (с учётом приближения колесом).</summary>
+        public float Distance => distance;
+
+        /// <summary>Точка, за которой обычно следит камера.</summary>
+        public Vector3 FollowPoint => followTarget != null ? followTarget.position : transform.position;
+
+        public bool ShotActive => shotActive;
+
+        /// <summary>
+        /// Поставить камеру кадром сцены: угол по горизонтали <paramref name="shotYaw"/>, наклон, расстояние и точка
+        /// взгляда. Вызывается каждый кадр сцены; пока кадр задан, мышь, стик и фиксация камеру не двигают, а Cinemachine
+        /// считает по реальному времени (мир в сцене стоит). Свой угол и приближение камера помнит — после
+        /// <see cref="ClearShot"/> продолжает с них.
+        /// </summary>
+        public void SetShot(float shotYaw, float shotPitch, float shotDistance, Vector3 lookAt)
+        {
+            if (orbit == null)
+                return;
+            if (!shotActive)
+            {
+                shotActive = true;
+                if (shotAnchor == null)
+                    shotAnchor = new GameObject("CameraShotAnchor").transform;
+                brain = brain != null ? brain : FindBrain();
+                if (brain != null)
+                {
+                    brainIgnoredTimeScale = brain.IgnoreTimeScale;
+                    brain.IgnoreTimeScale = true;
+                }
+
+                // Сцена сама ведёт точку плавно: запаздывание слежения дало бы рывки.
+                trackerDamping = orbit.TrackerSettings.PositionDamping;
+                orbit.TrackerSettings.PositionDamping = Vector3.zero;
+                virtualCamera.Follow = shotAnchor;
+            }
+
+            shotAnchor.position = lookAt;
+            orbit.HorizontalAxis.Value = Mathf.Repeat(shotYaw + 180f, 360f) - 180f;
+            orbit.VerticalAxis.Value = shotPitch;
+            orbit.Radius = shotDistance;
+        }
+
+        /// <summary>Вернуть обычную камеру (сцена кончилась): следит за игроком, ввод снова её крутит.</summary>
+        public void ClearShot()
+        {
+            if (!shotActive)
+                return;
+            shotActive = false;
+            if (brain != null)
+                brain.IgnoreTimeScale = brainIgnoredTimeScale;
+            if (orbit != null)
+                orbit.TrackerSettings.PositionDamping = trackerDamping;
+            virtualCamera.Follow = followingDeath && deathAnchor != null ? deathAnchor : followTarget;
+            Apply();
+        }
+
+        private CinemachineBrain FindBrain()
+        {
+            var main = UnityEngine.Camera.main;
+            return main != null ? main.GetComponent<CinemachineBrain>() : FindAnyObjectByType<CinemachineBrain>();
+        }
+
         public CameraScheme Scheme => session != null ? session.ControlScheme.Value : CameraScheme.FreeOrbit;
 
         protected override void OnConstruct(IResolver resolver)
@@ -79,11 +154,15 @@ namespace ColorsAction.Unity
             curvedWorld = null;
             if (deathAnchor != null)
                 Destroy(deathAnchor.gameObject);
+            if (shotAnchor != null)
+                Destroy(shotAnchor.gameObject);
         }
 
         private void Update()
         {
             if (config == null || orbit == null)
+                return;
+            if (shotActive)
                 return;
 
             UpdateDeathFollow();

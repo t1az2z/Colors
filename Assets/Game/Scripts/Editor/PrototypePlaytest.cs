@@ -241,11 +241,16 @@ namespace ColorsAction.Unity.Editor
             yield return 20;
             input.ScriptPress(GameAction.Interact);
             yield return 10;
+            // Новое оружие подбирается сценой (PickupSequence, ~5 с реального времени): ждём её конца.
+            for (int i = 0; i < 2000 && PickupSequence.Playing; i++)
+                yield return 1;
             player.Teleport(new Vector3(15.5f, 0f, 11.7f), 0f);
             input.ClearScripted();
             yield return 20;
             input.ScriptPress(GameAction.Interact);
             yield return 30;
+            for (int i = 0; i < 2000 && PickupSequence.Playing; i++)
+                yield return 1;
             var inv = session.Inventory;
             Check(inv.Active?.Id == "sword" && !inv.HasWeapon("shield"),
                 $"picked up: sword in hands, shield comes with it: active={inv.Active?.Id} wheel={inv.Weapons.Count}", "active=sword, no separate shield on the wheel");

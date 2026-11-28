@@ -85,6 +85,9 @@ namespace ColorsAction.Unity
         /// <summary>У меша есть глаза (второй сабмеш): моргание и взгляд работают.</summary>
         public bool HasEyes => eyeIndices != null;
 
+        /// <summary>Пружины идут по реальному времени: сцена подбора предмета, пока мир стоит (time scale = 0).</summary>
+        public bool UnscaledTime { get; set; }
+
         public float Squash => squash.Value;
 
         /// <summary>
@@ -258,7 +261,7 @@ namespace ColorsAction.Unity
             if (mesh == null)
                 return;
 
-            var dt = Mathf.Min(Time.deltaTime, 1f / 30f);
+            var dt = Mathf.Min(UnscaledTime ? Time.unscaledDeltaTime : Time.deltaTime, 1f / 30f);
             // Два подшага: жёсткие пружины стабильны и при низком FPS.
             for (int i = 0; i < 2; i++)
             {
