@@ -14,7 +14,7 @@
     },
     "breath": { "period": 3.2, "amount": 0.03, "inhale": 0.42, "fadeTime": 0.4 },
     "blink": { "enabled": true, "intervalMin": 2.4, "intervalMax": 5.5, "duration": 0.16, "doubleChance": 0.2, "closed": 0.12, "whileMoving": false },
-    "lookAround": { "delay": 4, "repeatMin": 6, "repeatMax": 11, "duration": 3.4, "twist": 32, "eyeShift": 0.1, "pitch": 3 }
+    "lookAround": { "delay": 8, "repeatMin": 15, "repeatMax": 25, "duration": 3.4, "twist": 32, "eyeShift": 0.1, "pitch": 3 }
   },
   "enemy": {
     "move": {
@@ -31,6 +31,6 @@
     },
     "breath": { "period": 2.8, "amount": 0.035, "inhale": 0.45, "fadeTime": 0.4 },
     "blink": { "enabled": true, "intervalMin": 3, "intervalMax": 7, "duration": 0.18, "doubleChance": 0.15, "closed": 0.12, "whileMoving": false },
-    "inspect": { "delay": 3, "intervalMin": 8, "intervalMax": 15, "duration": 3.8, "raise": 0.18, "lower": 0.2, "turns": 1.25, "tilt": 34, "pitch": 7, "followTwist": 8, "eyeShift": 0.08 }
+    "inspect": { "delay": 6, "intervalMin": 18, "intervalMax": 30, "duration": 4.2, "raise": 0.15, "lower": 0.15, "tosses": 4, "hold": 0.35, "tossHeight": 0.35, "spin": 1, "span": 0.68, "catchSquash": 0.04, "pitch": 6, "followTwist": 8, "eyeShift": 0.08 }
   }
 }

@@ -7,7 +7,7 @@ namespace ColorsAction.Configs
     /// <summary>
     /// Configs/Animations.json — процедурная анимация кубов деформацией: шаги при ходьбе и беге (покачивание,
     /// сжатие-вытягивание с сохранением объёма), дыхание и моргание в покое, осмотр по сторонам (игрок),
-    /// верчение оружия в руках (враги). Файл — словарь по id: <see cref="PlayerId"/> — игрок, <see cref="EnemyId"/> —
+    /// перебрасывание оружия из руки в руку (враги). Файл — словарь по id: <see cref="PlayerId"/> — игрок, <see cref="EnemyId"/> —
     /// все враги; запись с id типа врага (как в Enemies.json) заменяет общую для этого типа целиком.
     /// Отклик на удары, прыжки и перекаты (пружины) — в Player.json → "deformation".
     /// </summary>
@@ -30,7 +30,7 @@ namespace ColorsAction.Configs
         /// <summary>Осмотр по сторонам после нескольких секунд покоя; null — нет.</summary>
         public LookAroundConfig LookAround { get; set; }
 
-        /// <summary>Редкий idle: оружие перед собой, верчение, как будто рассматривает; null — нет.</summary>
+        /// <summary>Редкий idle: перебрасывает оружие перед собой из руки в руку; null — нет.</summary>
         public WeaponInspectConfig Inspect { get; set; }
 
         public void OnConfigLoaded()
@@ -187,11 +187,11 @@ namespace ColorsAction.Configs
     public sealed class LookAroundConfig
     {
         /// <summary>Сколько секунд стоять без действий до первого осмотра.</summary>
-        public float Delay { get; set; } = 4f;
+        public float Delay { get; set; } = 8f;
 
         /// <summary>Пауза до следующего осмотра — случайная в этих пределах, секунды.</summary>
-        public float RepeatMin { get; set; } = 6f;
-        public float RepeatMax { get; set; } = 11f;
+        public float RepeatMin { get; set; } = 15f;
+        public float RepeatMax { get; set; } = 25f;
 
         /// <summary>Длительность одного осмотра (влево и вправо), секунды.</summary>
         public float Duration { get; set; } = 3.4f;
@@ -217,39 +217,52 @@ namespace ColorsAction.Configs
     }
 
     /// <summary>
-    /// Редкий idle врага: поднимает оружие перед собой и вертит его вокруг вертикали (наклонив к себе), глаза следят
-    /// за оружием, куб чуть кланяется к нему; потом возвращает оружие в стойку.
+    /// Редкий idle врага: берёт оружие перед собой и перебрасывает его из руки в руку — оружие летит дугой
+    /// перед кубом, переворачиваясь в воздухе, куб «ловит» его (чуть приседает), глаза и верх тела следят за ним.
+    /// После последнего броска оружие снова в правой руке и возвращается в стойку.
     /// </summary>
     [Preserve]
     public sealed class WeaponInspectConfig
     {
         /// <summary>Сколько секунд стоять в покое до первого раза (плюс случайная пауза).</summary>
-        public float Delay { get; set; } = 3f;
+        public float Delay { get; set; } = 6f;
 
         /// <summary>Пауза между разами — случайная в этих пределах, секунды покоя.</summary>
-        public float IntervalMin { get; set; } = 8f;
-        public float IntervalMax { get; set; } = 15f;
+        public float IntervalMin { get; set; } = 18f;
+        public float IntervalMax { get; set; } = 30f;
 
-        /// <summary>Длительность целиком (поднять, повертеть, опустить), секунды.</summary>
-        public float Duration { get; set; } = 3.8f;
+        /// <summary>Длительность целиком (взять перед собой, перебросить, вернуть в стойку), секунды.</summary>
+        public float Duration { get; set; } = 4.2f;
 
-        /// <summary>Доли длительности на подъём и на возврат в стойку.</summary>
-        public float Raise { get; set; } = 0.18f;
-        public float Lower { get; set; } = 0.2f;
+        /// <summary>Доли длительности на подъём перед собой и на возврат в стойку.</summary>
+        public float Raise { get; set; } = 0.15f;
+        public float Lower { get; set; } = 0.15f;
 
-        /// <summary>Сколько полных оборотов оружие делает вокруг вертикали.</summary>
-        public float Turns { get; set; } = 1.25f;
+        /// <summary>Сколько бросков из руки в руку (чётное — оружие вернётся в правую руку).</summary>
+        public int Tosses { get; set; } = 4;
 
-        /// <summary>Наклон оружия от вертикали, градусы (вершиной к себе в начале).</summary>
-        public float Tilt { get; set; } = 34f;
+        /// <summary>Доля каждого броска, когда оружие лежит в руке (поймал, подкинул), остальное — полёт.</summary>
+        public float Hold { get; set; } = 0.35f;
+
+        /// <summary>Высота дуги броска над руками, доля куба.</summary>
+        public float TossHeight { get; set; } = 0.35f;
+
+        /// <summary>Оборотов оружия в полёте за бросок (в плоскости перед кубом).</summary>
+        public float Spin { get; set; } = 1f;
+
+        /// <summary>Расстояние между «руками» (откуда и куда летит оружие), доля куба.</summary>
+        public float Span { get; set; } = 0.68f;
+
+        /// <summary>Приседание куба, когда он ловит оружие, доля высоты.</summary>
+        public float CatchSquash { get; set; } = 0.04f;
 
         /// <summary>Поклон куба к оружию, градусы у верха.</summary>
-        public float Pitch { get; set; } = 7f;
+        public float Pitch { get; set; } = 6f;
 
-        /// <summary>Скручивание вслед за вершиной оружия, градусы.</summary>
+        /// <summary>Скручивание вслед за оружием, градусы.</summary>
         public float FollowTwist { get; set; } = 8f;
 
-        /// <summary>Насколько глаза следят за вершиной оружия, доля куба (макс. сдвиг).</summary>
+        /// <summary>Насколько глаза следят за оружием, доля куба (макс. сдвиг).</summary>
         public float EyeShift { get; set; } = 0.08f;
 
         internal void Validate()
@@ -260,7 +273,11 @@ namespace ColorsAction.Configs
             Duration = Math.Max(0.5f, Duration);
             Raise = Math.Max(0.02f, Math.Min(0.45f, Raise));
             Lower = Math.Max(0.02f, Math.Min(0.45f, Lower));
-            Tilt = Math.Max(0f, Math.Min(85f, Tilt));
+            Tosses = Math.Max(1, Math.Min(12, Tosses));
+            Hold = Math.Max(0f, Math.Min(0.9f, Hold));
+            TossHeight = Math.Max(0f, Math.Min(1.5f, TossHeight));
+            Span = Math.Max(0f, Math.Min(1.2f, Span));
+            CatchSquash = Math.Max(0f, Math.Min(0.2f, CatchSquash));
             EyeShift = Math.Max(0f, Math.Min(0.2f, EyeShift));
         }
     }

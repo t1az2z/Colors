@@ -828,7 +828,10 @@ namespace ColorsAction.Unity
             if (brain == null || hand == null)
                 return;
             var pose = HandPose();
-            var k = brain.IsAttacking || brain.State == EnemyState.Parried ? 1f : 1f - Mathf.Exp(-Time.deltaTime * 14f);
+            // Перебрасывание оружия — без сглаживания: быстрый полёт с переворотом иначе отстаёт и срезает оборот.
+            var k = brain.IsAttacking || brain.State == EnemyState.Parried || (idle != null && idle.Inspecting)
+                ? 1f
+                : 1f - Mathf.Exp(-Time.deltaTime * 14f);
             handPose = k >= 1f ? pose : PlayerCombat.AroundBody(handPose, pose, k);
             hand.localPosition = deformer.DeformPoint(handPose.position);
             if (parryGlint > 0f)
@@ -847,27 +850,26 @@ namespace ColorsAction.Unity
         private static Pose Lowered => new Pose(new Vector3(0.64f, 0.24f, 0.18f),
             Quaternion.FromToRotation(Vector3.up, new Vector3(0.18f, -0.72f, 0.67f).normalized));
 
+        /// <summary>Середина оружия от хвата вдоль рукояти (вокруг неё оружие переворачивается в полёте), доля куба.</summary>
+        private const float WeaponMiddle = 0.32f;
+
         /// <summary>
-        /// Редкий idle (Animations.json → inspect): оружие поднято перед собой, наклонено вершиной к глазам и
-        /// вертится вокруг вертикали — вершина обходит круг (к себе → вправо → от себя → влево), как будто враг
-        /// его рассматривает; заодно чуть проворачивается в пальцах. <paramref name="u"/> — доля верчения 0..1:
-        /// подъём из стойки, верчение, возврат в стойку.
+        /// Редкий idle (Animations.json → inspect): враг берёт оружие перед собой и перебрасывает его из руки в руку.
+        /// В руке оружие стоит рукоятью вниз, чуть наклонено наружу; в полёте его середина идёт дугой перед кубом,
+        /// а само оружие переворачивается в плоскости перед кубом. <paramref name="u"/> — доля idle 0..1:
+        /// взять перед собой из стойки, броски (<see cref="CubeIdleAnimator.Toss"/>), вернуть в стойку.
         /// </summary>
         private Pose InspectPose(float u)
         {
             var inspect = animConfig.Inspect;
-            var lift = CubeIdleAnimator.InspectLift(inspect, u);
-            var angle = CubeIdleAnimator.InspectAngle(inspect, u);
-            var tilt = inspect.Tilt * Mathf.Deg2Rad;
-            // angle 0 — вершиной к себе (-Z), π/2 — вправо (+X), как взгляд в CubeIdleAnimator.
-            var flat = new Vector3(Mathf.Sin(angle), 0f, -Mathf.Cos(angle));
-            var dir = (Vector3.up * Mathf.Cos(tilt) + flat * Mathf.Sin(tilt)).normalized;
-            // Рука перед лицом чуть правее (сторона оружия) и далеко вперёд: вершина, наклонённая к себе,
-            // проходит над передним верхним ребром и не закрывает глаза целиком.
-            var pos = new Vector3(0.18f, 0.38f + Mathf.Sin(angle * 2f) * 0.025f, 1.05f);
-            var roll = Quaternion.AngleAxis(angle * Mathf.Rad2Deg * 0.5f, Vector3.up);
-            var front = new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir) * roll);
-            return lift >= 1f ? front : PlayerCombat.AroundBody(Rest, front, lift);
+            var toss = CubeIdleAnimator.Toss(inspect, u);
+            var half = inspect.Span * 0.5f;
+            var middle = new Vector3(half * toss.Side, 0.55f + toss.Arc * inspect.TossHeight - toss.Dip * 0.06f, 0.72f);
+            var lean = Quaternion.FromToRotation(Vector3.up, new Vector3(0.28f * toss.Side, 1f, 0.12f).normalized);
+            var flip = Quaternion.AngleAxis(toss.FlipDirection * toss.Flip * 360f * inspect.Spin, Vector3.forward);
+            var rotation = flip * lean;
+            var front = new Pose(middle - rotation * (Vector3.up * WeaponMiddle), rotation);
+            return toss.Lift >= 1f ? front : PlayerCombat.AroundBody(Rest, front, toss.Lift);
         }
 
         /// <param name="t">Время с момента столкновения оружия со щитом (до него — отрицательное).</param>
@@ -1008,7 +1010,7 @@ namespace ColorsAction.Unity
             // оглушение) или толчок прерывает их.
             var standing = state == EnemyState.Idle && motor.Grounded && speed < 0.3f && push.sqrMagnitude < 0.04f && hopTimer < 0f;
             idle.Tick(dt, standing, false);
-            deformer.DirectSquash = steps.Squash + idle.BreathSquash;
+            deformer.DirectSquash = steps.Squash + idle.BreathSquash + idle.Squash;
             deformer.TwistOffset = idle.Twist;
             deformer.PitchOffset = idle.Pitch;
             deformer.EyeOffset = new Vector2(idle.EyeX, idle.EyeY);

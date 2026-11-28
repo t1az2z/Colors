@@ -601,7 +601,7 @@ namespace ColorsAction.Unity
             steps.Tick(dt, speed, config.WalkSpeed, config.WalkSpeed * config.RunMultiplier,
                 motor.Grounded && !rolling && windupTimer < 0f && !leaping);
             deformer.DirectBend = new Vector2(steps.Sway, 0f);
-            deformer.DirectSquash = steps.Squash + idle.BreathSquash;
+            deformer.DirectSquash = steps.Squash + idle.BreathSquash + idle.Squash;
             deformer.TwistOffset = idle.Twist;
             deformer.PitchOffset = idle.Pitch;
             deformer.EyeOffset = new Vector2(idle.EyeX, idle.EyeY);

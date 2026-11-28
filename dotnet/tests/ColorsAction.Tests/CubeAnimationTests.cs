@@ -238,30 +238,68 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void Inspect_EnemyRaisesWeapon_FullCircle_InterruptedByState()
+        public void Inspect_EnemyStartsRarely_InterruptedByState()
         {
             var config = Enemy();
             var inspect = config.Inspect;
             var idle = new CubeIdleAnimator(config, 5);
             var started = false;
-            Run(idle, inspect.Delay + inspect.IntervalMax * 0.5f + 0.1f, true, false, a => started |= a.Inspecting);
-            Assert.That(started, Is.True, "через задержку + половину паузы начал вертеть");
+            Run(idle, inspect.Delay - 0.1f, true, false, a => started |= a.Inspecting);
+            Assert.That(started, Is.False, "раньше задержки не начинает");
+            Run(idle, inspect.IntervalMax * 0.5f + 0.2f, true, false, a => started |= a.Inspecting);
+            Assert.That(started, Is.True, "через задержку + половину паузы начал перебрасывать");
 
-            // Довести до середины верчения и проверить подъём и поклон.
+            // Довести до середины и проверить, что оружие перед собой и куб кланяется к нему.
             var guard = 0;
             while (idle.InspectProgress < 0.5f && guard++ < 2000)
                 idle.Tick(Dt, true, false);
             Assert.That(CubeIdleAnimator.InspectLift(inspect, idle.InspectProgress), Is.EqualTo(1f));
             Assert.That(idle.Pitch, Is.EqualTo(inspect.Pitch).Within(1e-3f), "кланяется к оружию");
-            Assert.That(CubeIdleAnimator.InspectAngle(inspect, 1f), Is.EqualTo(inspect.Turns * 2f * Math.PI).Within(1e-3f));
-            Assert.That(CubeIdleAnimator.InspectLift(inspect, 1f), Is.EqualTo(0f), "в конце оружие вернулось в стойку");
 
-            // Заметил игрока (состояние не Idle): верчение быстро гаснет.
+            // Заметил игрока (состояние не Idle): перебрасывание быстро гаснет.
             idle.Tick(Dt, false, false);
             Assert.That(idle.Inspecting, Is.False);
             Run(idle, CubeIdleAnimator.CancelTime + 0.05f, false);
             Assert.That(idle.InspectWeight, Is.EqualTo(0f));
             Assert.That(idle.Pitch, Is.EqualTo(0f).Within(1e-4f));
+            Assert.That(idle.Squash, Is.EqualTo(0f).Within(1e-4f));
+        }
+
+        [Test]
+        public void Toss_GoesHandToHand_FlipsInFlight_EndsInRightHand()
+        {
+            var inspect = Enemy().Inspect;
+            Assert.That(inspect.Tosses % 2, Is.EqualTo(0), "чётное число бросков — оружие вернётся в правую руку");
+            var start = CubeIdleAnimator.Toss(inspect, 0f);
+            var end = CubeIdleAnimator.Toss(inspect, 1f);
+            Assert.That(start.Side, Is.EqualTo(1f), "берёт перед собой из правой руки");
+            Assert.That(end.Side, Is.EqualTo(1f).Within(1e-4f), "заканчивает в правой руке");
+            Assert.That(start.Lift, Is.EqualTo(0f));
+            Assert.That(end.Lift, Is.EqualTo(0f));
+
+            // Отметить, где оружие лежит в руке между полётами: стороны чередуются, в полёте — дуга и переворот.
+            var sides = new System.Collections.Generic.List<float>();
+            var wasFlying = false;
+            float maxArc = 0f;
+            for (float u = 0f; u <= 1f; u += 0.001f)
+            {
+                var t = CubeIdleAnimator.Toss(inspect, u);
+                maxArc = Math.Max(maxArc, t.Arc);
+                if (t.Flying)
+                {
+                    Assert.That(t.Side, Is.InRange(-1f, 1f));
+                    Assert.That(t.Flip, Is.InRange(0f, 1f));
+                }
+
+                if (wasFlying && !t.Flying)
+                    sides.Add(t.Side);
+                wasFlying = t.Flying;
+            }
+
+            Assert.That(maxArc, Is.EqualTo(1f).Within(0.01f), "в середине полёта — вершина дуги");
+            Assert.That(sides.Count, Is.EqualTo(inspect.Tosses), "ловит после каждого броска");
+            for (int i = 0; i < sides.Count; i++)
+                Assert.That(sides[i], Is.EqualTo(i % 2 == 0 ? -1f : 1f), "руки чередуются: левая, правая, …");
         }
     }
 }

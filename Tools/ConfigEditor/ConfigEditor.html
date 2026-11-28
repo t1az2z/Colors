@@ -282,7 +282,36 @@ function vizLookAround({ d }) {
   const eyes = [], twist = [];
   for (let i = 0; i <= 200; i++) { const u = i / 200; eyes.push([u * dur, keyed(EK, u)]); twist.push([u * dur, keyed(TK, u)]); }
   return `<h4>Осмотр: глаза (доля сдвига) и скручивание тела (доля угла)</h4>` + chart(560, 150, [{ pts: eyes, c: C.blue, name: `глаза, ±${r2(num(l.eyeShift, 0.1))}` }, { pts: twist, c: C.orange, name: `тело, ±${r2(num(l.twist, 32), 0)}°` }], { xl: 'секунды', legend: true, y0: -1.1, y1: 1.1 })
-    + facts([['Первый осмотр', `через ${r2(num(l.delay, 4))} с покоя`], ['Дальше', `каждые ${r2(num(l.repeatMin, 6))}–${r2(num(l.repeatMax, 11))} с`], ['Сторона', 'случайная']]);
+    + facts([['Первый осмотр', `через ${r2(num(l.delay, 8))} с покоя`], ['Дальше', `каждые ${r2(num(l.repeatMin, 15))}–${r2(num(l.repeatMax, 25))} с`], ['Сторона', 'случайная']]);
+}
+// Перебрасывание оружия (как CubeIdleAnimator.Toss): вид спереди — путь середины оружия и положения через равные доли.
+function vizToss({ d }) {
+  const c = d.enemy?.inspect || {};
+  const raise = num(c.raise, 0.15), lower = num(c.lower, 0.15), n = Math.max(1, Math.round(num(c.tosses, 4))), hold = num(c.hold, 0.35);
+  const H = num(c.tossHeight, 0.35), half = num(c.span, 0.68) / 2, spin = num(c.spin, 1), dur = Math.max(0.5, num(c.duration, 4.2));
+  const toss = u => {
+    const v = clamp((u - raise) / Math.max(0.01, 1 - raise - lower), 0, 1), k = Math.min(n - 1, Math.floor(v * n)), w = v * n - k, from = k % 2 ? -1 : 1;
+    if (w < hold) return { side: from, arc: 0, flip: 0, dir: from };
+    const f = clamp((w - hold) / Math.max(0.01, 1 - hold), 0, 1);
+    return { side: from * (1 - 2 * f), arc: 4 * f * (1 - f), flip: f, dir: from };
+  };
+  const W = 560, Hh = 220, S = 150, ox = W / 2, oy = Hh - 20;
+  const X = x => ox + x * S, Y = y => oy - y * S;
+  let g = `<rect x="${X(-0.5)}" y="${Y(1)}" width="${S}" height="${S}" rx="12" fill="#e2e4e8" stroke="#b3b6bd"/>`;
+  g += `<rect x="${X(-0.17) - 7}" y="${Y(0.72)}" width="14" height="24" fill="#555"/><rect x="${X(0.17) - 7}" y="${Y(0.72)}" width="14" height="24" fill="#555"/>`;
+  const path = [];
+  for (let i = 0; i <= 200; i++) { const t = toss(raise + (1 - raise - lower) * i / 200); path.push(`${X(half * t.side).toFixed(1)},${Y(0.55 + t.arc * H).toFixed(1)}`); }
+  g += `<polyline fill="none" stroke="${C.orange}" stroke-dasharray="4 3" stroke-width="1.5" points="${path.join(' ')}"/>`;
+  for (let i = 0; i < 12; i++) {
+    const t = toss(raise + (1 - raise - lower) * (i + 0.5) / 12), cx = half * t.side, cy = 0.55 + t.arc * H;
+    const a = -t.dir * t.flip * spin * Math.PI * 2 + Math.atan2(0.28 * t.side, 1);
+    const dx = Math.sin(a) * 0.32, dy = Math.cos(a) * 0.32;
+    g += `<line x1="${X(cx - dx)}" y1="${Y(cy - dy)}" x2="${X(cx + dx * 1.4)}" y2="${Y(cy + dy * 1.4)}" stroke="#4a3f4c" stroke-width="5" stroke-linecap="round" opacity="${0.25 + 0.06 * i}"/>`;
+  }
+  g += T(X(half), oy + 14, 'правая рука', { anchor: 'middle', size: 10 }) + T(X(-half), oy + 14, 'левая', { anchor: 'middle', size: 10 });
+  const per = dur * (1 - raise - lower) / n;
+  return `<h4>Вид спереди: путь оружия и его положения</h4>` + svgWrap(W, Hh + 6, g)
+    + facts([['Один бросок', `${r2(per)} с (в руке ${r2(per * hold)} с, полёт ${r2(per * (1 - hold))} с)`], ['Первый раз', `через ${r2(num(c.delay, 6) + (num(c.intervalMin, 18) + num(c.intervalMax, 30)) / 4)} с покоя (в среднем)`], ['Дальше', `каждые ${r2(num(c.intervalMin, 18))}–${r2(num(c.intervalMax, 30))} с`]]);
 }
 
 const SCHEMA = {
@@ -292,9 +321,9 @@ const SCHEMA = {
       { title: 'Игрок: ходьба и бег', viz: vizAnimPlayer, fields: animMoveFields('player', false) },
       { title: 'Игрок: дыхание и моргание', viz: ({ d }) => vizAnimIdle(d.player?.breath, d.player?.blink), fields: animIdleFields('player') },
       { title: 'Игрок: осмотр по сторонам', sub: 'после нескольких секунд без действий: глаза в сторону, следом скручивается верх куба, потом в другую сторону', viz: vizLookAround, fields: [
-        { k: 'player.lookAround.delay', l: 'Через сколько покоя', d: 'Сколько секунд стоять без действий до первого осмотра.', u: U.s, min: 0, max: 30, step: 0.5, def: 4 },
-        { k: 'player.lookAround.repeatMin', l: 'Повтор от', d: 'Пауза до следующего осмотра, если игрок всё ещё стоит, — случайная «от — до».', u: U.s, min: 0, max: 60, step: 0.5, def: 6 },
-        { k: 'player.lookAround.repeatMax', l: 'Повтор до', d: '', u: U.s, min: 0, max: 60, step: 0.5, def: 11 },
+        { k: 'player.lookAround.delay', l: 'Через сколько покоя', d: 'Сколько секунд стоять без действий до первого осмотра.', u: U.s, min: 0, max: 60, step: 0.5, def: 8 },
+        { k: 'player.lookAround.repeatMin', l: 'Повтор от', d: 'Пауза до следующего осмотра, если игрок всё ещё стоит, — случайная «от — до».', u: U.s, min: 0, max: 120, step: 0.5, def: 15 },
+        { k: 'player.lookAround.repeatMax', l: 'Повтор до', d: '', u: U.s, min: 0, max: 120, step: 0.5, def: 25 },
         { k: 'player.lookAround.duration', l: 'Длительность', d: 'Один осмотр влево и вправо.', u: U.s, min: 0.5, max: 10, step: 0.1, def: 3.4 },
         { k: 'player.lookAround.twist', l: 'Скручивание', d: 'На сколько градусов поворачивается верх куба (низ стоит на месте).', u: U.deg, min: 0, max: 80, step: 1, def: 32 },
         { k: 'player.lookAround.eyeShift', l: 'Сдвиг глаз', d: 'Насколько глаза уходят по передней грани в сторону взгляда.', u: U.frac, min: 0, max: 0.2, step: 0.005, def: 0.1 },
@@ -302,18 +331,22 @@ const SCHEMA = {
       ] },
       { title: 'Враги: ходьба и бег', viz: vizAnimEnemy, fields: animMoveFields('enemy', true) },
       { title: 'Враги: дыхание и моргание', viz: ({ d }) => vizAnimIdle(d.enemy?.breath, d.enemy?.blink), fields: animIdleFields('enemy') },
-      { title: 'Враги: верчение оружия', sub: 'редкий idle: поднимает оружие перед собой и вертит, как будто рассматривает; глаза следят за вершиной', fields: [
-        { k: 'enemy.inspect.delay', l: 'Через сколько покоя', d: 'Минимум секунд покоя до первого раза (плюс случайная пауза).', u: U.s, min: 0, max: 60, step: 0.5, def: 3 },
-        { k: 'enemy.inspect.intervalMin', l: 'Пауза от', d: 'Между разами — случайная пауза «от — до» секунд покоя.', u: U.s, min: 0, max: 120, step: 0.5, def: 8 },
-        { k: 'enemy.inspect.intervalMax', l: 'Пауза до', d: '', u: U.s, min: 0, max: 120, step: 0.5, def: 15 },
-        { k: 'enemy.inspect.duration', l: 'Длительность', d: 'Поднять, повертеть и вернуть в стойку.', u: U.s, min: 0.5, max: 15, step: 0.1, def: 3.8 },
-        { k: 'enemy.inspect.raise', l: 'Доля на подъём', d: '', u: U.frac, min: 0.02, max: 0.45, step: 0.01, def: 0.18 },
-        { k: 'enemy.inspect.lower', l: 'Доля на возврат', d: '', u: U.frac, min: 0.02, max: 0.45, step: 0.01, def: 0.2 },
-        { k: 'enemy.inspect.turns', l: 'Оборотов', d: 'Сколько раз вершина оружия обходит круг вокруг вертикали.', u: 'об.', min: 0, max: 5, step: 0.05, def: 1.25 },
-        { k: 'enemy.inspect.tilt', l: 'Наклон оружия', d: 'Отклонение оружия от вертикали, градусы (в начале — вершиной к себе).', u: U.deg, min: 0, max: 85, step: 1, def: 34 },
-        { k: 'enemy.inspect.pitch', l: 'Поклон к оружию', d: 'Градусы у верха куба.', u: U.deg, min: -20, max: 30, step: 0.5, def: 7 },
-        { k: 'enemy.inspect.followTwist', l: 'Скручивание вслед', d: 'Верх куба поворачивается за вершиной оружия, градусы.', u: U.deg, min: 0, max: 40, step: 1, def: 8 },
-        { k: 'enemy.inspect.eyeShift', l: 'Глаза за оружием', d: 'Насколько глаза следят за вершиной оружия.', u: U.frac, min: 0, max: 0.2, step: 0.005, def: 0.08 },
+      { title: 'Враги: перебрасывание оружия', sub: 'редкий idle: берёт оружие перед собой и перебрасывает из руки в руку — дугой, с переворотом в воздухе; глаза и верх куба следят за оружием', viz: vizToss, fields: [
+        { k: 'enemy.inspect.delay', l: 'Через сколько покоя', d: 'Минимум секунд покоя до первого раза (плюс случайная пауза, половина «пауза от — до»).', u: U.s, min: 0, max: 60, step: 0.5, def: 6 },
+        { k: 'enemy.inspect.intervalMin', l: 'Пауза от', d: 'Между разами — случайная пауза «от — до» секунд покоя.', u: U.s, min: 0, max: 120, step: 0.5, def: 18 },
+        { k: 'enemy.inspect.intervalMax', l: 'Пауза до', d: '', u: U.s, min: 0, max: 120, step: 0.5, def: 30 },
+        { k: 'enemy.inspect.duration', l: 'Длительность', d: 'Взять перед собой, перебросить и вернуть в стойку.', u: U.s, min: 0.5, max: 15, step: 0.1, def: 4.2 },
+        { k: 'enemy.inspect.raise', l: 'Доля на подъём', d: 'Сколько времени оружие идёт из стойки перед собой.', u: U.frac, min: 0.02, max: 0.45, step: 0.01, def: 0.15 },
+        { k: 'enemy.inspect.lower', l: 'Доля на возврат', d: 'Сколько времени оружие возвращается в стойку.', u: U.frac, min: 0.02, max: 0.45, step: 0.01, def: 0.15 },
+        { k: 'enemy.inspect.tosses', l: 'Бросков', t: 'int', d: 'Сколько раз оружие перелетает из руки в руку. Чётное — в конце оно снова в правой руке.', u: 'шт.', min: 1, max: 12, step: 1, def: 4 },
+        { k: 'enemy.inspect.hold', l: 'Доля в руке', d: 'Часть каждого броска, когда оружие в руке (поймал, присел, подкинул); остальное — полёт.', u: U.frac, min: 0, max: 0.9, step: 0.01, def: 0.35 },
+        { k: 'enemy.inspect.tossHeight', l: 'Высота броска', d: 'Насколько оружие взлетает над руками.', u: U.frac, min: 0, max: 1.5, step: 0.01, def: 0.35 },
+        { k: 'enemy.inspect.spin', l: 'Оборотов в полёте', d: 'Сколько раз оружие переворачивается за один бросок (в плоскости перед кубом).', u: 'об.', min: 0, max: 3, step: 0.25, def: 1 },
+        { k: 'enemy.inspect.span', l: 'Между руками', d: 'Расстояние, на которое перелетает оружие, доля куба.', u: U.frac, min: 0, max: 1.2, step: 0.01, def: 0.68 },
+        { k: 'enemy.inspect.catchSquash', l: 'Приседание при ловле', d: 'Насколько куб оседает, поймав оружие.', u: U.frac, min: 0, max: 0.2, step: 0.005, def: 0.04 },
+        { k: 'enemy.inspect.pitch', l: 'Поклон к оружию', d: 'Градусы у верха куба.', u: U.deg, min: -20, max: 30, step: 0.5, def: 6 },
+        { k: 'enemy.inspect.followTwist', l: 'Скручивание вслед', d: 'Верх куба поворачивается за оружием, градусы.', u: U.deg, min: 0, max: 40, step: 1, def: 8 },
+        { k: 'enemy.inspect.eyeShift', l: 'Глаза за оружием', d: 'Насколько глаза следят за оружием.', u: U.frac, min: 0, max: 0.2, step: 0.005, def: 0.08 },
       ] },
     ],
     validate(d) {
@@ -325,9 +358,10 @@ const SCHEMA = {
         if (num(m.runStepRate, 4.2) < num(m.walkStepRate, 3.2)) w.push(`${id}: на бегу шагов в секунду меньше, чем при ходьбе.`);
       }
       const l = d.player?.lookAround || {};
-      if (num(l.repeatMax, 11) < num(l.repeatMin, 6)) w.push('Осмотр: повтор «до» меньше «от».');
+      if (num(l.repeatMax, 25) < num(l.repeatMin, 15)) w.push('Осмотр: повтор «до» меньше «от».');
       const i = d.enemy?.inspect || {};
-      if (num(i.raise, 0.18) + num(i.lower, 0.2) > 0.9) w.push('Верчение оружия: подъём и возврат занимают почти всё время — на верчение не останется.');
+      if (num(i.raise, 0.15) + num(i.lower, 0.15) > 0.9) w.push('Перебрасывание: подъём и возврат занимают почти всё время — на броски не останется.');
+      if (num(i.tosses, 4) % 2) w.push('Перебрасывание: нечётное число бросков — оружие закончит в левой руке и вернётся в стойку через грудь.');
       return w;
     },
   },

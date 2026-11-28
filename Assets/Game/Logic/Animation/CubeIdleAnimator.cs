@@ -3,13 +3,37 @@ using ColorsAction.Configs;
 
 namespace ColorsAction.Animation
 {
+    /// <summary>Положение оружия при перебрасывании (<see cref="CubeIdleAnimator.Toss"/>).</summary>
+    public struct WeaponToss
+    {
+        /// <summary>Где оружие поперёк куба: +1 — правая рука, -1 — левая, между — в полёте.</summary>
+        public float Side;
+
+        /// <summary>Высота дуги броска 0..1 (1 — середина полёта).</summary>
+        public float Arc;
+
+        /// <summary>Доля переворота в текущем полёте 0..1.</summary>
+        public float Flip;
+
+        /// <summary>Направление переворота: +1 — бросок из правой руки, -1 — из левой.</summary>
+        public float FlipDirection;
+
+        /// <summary>Приседание в руке 0..1 (поймал — опустилось, подкинул — поднялось).</summary>
+        public float Dip;
+
+        /// <summary>Насколько оружие взято перед собой (0 — в стойке).</summary>
+        public float Lift;
+
+        public bool Flying;
+    }
+
     /// <summary>
-    /// Анимации покоя куба (игрок и враги), без движка: дыхание, моргание, осмотр по сторонам (игрок) и верчение
-    /// оружия (враги). Адаптер каждый кадр сообщает, стоит ли куб (<c>standing</c>) и было ли действие (<c>action</c>),
-    /// и забирает значения для деформации.
-    /// <para>Любое действие прерывает всё: счётчик покоя обнуляется, осмотр и верчение быстро гаснут, моргание открывает
-    /// глаза, дыхание затухает, если куб перестал стоять. Нажатие, после которого куб остался стоять (например,
-    /// взаимодействие без цели), сбрасывает только счётчик покоя и редкие idle.</para>
+    /// Анимации покоя куба (игрок и враги), без движка: дыхание, моргание, осмотр по сторонам (игрок) и
+    /// перебрасывание оружия из руки в руку (враги). Адаптер каждый кадр сообщает, стоит ли куб (<c>standing</c>)
+    /// и было ли действие (<c>action</c>), и забирает значения для деформации.
+    /// <para>Любое действие прерывает всё: счётчик покоя обнуляется, осмотр и перебрасывание быстро гаснут, моргание
+    /// открывает глаза, дыхание затухает, если куб перестал стоять. Нажатие, после которого куб остался стоять
+    /// (например, взаимодействие без цели), сбрасывает только счётчик покоя и редкие idle.</para>
     /// </summary>
     public sealed class CubeIdleAnimator
     {
@@ -65,6 +89,9 @@ namespace ColorsAction.Animation
 
         /// <summary>Добавка к поклону, градусы (плюс — вперёд).</summary>
         public float Pitch { get; private set; }
+
+        /// <summary>Добавка к сжатию от редкого idle (присел, поймав оружие), складывается с дыханием.</summary>
+        public float Squash { get; private set; }
 
         /// <summary>Сдвиг глаз по передней грани (доля куба): X — вправо, Y — вверх.</summary>
         public float EyeX { get; private set; }
@@ -291,7 +318,7 @@ namespace ColorsAction.Animation
                 }
             }
 
-            Twist = Pitch = EyeX = EyeY = 0f;
+            Twist = Pitch = EyeX = EyeY = Squash = 0f;
             if (specialTime < 0f)
                 return;
             var u = Clamp01(specialTime / Math.Max(0.01f, SpecialDuration));
@@ -324,17 +351,7 @@ namespace ColorsAction.Animation
             Pitch = -Math.Abs(twist) * look.Pitch * weight;
         }
 
-        /// <summary>
-        /// Угол поворота оружия вокруг вертикали в момент <paramref name="u"/> (доля верчения), радианы:
-        /// 0 — вершиной к себе, растёт на <see cref="WeaponInspectConfig.Turns"/> оборотов за время верчения.
-        /// </summary>
-        public static float InspectAngle(WeaponInspectConfig inspect, float u)
-        {
-            var v = Clamp01((u - inspect.Raise) / Math.Max(0.01f, 1f - inspect.Raise - inspect.Lower));
-            return Smooth(v) * inspect.Turns * TwoPi;
-        }
-
-        /// <summary>Насколько оружие поднято перед собой: 0 — в стойке, 1 — перед глазами.</summary>
+        /// <summary>Насколько оружие взято перед собой: 0 — в стойке, 1 — перед кубом.</summary>
         public static float InspectLift(WeaponInspectConfig inspect, float u)
         {
             if (u < inspect.Raise)
@@ -344,16 +361,46 @@ namespace ColorsAction.Animation
             return 1f;
         }
 
+        /// <summary>
+        /// Перебрасывание оружия из руки в руку в момент <paramref name="u"/> (доля всего idle 0..1). Начинает и
+        /// заканчивает в правой руке (при чётном числе бросков); каждый бросок — сначала оружие в руке (поймал,
+        /// чуть присел, подкинул), потом полёт дугой к другой руке с переворотом.
+        /// </summary>
+        public static WeaponToss Toss(WeaponInspectConfig inspect, float u)
+        {
+            var toss = new WeaponToss { Side = 1f, FlipDirection = 1f, Lift = InspectLift(inspect, u) };
+            var v = Clamp01((u - inspect.Raise) / Math.Max(0.01f, 1f - inspect.Raise - inspect.Lower));
+            var n = Math.Max(1, inspect.Tosses);
+            var k = Math.Min(n - 1, (int)Math.Floor(v * n));
+            var w = v * n - k;
+            var from = k % 2 == 0 ? 1f : -1f;
+            toss.FlipDirection = from;
+            if (w < inspect.Hold)
+            {
+                // В руке: поймал — присел и выпрямился, подкидывая.
+                toss.Side = from;
+                toss.Dip = inspect.Hold > 0f ? (float)Math.Sin(Math.PI * w / inspect.Hold) : 0f;
+                return toss;
+            }
+
+            var f = Clamp01((w - inspect.Hold) / Math.Max(0.01f, 1f - inspect.Hold));
+            toss.Side = from * (1f - 2f * f);
+            toss.Arc = 4f * f * (1f - f);
+            toss.Flip = f;
+            toss.Flying = f > 0f && f < 1f;
+            return toss;
+        }
+
         private void InspectFollow(WeaponInspectConfig inspect, float u, float weight)
         {
-            var lift = InspectLift(inspect, u) * weight;
-            var angle = InspectAngle(inspect, u);
-            // Вершина оружия описывает круг: sin — вбок, глаза и верх куба следят за ней.
-            var side = (float)Math.Sin(angle);
-            EyeX = side * inspect.EyeShift * lift;
-            EyeY = inspect.EyeShift * 0.4f * lift;
-            Twist = side * inspect.FollowTwist * lift;
+            var toss = Toss(inspect, u);
+            var lift = toss.Lift * weight;
+            // Глаза и верх куба следят за оружием: вбок — по руке/полёту, вверх — по дуге броска.
+            EyeX = toss.Side * inspect.EyeShift * lift;
+            EyeY = (0.2f + toss.Arc * 0.8f) * inspect.EyeShift * 0.6f * lift;
+            Twist = toss.Side * inspect.FollowTwist * lift;
             Pitch = inspect.Pitch * lift;
+            Squash = -toss.Dip * inspect.CatchSquash * lift;
         }
 
         // ------------------------------------------------------------------ helpers
