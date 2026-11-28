@@ -1,9 +1,9 @@
 {
-  "walkSpeed": 6.4,
-  "runMultiplier": 1.5,
+  "walkSpeed": 6.2,
+  "runMultiplier": 1.3,
   "acceleration": 90,
   "deceleration": 140,
-  "airControl": 0.6,
+  "airControl": 0.4,
   "turnSpeed": 450,
   "blockMoveMultiplier": 0.45,
   "attackMoveMultiplier": 0.25,
@@ -55,11 +55,19 @@
   "health": {
     "max": 100,
     "maxPerLevel": 10,
-    "hitInvulnerability": 2,
-    "blinkRate": 12,
-    "blinkStrength": 0.45
+    "hitInvulnerability": 0.15,
+    "blinkRate": 3.5,
+    "blinkStrength": 0.95,
+    "blinkGlow": 1
   },
-  "fallDamage": { "enabled": true, "lightHeight": 4, "lightDamage": 0.2, "heavyHeight": 5, "heavyDamage": 0.7, "lethalHeight": 6 },
+  "fallDamage": {
+    "enabled": true,
+    "lightHeight": 4,
+    "lightDamage": 0.2,
+    "heavyHeight": 5,
+    "heavyDamage": 0.7,
+    "lethalHeight": 6
+  },
   "deformation": {
     "stiffness": 270,
     "damping": 9,

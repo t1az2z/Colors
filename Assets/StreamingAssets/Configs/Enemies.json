@@ -3,11 +3,11 @@
     "name": "Куб с дубиной",
     "color": "green",
     "size": 0.9,
-    "maxHealth": 40,
+    "maxHealth": 50,
     "weaponPrefab": "Items/Club",
     "loseRadius": 20,
-    "alertDuration": 1,
-    "moveSpeed": 7,
+    "alertDuration": 0.8,
+    "moveSpeed": 6,
     "turnSpeed": 540,
     "waitDistance": 3.2,
     "attackCooldown": 0.8,
@@ -17,8 +17,8 @@
     "deathPieces": 14,
     "experiencePieces": 10,
     "attacks": [
-      { "motion": "Sweep", "windup": 0.4, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 15, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07 },
-      { "motion": "Overhead", "windup": 0.5, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 22, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.03, "parryTo": 0.06 }
+      { "motion": "Sweep", "windup": 0.4, "strike": 0.1, "hold": 0.2, "recovery": 0.5, "damage": 18, "range": 1.5, "arc": 100, "knockback": 1, "lunge": 0.3, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07 },
+      { "motion": "Overhead", "windup": 0.5, "strike": 0.08, "hold": 0.17, "recovery": 0.6, "damage": 25, "range": 2.3, "arc": 50, "knockback": 1.5, "lunge": 1, "weight": 1, "parryFrom": -0.03, "parryTo": 0.06 }
     ],
     "flankBias": 0.7,
     "parriedDuration": 2,
@@ -45,7 +45,7 @@
     "hitPushback": 0.2,
     "experience": 60,
     "deathPieces": 24,
-    "experiencePieces": 14,
+    "experiencePieces": 20,
     "attacks": [
       {
         "motion": "Slam",
