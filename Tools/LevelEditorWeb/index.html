@@ -1068,8 +1068,8 @@ function selectPanel() {
   const out = [desc('Протяни рамку — выделятся блоки этажа и всё, что на них стоит: враги (с радиусом агро и ключом), оружие, двери, ящики, мосты, сундуки, костры, подсказки, точки. Потяни выделение пальцем — оно переедет целиком, связи (ключ → дверь, точки, цели рычагов) сохранятся. Двумя пальцами — камера.'),
     row('Высота', chips([[false, 'этаж'], [true, 'все этажи']], st.selAll, v => { st.selAll = v; if (selBox) selBox = makeSelBox([selBox.x0, selBox.z0], [selBox.x1, selBox.z1]); requestRender(); })),
     row('Перетаскивание', chips([[false, 'переносит'], [true, 'копирует']], st.selCopy, v => st.selCopy = v)),
-    row('Где было', chips([[true, 'оставить пол'], [false, 'яма']], st.selGround, v => st.selGround = v)),
-    desc('«Оставить пол»: на первом этаже на старом месте остаётся ровная земля, иначе — пропасть.')];
+    row('При переносе', chips([[true, 'оставить пол'], [false, 'яма']], st.selGround, v => st.selGround = v)),
+    desc('«Оставить пол»: при переносе на первом этаже на старом месте остаётся ровная земля, иначе — пропасть. «Очистить» всегда убирает клетки целиком: блоки, землю, объекты и точки.')];
   if (selBox) {
     const c = selContent(selBox), w = selBox.x1 - selBox.x0 + 1, d = selBox.z1 - selBox.z0 + 1;
     const op = o => () => { transformSelection(o); commit(); renderPanel(); requestRender(); };
@@ -2129,13 +2129,12 @@ function transformSelection({ dx = 0, dy = 0, dz = 0, rot = 0, copy = false }) {
   computeBounds();
   selBox = dest; selMeasure(selBox);
 }
-/** Убирает всё из выделения: блоки (на первом этаже — до ровной земли, если «оставить пол»), объекты и точки. */
+/** Убирает всё из выделения целиком: все блоки (включая землю — на их месте пусто), объекты и точки. «Оставить пол» сюда не относится, только к переносу. */
 function deleteSelection() {
   const b = selBox; if (!b) return;
   const c = selContent(b);
   begin();
   for (const [x, y, z] of c.blocks) setBlock(x, y, z, null);
-  if (st.selGround && b.y0 === -Infinity) for (let x = b.x0; x <= b.x1; x++) for (let z = b.z0; z <= b.z1; z++) setBlock(x, -1, z, { s: 'F', r: 0, c: null });
   touchMarkup();
   for (const o of c.objects) removeObject(o.id);
   const gone = new Set(c.points.map(p => p.id));
