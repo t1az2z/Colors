@@ -739,7 +739,9 @@ namespace ColorsAction.Unity
             {
                 var world = hand.Socket.TransformPoint(Vector3.up * (length * i / 10f));
                 var p = mesh.InverseTransformPoint(world);
-                var depth = Mathf.Min(0.5f - Mathf.Abs(p.x), 0.5f - Mathf.Abs(p.z), p.y, 1f - p.y);
+                // Куб уже меша 1×1 по ширине тела (CubeDeformer.Width).
+                var half = 0.5f * (controller.Deformer != null ? controller.Deformer.Width : 1f);
+                var depth = Mathf.Min(half - Mathf.Abs(p.x), half - Mathf.Abs(p.z), p.y, 1f - p.y);
                 worst = Mathf.Max(worst, depth);
             }
 

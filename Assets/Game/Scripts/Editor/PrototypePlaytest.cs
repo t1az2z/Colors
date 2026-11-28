@@ -140,8 +140,10 @@ namespace ColorsAction.Unity.Editor
             yield return 20;
             input.ScriptedMove = Dir(Vector3.forward);
             yield return 45;
-            Check(player.transform.position.y < 0.05f && player.transform.position.z < 19.6f,
-                $"1.0 step blocks walking: y={player.transform.position.y:F3} z={player.transform.position.z:F2}", "y < 0.05 and z < 19.6");
+            // Упор в грань ступени на z = 20: центр куба останавливается на полуширину коллайдера раньше.
+            var stopZ = 20f - pc.ColliderWidth * 0.5f + 0.02f;
+            Check(player.transform.position.y < 0.05f && player.transform.position.z < stopZ,
+                $"1.0 step blocks walking: y={player.transform.position.y:F3} z={player.transform.position.z:F2}", $"y < 0.05 and z < {stopZ:F2}");
 
             // 3. Ступень 1.0 с прыжком.
             input.ClearScripted();
