@@ -20,14 +20,21 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void SchemeStartsFromConfig_AndToggles()
+        public void SchemeStartsFromConfig()
         {
             using var host = CreateHost("{ \"scheme\": \"FixedAngles\" }");
             host.Start<BootState>();
             var session = host.Container.Resolve<GameSession>();
             Assert.That(session.ControlScheme.Value, Is.EqualTo(CameraScheme.FixedAngles));
-            Assert.That(session.ToggleControlScheme(), Is.EqualTo(CameraScheme.FreeOrbit));
-            Assert.That(session.ToggleControlScheme(), Is.EqualTo(CameraScheme.FixedAngles));
+        }
+
+        [Test]
+        public void ProjectScheme_IsFixedAngles()
+        {
+            // Схема А (свободная камера) из игры убрана: в проекте только 4 угла камеры.
+            using var host = CreateHost(null);
+            host.Start<BootState>();
+            Assert.That(host.Container.Resolve<GameSession>().ControlScheme.Value, Is.EqualTo(CameraScheme.FixedAngles));
         }
 
         [Test]

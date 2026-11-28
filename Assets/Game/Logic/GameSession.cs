@@ -161,13 +161,6 @@ namespace ColorsAction
                 Upgrades.Set(pair.Key, pair.Value);
         }
 
-        /// <summary>Переключить схему А ↔ Б.</summary>
-        public CameraScheme ToggleControlScheme()
-        {
-            ControlScheme.Value = ControlScheme.Value == CameraScheme.FreeOrbit ? CameraScheme.FixedAngles : CameraScheme.FreeOrbit;
-            return ControlScheme.Value;
-        }
-
         /// <summary>Подбор предмета с земли. false — инвентарь полон, предмет остаётся лежать.</summary>
         public bool PickUp(string itemId)
         {

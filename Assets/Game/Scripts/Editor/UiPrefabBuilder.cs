@@ -440,12 +440,6 @@ namespace ColorsAction.Unity.Editor
             prompt.rectTransform.anchoredPosition = new Vector2(0, 150);
             UiFactory.Outline(prompt);
 
-            var scheme = UiFactory.Text(root, "Scheme", "", 20, TextAnchor.LowerRight, UiFactory.MutedText);
-            scheme.rectTransform.anchorMin = scheme.rectTransform.anchorMax = new Vector2(1, 0);
-            scheme.rectTransform.pivot = new Vector2(1, 0);
-            scheme.rectTransform.anchoredPosition = new Vector2(-40, 132);
-            UiFactory.Outline(scheme);
-
             var toast = UiFactory.Text(root, "Toast", "", 30, TextAnchor.MiddleCenter, UiFactory.TextColor);
             toast.rectTransform.anchorMin = toast.rectTransform.anchorMax = new Vector2(0.5f, 1);
             toast.rectTransform.anchoredPosition = new Vector2(0, -90);
@@ -464,7 +458,6 @@ namespace ColorsAction.Unity.Editor
             Set(hud, "experienceGroup", xpGroup);
             Set(hud, "prompt", prompt);
             Set(hud, "toast", toast);
-            Set(hud, "schemeLabel", scheme);
             Set(hud, "primaryWeapon", primary);
             Set(hud, "quickCross", quickCross.gameObject);
             SetArray(hud, "quick", quick);

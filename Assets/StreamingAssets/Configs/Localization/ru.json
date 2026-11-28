@@ -19,11 +19,7 @@
 
     "hud.interact": "{action:interact} {0}",
     "hud.experience": "Опыт  {0}",
-    "hud.scheme.fixed": "Схема Б  ·  {action:cameraTurn} поворот камеры  ·  {action:lockOn} фиксация  ·  {action:switchScheme} схема А",
-    "hud.scheme.free": "Схема А  ·  {action:lockOn} фиксация  ·  {action:switchScheme} схема Б",
 
-    "toast.scheme.fixed": "Схема Б: 4 угла камеры, взгляд — мышь / правый стик",
-    "toast.scheme.free": "Схема А: свободная камера",
     "toast.weaponPicked": "{0} на колесе  ·  {action:wheel} сменить оружие",
     "toast.itemPicked": "{0} в инвентаре  ·  {action:inventory} открыть",
     "toast.inventoryFull": "Инвентарь полон",

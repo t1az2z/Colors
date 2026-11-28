@@ -37,6 +37,7 @@ namespace ColorsAction.Unity
         [SerializeField] private float experienceShowTime = 3.5f;
         [SerializeField] private Text prompt;
         [SerializeField] private Text toast;
+        [Tooltip("Старая строка схемы управления (схемы А/Б больше нет): прячется, если осталась в префабе.")]
         [SerializeField] private Text schemeLabel;
 
         [Header("Оружие и предметы")]
@@ -63,7 +64,6 @@ namespace ColorsAction.Unity
         private Strings strings;
         private PromptLine promptLine;
         private PromptLine toastLine;
-        private PromptLine schemeLine;
         private Palette palette;
         private IEventBus events;
         private readonly List<IDisposable> subscriptions = new List<IDisposable>();
@@ -108,13 +108,9 @@ namespace ColorsAction.Unity
             // Тексты с кнопками ({action:id}) рисуют строки подсказок поверх прежних Text префаба.
             promptLine = PromptLine.Replace(prompt, glyphs);
             toastLine = PromptLine.Replace(toast, glyphs);
-            schemeLine = PromptLine.Replace(schemeLabel, glyphs);
+            if (schemeLabel != null)
+                schemeLabel.gameObject.SetActive(false);
             started = true;
-
-            subscriptions.Add(session.ControlScheme.Subscribe(scheme =>
-                ShowToast(strings.Get(scheme == ColorsAction.Configs.CameraScheme.FixedAngles
-                    ? "toast.scheme.fixed"
-                    : "toast.scheme.free")), false));
 
             subscriptions.Add(events.Subscribe<ItemPickedUp>(e =>
                 ShowToast(strings.Format(e.Item.Config.IsWeapon ? "toast.weaponPicked" : "toast.itemPicked", e.Item.Config.Name))));
@@ -205,10 +201,6 @@ namespace ColorsAction.Unity
             // Подпись кружка — кнопка колеса: им оружие и меняется.
             if (primaryWeapon != null)
                 primaryWeapon.SetKey(glyphs.Label("wheel"));
-
-            schemeLine.SetText(strings.Get(session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FixedAngles
-                ? "hud.scheme.fixed"
-                : "hud.scheme.free"));
 
             var target = interactor != null ? interactor.Target : null;
             promptLine.SetText(target == null ? string.Empty

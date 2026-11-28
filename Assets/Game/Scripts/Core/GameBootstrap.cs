@@ -97,14 +97,6 @@ namespace ColorsAction.Unity
             // I / Select открывает и закрывает инвентарь: состояния FSM сами решают, что делать.
             if (Host != null && input != null && input.Pressed(GameAction.Inventory))
                 Host.Events.Publish(new InventoryToggleRequested());
-
-            // F1: переключить схему управления А ↔ Б прямо в игре, чтобы сравнить по ощущениям.
-            if (Host != null && input != null && input.Pressed(GameAction.SwitchScheme))
-            {
-                var session = Host.Container.Resolve<GameSession>();
-                if (session.PlayerControl.Value)
-                    session.ToggleControlScheme();
-            }
         }
 
         protected override void OnDestroy()

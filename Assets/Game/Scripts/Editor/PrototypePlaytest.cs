@@ -446,11 +446,6 @@ namespace ColorsAction.Unity.Editor
             Check(aimError < 10f, $"right stick sets facing independent of movement: error {aimError:F1}", "error < 10°");
             input.ClearScripted();
 
-            // 12. Переключение схем в игре (F1 / Start).
-            input.ScriptPress(GameAction.SwitchScheme);
-            yield return 3;
-            Check(session.ControlScheme.Value == ColorsAction.Configs.CameraScheme.FreeOrbit, $"F1 switches back to scheme A: {session.ControlScheme.Value}", "FreeOrbit");
-
             // 13. Слоп из ступенек по 0.25: подъём без рывков (высота меняется плавно каждый кадр).
             session.ControlScheme.Value = ColorsAction.Configs.CameraScheme.FreeOrbit;
             player.Teleport(new Vector3(27.5f, 0f, 1.6f), 0f);

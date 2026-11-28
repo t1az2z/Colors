@@ -18,7 +18,6 @@ namespace ColorsAction.Unity
         Cancel,
         CameraLeft,
         CameraRight,
-        SwitchScheme,
         LockOn,
 
         /// <summary>Колесо оружия: TAB / Y (удержание открывает колесо и замедляет время).</summary>
@@ -67,8 +66,6 @@ namespace ColorsAction.Unity
         /// </summary>
         public InputAction SwitchTarget { get; private set; }
 
-        /// <summary>Переключение схемы управления А/Б для сравнения в прототипе: F1 (Select теперь — инвентарь).</summary>
-        public InputAction SwitchScheme { get; private set; }
         public InputAction Zoom { get; private set; }
         public InputAction[] QuickItems { get; private set; }
 
@@ -130,7 +127,6 @@ namespace ColorsAction.Unity
                 case GameAction.Submit: return Submit;
                 case GameAction.CameraLeft: return CameraLeft;
                 case GameAction.CameraRight: return CameraRight;
-                case GameAction.SwitchScheme: return SwitchScheme;
                 case GameAction.LockOn: return LockOn;
                 case GameAction.Wheel: return Wheel;
                 default: return Cancel;
@@ -239,9 +235,6 @@ namespace ColorsAction.Unity
             SwitchTarget = player.AddAction("SwitchTarget", InputActionType.Value, expectedControlLayout: "Vector2");
             SwitchTarget.AddBinding("<Gamepad>/rightStick");
             SwitchTarget.AddBinding("<Mouse>/delta");
-
-            SwitchScheme = player.AddAction("SwitchScheme", InputActionType.Button);
-            SwitchScheme.AddBinding("<Keyboard>/f1");
 
             Wheel = player.AddAction("Wheel", InputActionType.Button);
             Wheel.AddBinding("<Keyboard>/tab");
