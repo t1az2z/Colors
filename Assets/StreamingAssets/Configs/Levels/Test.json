@@ -144,7 +144,7 @@
    "yaw": 160
   },
   {
-   "type": "club_cube_red",
+   "type": "club_cube_orange",
    "aggroRadius": 8,
    "x": 6,
    "z": 74,
@@ -158,7 +158,7 @@
    "yaw": 180
   },
   {
-   "type": "club_cube_red",
+   "type": "club_cube_orange",
    "aggroRadius": 8,
    "x": 12,
    "z": 74,
@@ -172,7 +172,7 @@
    "yaw": 180
   },
   {
-   "type": "club_cube_red",
+   "type": "club_cube_orange",
    "aggroRadius": 8,
    "x": 18,
    "z": 74,
@@ -186,7 +186,7 @@
    "yaw": 180
   },
   {
-   "type": "club_cube_red",
+   "type": "club_cube_orange",
    "aggroRadius": 8,
    "x": 24,
    "z": 74,

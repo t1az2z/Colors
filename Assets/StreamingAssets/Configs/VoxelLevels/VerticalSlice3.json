@@ -15613,7 +15613,7 @@
       "cell": "28,1,26",
       "yaw": 90,
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {
@@ -15622,7 +15622,7 @@
       "cell": "14,2,23",
       "yaw": 135,
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {
@@ -15631,7 +15631,7 @@
       "cell": "18,2,35",
       "yaw": 180,
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {
@@ -15639,7 +15639,7 @@
       "kind": "EnemySpawn",
       "cell": "12,2,12",
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {
@@ -15648,7 +15648,7 @@
       "cell": "16,2,47",
       "yaw": 180,
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {
@@ -15657,7 +15657,7 @@
       "cell": "24,2,45",
       "yaw": 180,
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {
@@ -15700,7 +15700,7 @@
       "cell": "58,0,51",
       "yaw": 135,
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {
@@ -15709,7 +15709,7 @@
       "cell": "64,0,51",
       "yaw": 180,
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {
@@ -15736,7 +15736,7 @@
       "cell": "4,1,50",
       "yaw": 90,
       "height": 2,
-      "item": "club_cube_red",
+      "item": "club_cube_orange",
       "aggroRadius": 10.5
     },
     {

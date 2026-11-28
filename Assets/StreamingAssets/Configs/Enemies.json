@@ -1,7 +1,7 @@
 {
   "club_cube": {
     "name": "Куб с дубиной",
-    "color": "blue",
+    "color": "green",
     "size": 0.8,
     "maxHealth": 40,
     "weaponPrefab": "Items/Club",
@@ -25,9 +25,9 @@
     "poise": 100,
     "deflectDuration": 0.4
   },
-  "club_cube_red": {
-    "name": "Красный куб с дубиной",
-    "color": "red",
+  "club_cube_orange": {
+    "name": "Оранжевый куб с дубиной",
+    "color": "orange",
     "size": 0.85,
     "maxHealth": 55,
     "weaponPrefab": "Items/Club",

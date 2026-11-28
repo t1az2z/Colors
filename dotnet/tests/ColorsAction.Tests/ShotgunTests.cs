@@ -42,18 +42,24 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void ColorWheel_RedPelletsWeakOnRedStrongOnBlue()
+        public void ColorWheel_ShotgunStrongOnGreen_SwordStrongOnOrange()
         {
             var configs = Configs();
             var combat = configs.Load<CombatConfig>(ConfigKeys.Combat);
             var rules = new DamageRules(combat);
-            var shotgun = configs.LoadTable<ItemConfig>(ConfigKeys.Items).Get("shotgun");
+            var items = configs.LoadTable<ItemConfig>(ConfigKeys.Items);
+            var shotgun = items.Get("shotgun");
+            var sword = items.Get("sword");
             var enemies = configs.LoadTable<EnemyConfig>(ConfigKeys.Enemies);
-            var red = enemies.Get("club_cube_red");
-            var blue = enemies.Get("club_cube");
-            Assert.That(red.Color, Is.EqualTo("red"));
-            Assert.That(rules.Calculate(shotgun, null, red.Color).Damage, Is.EqualTo(shotgun.Damage * combat.ColorDistanceMultipliers[0]).Within(1e-4));
-            Assert.That(rules.Calculate(shotgun, null, blue.Color).ColorBonus, Is.True, "red is two steps from blue");
+            var orange = enemies.Get("club_cube_orange");
+            var green = enemies.Get("club_cube");
+            Assert.That(orange.Color, Is.EqualTo("orange"));
+            Assert.That(green.Color, Is.EqualTo("green"));
+            Assert.That(rules.Calculate(shotgun, null, green.Color).Effect, Is.EqualTo(ColorEffect.Antipode), "red is opposite green");
+            Assert.That(rules.Calculate(shotgun, null, orange.Color).Effect, Is.EqualTo(ColorEffect.Weak), "red is next to orange");
+            Assert.That(rules.Calculate(sword, null, orange.Color).Effect, Is.EqualTo(ColorEffect.Antipode), "blue is opposite orange");
+            Assert.That(rules.Calculate(sword, null, green.Color).Effect, Is.EqualTo(ColorEffect.Weak), "blue is next to green");
+            Assert.That(rules.Calculate(shotgun, null, "red").Damage, Is.EqualTo(shotgun.Damage * combat.ColorDistanceMultipliers[0]).Within(1e-4), "own colour");
         }
 
         [Test]
@@ -86,12 +92,12 @@ namespace ColorsAction.Tests
         }
 
         [Test]
-        public void TestLevel_HasShootingField_With4Red3Blue()
+        public void TestLevel_HasShootingField_With4Orange3Green()
         {
             var configs = Configs();
             var level = configs.Load<LevelConfig>("Levels/Test");
             var field = level.Enemies.Where(e => e.Z >= 64).ToList();
-            Assert.That(field.Count(e => e.Type == "club_cube_red"), Is.EqualTo(4));
+            Assert.That(field.Count(e => e.Type == "club_cube_orange"), Is.EqualTo(4));
             Assert.That(field.Count(e => e.Type == "club_cube"), Is.EqualTo(3));
             Assert.That(level.Items.Any(i => i.Item == "shotgun"), Is.True);
         }
