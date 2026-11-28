@@ -91,10 +91,10 @@ MonoBehaviour:
   beamPulse: 0.25
   beamPulseSpeed: 2.2
   emission: 0.6
-  bobHeight: 0
+  bobHeight: 0.08
   bobSpeed: 2
-  spinSpeed: 0
-  spinAxis: {x: 0, y: 0, z: 1}
+  spinSpeed: 40
+  spinAxis: {x: 0, y: 1, z: 0}
   takeRiseSpeed: 3
 --- !u!1 &7183829785171668501
 GameObject:

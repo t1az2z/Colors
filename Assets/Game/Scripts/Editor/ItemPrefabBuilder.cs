@@ -296,8 +296,10 @@ namespace ColorsAction.Unity.Editor
             so.FindProperty("tintGlow").boolValue = tint;
             so.FindProperty("beam").objectReferenceValue = beamRenderer;
             so.FindProperty("sparkles").objectReferenceValue = sparkles;
-            so.FindProperty("bobHeight").floatValue = 0f;
-            so.FindProperty("spinSpeed").floatValue = 0f;
+            so.FindProperty("bobHeight").floatValue = 0.08f;
+            // Предмет медленно поворачивается вокруг вертикали и слегка покачивается над плитой.
+            so.FindProperty("spinSpeed").floatValue = 40f;
+            so.FindProperty("spinAxis").vector3Value = Vector3.up;
             so.ApplyModifiedPropertiesWithoutUndo();
 
             PrefabUtility.SaveAsPrefabAsset(root, $"{Pickups}/{name}.prefab");

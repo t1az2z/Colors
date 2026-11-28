@@ -88,7 +88,8 @@ namespace ColorsAction.Unity
             phase += dt;
             if (beam != null && beamPulse > 0f)
                 ApplyBeam(1f - beamPulse * (0.5f + 0.5f * Mathf.Sin(phase * beamPulseSpeed)));
-            model.localPosition = basePosition + Vector3.up * (Mathf.Sin(phase * bobSpeed) * bobHeight);
+            // Только вверх от исходной позы: предмет на плите не уходит в неё.
+            model.localPosition = basePosition + Vector3.up * ((0.5f + 0.5f * Mathf.Sin(phase * bobSpeed)) * bobHeight);
             model.localRotation = baseRotation * Quaternion.AngleAxis(phase * spinSpeed, spinAxis);
         }
 

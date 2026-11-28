@@ -190,6 +190,7 @@ namespace ColorsAction
             // Автоэкипировка (Inventory.json): новое оружие берётся в руки, если в руках ничего нет.
             if (inventoryConfig.AutoEquipOnPickup)
                 EquipIfHandsEmpty(item);
+            EquipConsumableIfQuickEmpty(item);
 
             events.Publish(new ItemPickedUp(item));
             return true;
@@ -309,6 +310,22 @@ namespace ColorsAction
 
         /// <summary>Отдых у костра (и возрождение у него): заряды лечилок восполнены.</summary>
         public void RefillConsumables() => HealItems.Refill(Inventory);
+
+        /// <summary>
+        /// Подобранный расходник (фляга) сразу встаёт в быстрый слот 1 — крестовина вверх (D-pad up),
+        /// если тот пуст; иначе остаётся в сетке.
+        /// </summary>
+        private void EquipConsumableIfQuickEmpty(Item item)
+        {
+            if (item.Config.Kind != ItemKind.Consumable || Inventory.QuickCount == 0)
+                return;
+            var quick = SlotRef.Quick(0);
+            if (Inventory.Get(quick) != null)
+                return;
+            var from = Inventory.Find(item);
+            if (from.HasValue && from.Value.Kind == SlotKind.Grid)
+                Inventory.Move(from.Value, quick);
+        }
 
         private void EquipIfHandsEmpty(Item item)
         {
