@@ -245,13 +245,13 @@ namespace ColorsAction.Configs
         public float Hold { get; set; } = 0.35f;
 
         /// <summary>Высота дуги броска над руками, доля куба.</summary>
-        public float TossHeight { get; set; } = 0.35f;
+        public float TossHeight { get; set; } = 0.22f;
 
-        /// <summary>Оборотов оружия в полёте за бросок (в плоскости перед кубом).</summary>
-        public float Spin { get; set; } = 1f;
+        /// <summary>Оборотов оружия в полёте за бросок (в плоскости перед кубом); 0 — летит стоя, рукоятью вниз.</summary>
+        public float Spin { get; set; } = 0f;
 
-        /// <summary>Расстояние между «руками» (откуда и куда летит оружие), доля куба.</summary>
-        public float Span { get; set; } = 0.68f;
+        /// <summary>Расстояние между «руками» по бокам куба (откуда и куда летит оружие), доля куба; больше 1 — руки снаружи куба.</summary>
+        public float Span { get; set; } = 1.2f;
 
         /// <summary>Приседание куба, когда он ловит оружие, доля высоты.</summary>
         public float CatchSquash { get; set; } = 0.04f;
@@ -276,7 +276,7 @@ namespace ColorsAction.Configs
             Tosses = Math.Max(1, Math.Min(12, Tosses));
             Hold = Math.Max(0f, Math.Min(0.9f, Hold));
             TossHeight = Math.Max(0f, Math.Min(1.5f, TossHeight));
-            Span = Math.Max(0f, Math.Min(1.2f, Span));
+            Span = Math.Max(0f, Math.Min(1.6f, Span));
             CatchSquash = Math.Max(0f, Math.Min(0.2f, CatchSquash));
             EyeShift = Math.Max(0f, Math.Min(0.2f, EyeShift));
         }

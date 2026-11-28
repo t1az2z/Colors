@@ -876,18 +876,23 @@ namespace ColorsAction.Unity
         private const float WeaponMiddle = 0.32f;
 
         /// <summary>
-        /// Редкий idle (Animations.json → inspect): враг берёт оружие перед собой и перебрасывает его из руки в руку.
-        /// В руке оружие стоит рукоятью вниз, чуть наклонено наружу; в полёте его середина идёт дугой перед кубом,
-        /// а само оружие переворачивается в плоскости перед кубом. <paramref name="u"/> — доля idle 0..1:
-        /// взять перед собой из стойки, броски (<see cref="CubeIdleAnimator.Toss"/>), вернуть в стойку.
+        /// Редкий idle (Animations.json → inspect): враг перебрасывает оружие из руки в руку.
+        /// В руке оружие стоит сбоку от куба рукоятью вниз, чуть наклонено наружу (замах — приседание в руке);
+        /// в полёте оно идёт невысокой дугой перед лицом куба и остаётся стоять вертикально (при spin 0),
+        /// ловится другой рукой с другого бока. <paramref name="u"/> — доля idle 0..1:
+        /// из стойки в руку, броски (<see cref="CubeIdleAnimator.Toss"/>), вернуть в стойку.
         /// </summary>
         private Pose InspectPose(float u)
         {
+            const float gripHeight = 0.42f, sideDepth = 0.2f, frontDepth = 0.72f;
             var inspect = animConfig.Inspect;
             var toss = CubeIdleAnimator.Toss(inspect, u);
             var half = inspect.Span * 0.5f;
-            var middle = new Vector3(half * toss.Side, 0.55f + toss.Arc * inspect.TossHeight - toss.Dip * 0.06f, 0.72f);
-            var lean = Quaternion.FromToRotation(Vector3.up, new Vector3(0.28f * toss.Side, 1f, 0.12f).normalized);
+            // Сбоку — у боковой грани, в середине полёта — перед лицом куба.
+            var depth = Mathf.Lerp(sideDepth, frontDepth, 1f - toss.Side * toss.Side);
+            var middle = new Vector3(half * toss.Side,
+                gripHeight + WeaponMiddle + toss.Arc * inspect.TossHeight - toss.Dip * 0.06f, depth);
+            var lean = Quaternion.FromToRotation(Vector3.up, new Vector3(0.2f * toss.Side, 1f, 0.05f).normalized);
             var flip = Quaternion.AngleAxis(toss.FlipDirection * toss.Flip * 360f * inspect.Spin, Vector3.forward);
             var rotation = flip * lean;
             var front = new Pose(middle - rotation * (Vector3.up * WeaponMiddle), rotation);
