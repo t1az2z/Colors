@@ -1,0 +1,19 @@
+{
+  "WheelSector": [
+    0.5,
+    -0.6768980235112189
+  ],
+  "WheelSectorOutline": [
+    0.5,
+    -0.5841914694591301
+  ],
+  "geometry": {
+    "outer": 392,
+    "sector_in": 168,
+    "sector_out": 350,
+    "gap": 8,
+    "corner": 14,
+    "hub": 156,
+    "sectors": 6
+  }
+}

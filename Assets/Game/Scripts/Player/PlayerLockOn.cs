@@ -13,13 +13,13 @@ namespace ColorsAction.Unity
     /// персонажа), свободная камера доворачивается за спину. Повторное нажатие снимает фиксацию; она снимается и сама,
     /// если цель ушла дальше <see cref="CombatConfig.LockOnBreakRange"/>. Если цель-враг умерла, фиксация переходит
     /// на врага, ближайшего к погибшему (в радиусе <see cref="CombatConfig.LockOnRetargetRange"/> от игрока), а если такого нет — снимается.
+    /// Цель обведена белым контуром силуэта (<see cref="LockOnOutline"/>).
     /// Цели — враги, манекены и цепи разводных мостов (<see cref="BridgeChain"/>). Переключение на соседнюю цель — рывок правым стиком или мышью влево/вправо. Числа — Configs/Combat.json.
     /// </summary>
     [DefaultExecutionOrder(-50)]
     [RequireComponent(typeof(PlayerController))]
     public sealed class PlayerLockOn : GameBehaviour
     {
-        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
         private readonly List<Component> targets = new List<Component>();
         private readonly List<LockOnCandidate> candidates = new List<LockOnCandidate>();
@@ -31,18 +31,12 @@ namespace ColorsAction.Unity
         private Transform cameraTransform;
 
         private Component target;
-        private Renderer[] targetRenderers;
         private bool targetIsEnemy;
         private Vector3 lastTargetPosition;
         private bool switchArmed = true;
         private float mouseSwipe;
         private float mouseSwipeTimer;
 
-        private Transform marker;
-        private Renderer markerRenderer;
-        private MaterialPropertyBlock block;
-        private float markerPhase;
-        private float markerVisible;
 
         /// <summary>Текущая цель (враг или манекен), null — фиксации нет.</summary>
         public Component Target => target;
@@ -66,13 +60,6 @@ namespace ColorsAction.Unity
             player = GetComponent<PlayerController>();
             if (Camera.main != null)
                 cameraTransform = Camera.main.transform;
-            CreateMarker(player.Deformer != null ? player.Deformer.GetComponent<Renderer>()?.sharedMaterial : null);
-        }
-
-        private void OnDestroy()
-        {
-            if (marker != null)
-                Destroy(marker.gameObject);
         }
 
         /// <summary>Включить/выключить фиксацию (как нажатие кнопки).</summary>
@@ -87,7 +74,6 @@ namespace ColorsAction.Unity
         public void Release()
         {
             target = null;
-            targetRenderers = null;
             targetIsEnemy = false;
         }
 
@@ -116,8 +102,6 @@ namespace ColorsAction.Unity
             if (target != null && control)
                 UpdateSwitch();
         }
-
-        private void LateUpdate() => UpdateMarker();
 
         // ------------------------------------------------------------------ выбор цели
 
@@ -186,10 +170,8 @@ namespace ColorsAction.Unity
         private void SetTarget(Component value)
         {
             target = value;
-            targetRenderers = value.GetComponentsInChildren<Renderer>();
             targetIsEnemy = value is EnemyController;
             lastTargetPosition = value.transform.position;
-            markerVisible = 0f;
         }
 
         /// <summary>Перевести фиксацию на живого врага, ближайшего к точке (в радиусе LockOnRetargetRange от игрока); нет такого — снять.</summary>
@@ -203,10 +185,7 @@ namespace ColorsAction.Unity
             var p = transform.position;
             var index = LockOnRules.Nearest(from.x, from.z, p.x, p.z, candidates, config.LockOnRetargetRange);
             if (index >= 0)
-            {
                 SetTarget(targets[index]);
-                markerVisible = 1f; // маркер не мигает, а сразу переезжает на новую цель
-            }
         }
 
         private void Gather()
@@ -242,53 +221,6 @@ namespace ColorsAction.Unity
             var d = c.transform.position - transform.position;
             d.y = 0f;
             return d.sqrMagnitude <= range * range;
-        }
-
-        // ------------------------------------------------------------------ маркер
-
-        /// <summary>Тёмный ромб над целью: покачивается и вращается.</summary>
-        private void CreateMarker(Material material)
-        {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(go.GetComponent<Collider>());
-            go.name = "LockOnMarker";
-            marker = go.transform;
-            markerRenderer = go.GetComponent<Renderer>();
-            markerRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            if (material != null)
-                markerRenderer.sharedMaterial = material;
-            block = new MaterialPropertyBlock();
-            markerRenderer.GetPropertyBlock(block);
-            block.SetColor(BaseColorId, new Color(0.16f, 0.16f, 0.19f, 1f));
-            markerRenderer.SetPropertyBlock(block);
-            markerRenderer.enabled = false;
-        }
-
-        private void UpdateMarker()
-        {
-            if (marker == null)
-                return;
-            var dt = Time.unscaledDeltaTime;
-            markerVisible = Mathf.MoveTowards(markerVisible, target != null ? 1f : 0f, dt * 6f);
-            markerRenderer.enabled = target != null && markerVisible > 0.01f;
-            if (!markerRenderer.enabled)
-                return;
-
-            var top = target.transform.position.y + 1f;
-            if (targetRenderers != null)
-            {
-                foreach (var r in targetRenderers)
-                    if (r != null && r.enabled)
-                        top = Mathf.Max(top, r.bounds.max.y);
-            }
-
-            markerPhase += dt;
-            var center = target.transform.position;
-            marker.position = new Vector3(center.x, top + 0.45f + Mathf.Sin(markerPhase * 3f) * 0.06f, center.z);
-            marker.rotation = Quaternion.Euler(0f, markerPhase * 120f, 0f) * Quaternion.Euler(45f, 0f, 45f);
-            // Появляется с небольшим "выстрелом" масштаба.
-            var pop = 1f + (1f - markerVisible) * 0.8f;
-            marker.localScale = Vector3.one * 0.2f * markerVisible * pop;
         }
     }
 }

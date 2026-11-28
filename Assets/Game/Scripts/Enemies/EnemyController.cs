@@ -58,7 +58,7 @@ namespace ColorsAction.Unity
         private Renderer bodyRenderer;
         private MaterialPropertyBlock block;
         private AlertMarker marker;
-        private PoiseBar poiseBar;
+        private EnemyBars bars;
         private float hitShake;
         private CrackVisual cracks;
         private Color color;
@@ -226,8 +226,7 @@ namespace ColorsAction.Unity
             cracks = meshGo.AddComponent<CrackVisual>();
             cracks.Init(bodyRenderer, deformer, color);
             marker = AlertMarker.Create(transform, size + 0.75f);
-            if (brain.Poise.Max > 0f)
-                poiseBar = PoiseBar.Create(transform, size + 0.32f, Mathf.Max(0.7f, size * 0.95f));
+            bars = EnemyBars.Create(transform, size + 0.42f, Mathf.Max(0.9f, size * 1.15f), brain.Poise.Max > 0f);
             body.rotation = Quaternion.Euler(0, yaw, 0);
         }
 
@@ -334,8 +333,8 @@ namespace ColorsAction.Unity
 
             tinted = tintNow;
             UpdateDeformation(dt);
-            if (poiseBar != null)
-                poiseBar.Set(brain.Poise.Fraction, brain.Staggering,
+            if (bars != null)
+                bars.Set(brain.Health.Fraction, brain.Poise.Fraction, brain.Staggering,
                     brain.Status.Get(StatusEffectsConfig.StunId)?.RemainingFraction ?? 0f);
         }
 
@@ -796,8 +795,8 @@ namespace ColorsAction.Unity
         {
             if (marker != null)
                 Destroy(marker.gameObject);
-            if (poiseBar != null)
-                Destroy(poiseBar.gameObject);
+            if (bars != null)
+                Destroy(bars.gameObject);
         }
 
         // ------------------------------------------------------------------ удар по области

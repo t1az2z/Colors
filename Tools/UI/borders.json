@@ -1,0 +1,92 @@
+{
+  "HealthFrame": [
+    52,
+    0,
+    52,
+    0
+  ],
+  "HealthFill": [
+    34,
+    0,
+    34,
+    0
+  ],
+  "StaminaFrame": [
+    34,
+    0,
+    34,
+    0
+  ],
+  "StaminaFill": [
+    20,
+    0,
+    20,
+    0
+  ],
+  "EnemyHealthFrame": [
+    24,
+    0,
+    24,
+    0
+  ],
+  "EnemyPoiseFrame": [
+    24,
+    0,
+    24,
+    0
+  ],
+  "EnemyHealthFill": [
+    10,
+    0,
+    10,
+    0
+  ],
+  "EnemyPoiseFill": [
+    10,
+    0,
+    10,
+    0
+  ],
+  "XpPlate": [
+    52,
+    0,
+    52,
+    0
+  ],
+  "Panel": [
+    96,
+    96,
+    96,
+    96
+  ],
+  "TitlePlate": [
+    60,
+    0,
+    60,
+    0
+  ],
+  "CaptionPlate": [
+    44,
+    0,
+    44,
+    0
+  ],
+  "LongPlate": [
+    56,
+    0,
+    56,
+    0
+  ],
+  "Slot": [
+    34,
+    34,
+    34,
+    34
+  ],
+  "SlotCursor": [
+    64,
+    60,
+    64,
+    60
+  ]
+}

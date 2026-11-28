@@ -44,6 +44,7 @@ namespace ColorsAction.Unity.Editor
         public static void RebuildInventoryScreen()
         {
             var icons = EnsureItemIcons(false);
+            Save(BuildSlot(), UiResources + "/InventorySlot.prefab");
             var slot = AssetDatabase.LoadAssetAtPath<SlotView>(UiResources + "/InventorySlot.prefab");
             Save(BuildInventory(icons, slot), UiResources + "/InventoryScreen.prefab");
             AssetDatabase.SaveAssets();
@@ -360,39 +361,68 @@ namespace ColorsAction.Unity.Editor
 
         private static GameObject BuildHud(ItemIcons icons, Text damageNumber)
         {
-            const float healthWidth = 420f;
-            const float staminaWidth = 300f;
             var go = CanvasRoot("Hud", 10);
             var hud = go.AddComponent<Hud>();
             var root = StretchRect(go.transform, "HUD", Vector2.zero);
-
-            // Здоровье (слева вверху): скруглённая полоса, "хвост" урона и цифры поверх.
             var topLeft = new Vector2(0, 1);
-            var hpBack = Bar(root, "Health", topLeft, new Vector2(36, -34), new Vector2(healthWidth, 34), new Color(0, 0, 0, 0.55f));
-            var healthLag = Bar(hpBack.transform, "Lag", new Vector2(0, 0.5f), new Vector2(3, 0), new Vector2(healthWidth - 6, 28), new Color(1f, 0.85f, 0.55f, 0.95f));
-            var healthFill = Bar(hpBack.transform, "Fill", new Vector2(0, 0.5f), new Vector2(3, 0), new Vector2(healthWidth - 6, 28), new Color(0.88f, 0.27f, 0.25f, 1f));
-            var healthText = UiFactory.Text(hpBack.transform, "Value", "100 / 100", 22, TextAnchor.MiddleCenter, Color.white);
+
+            // Здоровье (слева вверху, по макету Tools/UI/ref_hud.png): рамка из атласа, заливка Filled поверх светлого
+            // «хвоста» урона, цифры по центру, ромб-эмблема слева поверх рамки.
+            // Смещения заливки внутри рамки — в пикселях исходного атласа (см. CROPS в make_ui_sprites.py), × масштаб.
+            const float hpScale = 0.83f;
+            var hpFrame = AtlasImage(root, "Health", "HealthFrame", topLeft, new Vector2(0, 1), new Vector2(92, -46), hpScale);
+            var healthLag = AtlasImage(hpFrame.transform, "Lag", "HealthFillWhite", topLeft, new Vector2(0, 1),
+                new Vector2(13, -14) * hpScale, hpScale);
+            healthLag.color = new Color(1f, 0.88f, 0.72f, 1f);
+            var healthFill = AtlasImage(hpFrame.transform, "Fill", "HealthFill", topLeft, new Vector2(0, 1),
+                new Vector2(13, -14) * hpScale, hpScale);
+            MakeFilled(healthLag);
+            MakeFilled(healthFill);
+            var healthText = UiFactory.Text(hpFrame.transform, "Value", "100 / 100", 30, TextAnchor.MiddleCenter, Color.white);
             UiFactory.Stretch(healthText.rectTransform);
+            healthText.rectTransform.offsetMin = new Vector2(0, 3);
+            healthText.fontStyle = FontStyle.Bold;
             UiFactory.Outline(healthText);
+            foreach (var x in new[] { 52f, -52f })
+            {
+                var dot = AtlasImage(hpFrame.transform, x > 0 ? "DotL" : "DotR", "DotDiamond", new Vector2(x > 0 ? 0 : 1, 0.5f),
+                    new Vector2(0.5f, 0.5f), new Vector2(x, 1), 1f);
+                dot.color = new Color(1f, 1f, 1f, 0.9f);
+            }
 
-            // Выносливость — под здоровьем, тоньше.
-            var stBack = Bar(root, "Stamina", topLeft, new Vector2(36, -76), new Vector2(staminaWidth, 16), new Color(0, 0, 0, 0.5f));
-            var staminaLag = Bar(stBack.transform, "Lag", new Vector2(0, 0.5f), new Vector2(2, 0), new Vector2(staminaWidth - 4, 12), new Color(1f, 0.6f, 0.3f, 0.9f));
-            var staminaFill = Bar(stBack.transform, "Fill", new Vector2(0, 0.5f), new Vector2(2, 0), new Vector2(staminaWidth - 4, 12), new Color(0.93f, 0.93f, 0.86f, 1f));
+            AtlasImage(root, "Emblem", "Emblem", topLeft, new Vector2(0.5f, 0.5f), new Vector2(84, -82), 0.66f);
 
-            var xpText = UiFactory.Text(root, "Experience", "Опыт  0", 20, TextAnchor.UpperLeft, UiFactory.TextColor);
-            xpText.rectTransform.anchorMin = xpText.rectTransform.anchorMax = topLeft;
-            xpText.rectTransform.pivot = new Vector2(0, 1);
-            xpText.rectTransform.anchoredPosition = new Vector2(38, -100);
+            // Выносливость — под здоровьем, тоньше, зелёная.
+            const float stScale = 0.88f;
+            var stFrame = AtlasImage(root, "Stamina", "StaminaFrame", topLeft, new Vector2(0, 1), new Vector2(112, -112), stScale);
+            var staminaLag = AtlasImage(stFrame.transform, "Lag", "StaminaFillWhite", topLeft, new Vector2(0, 1),
+                new Vector2(13.5f, -10.5f) * stScale, stScale);
+            staminaLag.color = new Color(1f, 0.8f, 0.45f, 1f);
+            var staminaFill = AtlasImage(stFrame.transform, "Fill", "StaminaFill", topLeft, new Vector2(0, 1),
+                new Vector2(13.5f, -10.5f) * stScale, stScale);
+            MakeFilled(staminaLag);
+            MakeFilled(staminaFill);
+
+            // Опыт — плашка справа внизу с горстью кубиков слева от неё; видна несколько секунд после получения опыта.
+            var bottomRight = new Vector2(1, 0);
+            var xpGroupRect = StretchRect(root, "ExperienceGroup", Vector2.zero);
+            var xpGroup = xpGroupRect.gameObject.AddComponent<CanvasGroup>();
+            xpGroup.alpha = 0f;
+            xpGroup.interactable = false;
+            xpGroup.blocksRaycasts = false;
+            var xpPlate = AtlasImage(xpGroupRect, "Experience", "XpPlate", bottomRight, new Vector2(1, 0), new Vector2(-40, 56), 0.74f);
+            var xpText = UiFactory.Text(xpPlate.transform, "Value", "Опыт  0", 27, TextAnchor.MiddleCenter, UiFactory.TextColor);
+            UiFactory.Stretch(xpText.rectTransform);
+            xpText.rectTransform.offsetMin = new Vector2(46, 2);
+            xpText.rectTransform.offsetMax = new Vector2(-30, 0);
             UiFactory.Outline(xpText);
+            AtlasImage(xpGroupRect, "Cubes", "Cubes", bottomRight, new Vector2(1, 0), new Vector2(-40 - xpPlate.rectTransform.sizeDelta.x + 70, 44), 0.56f);
 
-            // Оружие (справа вверху): правая рука — основное, крупнее; левая — дополнительное.
-            var primary = WeaponCircle(root, new Vector2(-36, -32), 104f, "Primary");
-            var secondary = WeaponCircle(root, new Vector2(-36 - 104 - 18, -44), 80f, "Secondary");
-
+            // Оружие в руках (справа вверху): круг-медальон из атласа, иконка внутри, клавиша колеса под ним.
+            var primary = WeaponMedallion(root, new Vector2(-34, -26), 0.62f);
             // Предметы на крестовине (1–4 / D-pad): слева внизу крестом, видны, только когда есть предметы.
-            var quickCross = UiFactory.Rect(root, "QuickItems", new Vector2(0, 0), new Vector2(0.5f, 0.5f), new Vector2(130, 130), new Vector2(220, 220));
-            var offsets = new[] { new Vector2(0, 70), new Vector2(70, 0), new Vector2(0, -70), new Vector2(-70, 0) };
+            var quickCross = UiFactory.Rect(root, "QuickItems", new Vector2(0, 0), new Vector2(0.5f, 0.5f), new Vector2(150, 150), new Vector2(260, 260));
+            var offsets = new[] { new Vector2(0, 86), new Vector2(86, 0), new Vector2(0, -86), new Vector2(-86, 0) };
             var quick = new HudItemSlot[offsets.Length];
             for (int i = 0; i < offsets.Length; i++)
                 quick[i] = QuickSlot(quickCross, offsets[i], i);
@@ -406,7 +436,7 @@ namespace ColorsAction.Unity.Editor
             var scheme = UiFactory.Text(root, "Scheme", "", 20, TextAnchor.LowerRight, UiFactory.MutedText);
             scheme.rectTransform.anchorMin = scheme.rectTransform.anchorMax = new Vector2(1, 0);
             scheme.rectTransform.pivot = new Vector2(1, 0);
-            scheme.rectTransform.anchoredPosition = new Vector2(-40, 40);
+            scheme.rectTransform.anchoredPosition = new Vector2(-40, 132);
             UiFactory.Outline(scheme);
 
             var toast = UiFactory.Text(root, "Toast", "", 30, TextAnchor.MiddleCenter, UiFactory.TextColor);
@@ -424,16 +454,106 @@ namespace ColorsAction.Unity.Editor
             Set(hud, "staminaFill", staminaFill);
             Set(hud, "staminaLag", staminaLag);
             Set(hud, "xpText", xpText);
+            Set(hud, "experienceGroup", xpGroup);
             Set(hud, "prompt", prompt);
             Set(hud, "toast", toast);
             Set(hud, "schemeLabel", scheme);
             Set(hud, "primaryWeapon", primary);
-            Set(hud, "secondaryWeapon", secondary);
             Set(hud, "quickCross", quickCross.gameObject);
             SetArray(hud, "quick", quick);
             Set(hud, "numbersRoot", numbers);
             Set(hud, "damageNumberPrefab", damageNumber);
             return go;
+        }
+
+        // ------------------------------------------------------------------ новый интерфейс (атлас)
+
+        private const string AtlasFolder = ArtUi + "/Atlas";
+        private const string WheelArtFolder = ArtUi + "/Wheel";
+
+        private static Sprite AtlasSprite(string name)
+        {
+            var sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"{AtlasFolder}/{name}.png");
+            if (sprite == null)
+                sprite = AssetDatabase.LoadAssetAtPath<Sprite>($"{WheelArtFolder}/{name}.png");
+            if (sprite == null)
+                Debug.LogError($"UI sprite {name} not found (Tools/UI/make_ui_sprites.py)");
+            return sprite;
+        }
+
+        /// <summary>Картинка из атласа в родном размере × scale (заострённые плашки — 9-slice, растягиваются по ширине).</summary>
+        private static Image AtlasImage(Transform parent, string name, string sprite, Vector2 anchor, Vector2 pivot, Vector2 pos, float scale)
+        {
+            var s = AtlasSprite(name: sprite);
+            var size = s != null ? s.rect.size * scale : Vector2.one * 32f;
+            var image = UiFactory.Image(parent, name, Color.white, anchor, pivot, pos, size);
+            image.sprite = s;
+            image.type = s != null && s.border != Vector4.zero ? Image.Type.Sliced : Image.Type.Simple;
+            image.pixelsPerUnitMultiplier = 1f / Mathf.Max(0.01f, scale);
+            image.raycastTarget = false;
+            return image;
+        }
+
+        /// <summary>Заливка полосы: Filled по горизонтали слева (Hud выставляет fillAmount).</summary>
+        private static void MakeFilled(Image image)
+        {
+            image.type = Image.Type.Filled;
+            image.fillMethod = Image.FillMethod.Horizontal;
+            image.fillOrigin = (int)Image.OriginHorizontal.Left;
+            image.fillAmount = 1f;
+        }
+
+        /// <summary>Медальон оружия в руках: круглая рамка с ромбами (атлас), иконка, клавиша колеса под ним.</summary>
+        private static HudItemSlot WeaponMedallion(Transform parent, Vector2 pos, float scale)
+        {
+            var bg = AtlasImage(parent, "Primary", "WeaponCircle", new Vector2(1, 1), new Vector2(1, 1), pos, scale);
+            var size = bg.rectTransform.sizeDelta;
+            var key = UiFactory.Text(bg.transform, "Key", "", 20, TextAnchor.UpperCenter, UiFactory.TextColor);
+            key.rectTransform.anchorMin = key.rectTransform.anchorMax = new Vector2(0.5f, 0);
+            key.rectTransform.pivot = new Vector2(0.5f, 1);
+            key.rectTransform.anchoredPosition = new Vector2(0, -2);
+            UiFactory.Outline(key);
+            var icon = IconImage(bg.transform, size.x * 0.66f);
+            var slot = bg.gameObject.AddComponent<HudItemSlot>();
+            Set(slot, "background", bg);
+            Set(slot, "icon", icon);
+            Set(slot, "key", key);
+            SetBool(slot, "hideWhenEmpty", true);
+            SetColor(slot, "filledBackground", Color.white);
+            bg.gameObject.SetActive(false);
+            return slot;
+        }
+
+        /// <summary>Пересобрать только HUD (по атласу нового интерфейса); остальные префабы не трогаются.</summary>
+        [MenuItem("ColorsAction/UI/Rebuild HUD (overwrite)")]
+        public static void RebuildHud()
+        {
+            EnsureSprites(false);
+            var icons = EnsureItemIcons(false);
+            EnsureUiAtlas();
+            Save(BuildHud(icons, AssetDatabase.LoadAssetAtPath<Text>(UiResources + "/DamageNumber.prefab")), UiResources + "/Hud.prefab");
+            AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>Resources/UI/UiAtlas — спрайты полос над врагами (их строит код во время игры).</summary>
+        public static UiAtlas EnsureUiAtlas()
+        {
+            EnsureFolder(UiResources);
+            var path = UiResources + "/UiAtlas.asset";
+            var atlas = AssetDatabase.LoadAssetAtPath<UiAtlas>(path);
+            if (atlas == null)
+            {
+                atlas = ScriptableObject.CreateInstance<UiAtlas>();
+                AssetDatabase.CreateAsset(atlas, path);
+            }
+
+            atlas.EnemyHealthFrame = AtlasSprite("EnemyHealthFrame");
+            atlas.EnemyHealthFill = AtlasSprite("EnemyHealthFill");
+            atlas.EnemyPoiseFrame = AtlasSprite("EnemyPoiseFrame");
+            atlas.EnemyPoiseFill = AtlasSprite("EnemyPoiseFill");
+            EditorUtility.SetDirty(atlas);
+            AssetDatabase.SaveAssets();
+            return atlas;
         }
 
         /// <summary>Кружок оружия: тёмный фон, кольцо цвета оружия, иконка, клавиша под ним.</summary>
@@ -457,17 +577,20 @@ namespace ColorsAction.Unity.Editor
             return slot;
         }
 
-        /// <summary>Ячейка крестовины предметов: плашка, иконка, номер клавиши.</summary>
+        /// <summary>Ячейка крестовины предметов: квадратная рамка из атласа, иконка, номер клавиши.</summary>
         private static HudItemSlot QuickSlot(Transform parent, Vector2 pos, int index)
         {
-            var back = WithSprite(UiFactory.Image(parent, "Quick" + (index + 1), new Color(0, 0, 0, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, new Vector2(64, 64)), rounded, true);
-            var label = UiFactory.Text(back.transform, "Key", (index + 1).ToString(), 16, TextAnchor.LowerRight, UiFactory.MutedText);
-            UiFactory.Stretch(label.rectTransform, 4);
+            var back = AtlasImage(parent, "Quick" + (index + 1), "Slot", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), pos, 0.56f);
+            back.type = Image.Type.Simple;
+            var label = UiFactory.Text(back.transform, "Key", (index + 1).ToString(), 17, TextAnchor.LowerRight, UiFactory.TextColor);
+            UiFactory.Stretch(label.rectTransform, 9);
             UiFactory.Outline(label);
-            var icon = IconImage(back.transform, 52f);
+            var icon = IconImage(back.transform, 56f);
             var slot = back.gameObject.AddComponent<HudItemSlot>();
             Set(slot, "background", back);
             Set(slot, "icon", icon);
+            SetColor(slot, "filledBackground", Color.white);
+            SetColor(slot, "emptyBackground", new Color(1f, 1f, 1f, 0.6f));
             return slot;
         }
 
@@ -478,67 +601,111 @@ namespace ColorsAction.Unity.Editor
             return text.gameObject;
         }
 
+        /// <summary>
+        /// Клетка инвентаря (референс Tools/UI/ref_inventory.png): квадратная рамка из атласа, иконка тянется вместе
+        /// с клеткой; подсветка «можно положить» — зелёные уголки, курсор геймпада — белые уголки.
+        /// </summary>
         private static GameObject BuildSlot()
         {
-            var bg = UiFactory.Image(null, "InventorySlot", UiFactory.SlotColor, new Vector2(0, 1), new Vector2(0, 1), Vector2.zero, new Vector2(100, 100));
+            var bg = UiFactory.Image(null, "InventorySlot", Color.white, new Vector2(0, 1), new Vector2(0, 1), Vector2.zero, new Vector2(140, 140));
+            bg.sprite = AtlasSprite("Slot");
+            bg.type = Image.Type.Sliced;
+            bg.pixelsPerUnitMultiplier = 1.03f;
             var view = bg.gameObject.AddComponent<SlotView>();
-            var highlight = UiFactory.Frame(bg.transform, "Highlight", UiFactory.Highlight, 4f);
+            var highlight = Corners(bg.transform, "Highlight", new Color(0.45f, 1f, 0.5f, 1f));
             highlight.SetActive(false);
-            var cursor = UiFactory.Frame(bg.transform, "Cursor", Color.white, 3f);
+            var cursor = Corners(bg.transform, "Cursor", Color.white);
             cursor.SetActive(false);
-            var caption = UiFactory.Text(bg.transform, "Caption", "", 18, TextAnchor.UpperCenter, UiFactory.MutedText);
+            var caption = UiFactory.Text(bg.transform, "Caption", "", 20, TextAnchor.UpperCenter, UiFactory.MutedText);
             caption.rectTransform.anchorMin = caption.rectTransform.anchorMax = new Vector2(0.5f, 0);
             caption.rectTransform.pivot = new Vector2(0.5f, 1);
-            caption.rectTransform.anchoredPosition = new Vector2(0, -6);
+            caption.rectTransform.anchoredPosition = new Vector2(0, -4);
             var icon = IconImage(bg.transform, 85f);
+            UiFactory.Stretch(icon.rectTransform, 22f);
             Set(view, "background", bg);
             Set(view, "highlight", highlight);
             Set(view, "cursor", cursor);
             Set(view, "icon", icon);
             Set(view, "caption", caption);
+            SetColor(view, "normalColor", Color.white);
+            SetColor(view, "heldColor", new Color(1f, 0.82f, 0.9f, 1f));
             return bg.gameObject;
         }
 
+        /// <summary>Уголки выделения клетки (атлас), чуть шире клетки.</summary>
+        private static GameObject Corners(Transform parent, string name, Color color)
+        {
+            var image = UiFactory.Image(parent, name, color, Vector2.zero, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            UiFactory.Stretch(image.rectTransform, -10f);
+            image.sprite = AtlasSprite("SlotCursor");
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1.4f;
+            image.fillCenter = false;
+            image.raycastTarget = false;
+            return image.gameObject;
+        }
+
+        /// <summary>
+        /// Экран инвентаря по референсу Tools/UI/ref_inventory.png (спрайты второго атласа, Art/UI/Atlas): рамка-окно
+        /// с ромбами, слева «Персонаж» — портрет-рамка с 3D-превью, плашка оружия под ним, крестовина 1–4; справа
+        /// «Инвентарь» — сетка; внизу длинная плашка с подсказкой управления. Координаты — от левого верхнего угла окна.
+        /// </summary>
         private static GameObject BuildInventory(ItemIcons icons, SlotView slotPrefab)
         {
             var go = CanvasRoot("InventoryScreen", 20);
             var view = go.AddComponent<InventoryView>();
             var dim = StretchRect(go.transform, "Dim", new Vector2(0.5f, 0.5f)).gameObject.AddComponent<Image>();
-            dim.color = new Color(0, 0, 0, 0.45f);
+            dim.color = new Color(0.03f, 0.02f, 0.05f, 0.5f);
 
-            var panel = UiFactory.Image(go.transform, "Panel", UiFactory.PanelColor, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1240, 720)).rectTransform;
+            var window = UiFactory.Image(go.transform, "Panel", Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1814, 970));
+            window.sprite = AtlasSprite("Panel");
+            window.type = Image.Type.Sliced;
+            window.pixelsPerUnitMultiplier = 1.05f;
+            var panel = window.rectTransform;
+            AtlasImage(panel, "DiamondTop", "DiamondLarge", new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -6), 0.62f);
+            AtlasImage(panel, "DiamondBottom", "DiamondLarge", new Vector2(0.5f, 0), new Vector2(0.5f, 0.5f), new Vector2(0, 6), 0.62f);
+
             var topLeft = UiFactory.Rect(panel, "Content", new Vector2(0, 1), new Vector2(0, 1), Vector2.zero, Vector2.zero);
 
-            Title(topLeft, "Персонаж", new Vector2(40, -22));
-            Title(topLeft, "Инвентарь", new Vector2(660, -22));
+            TitlePlate(topLeft, "Персонаж", new Vector2(67, -43));
+            TitlePlate(topLeft, "Инвентарь", new Vector2(923, -43));
 
-            // 3D-превью персонажа с оружием в руках (RenderTexture создаёт CharacterPreview в игре); справа — крестовина 1–4.
-            var previewRect = UiFactory.Rect(topLeft, "CharacterPreview", new Vector2(0, 1), new Vector2(0, 1), new Vector2(40, -70), new Vector2(260, 300));
+            // Портрет: рамка, внутри 3D-превью персонажа (RenderTexture создаёт CharacterPreview в игре).
+            var frame = AtlasImage(topLeft, "PortraitFrame", "PortraitFrame", new Vector2(0, 1), new Vector2(0, 1), new Vector2(67, -138), 1.15f);
+            var previewPos = new Vector2(67 + 26, -138 - 30);
+            var previewSize = frame.rectTransform.sizeDelta - new Vector2(52, 60);
+            var previewRect = UiFactory.Rect(topLeft, "CharacterPreview", new Vector2(0, 1), new Vector2(0, 1), previewPos, previewSize);
             var preview = previewRect.gameObject.AddComponent<RawImage>();
-            preview.color = new Color(0.16f, 0.17f, 0.19f, 1f);
+            preview.color = Color.white;
+            frame.transform.SetAsLastSibling();
 
-            // Слоты создаются в игре из префаба InventorySlot, в контейнер Slots (тот же левый верхний угол панели).
+            // Слоты создаются в игре из префаба InventorySlot, в контейнер Slots (тот же левый верхний угол окна).
             var slots = UiFactory.Rect(topLeft, "Slots", new Vector2(0, 1), new Vector2(0, 1), Vector2.zero, Vector2.zero);
 
-            // Оружие в руках и его прокачка — под превью.
-            var weaponCaption = UiFactory.Text(topLeft, "WeaponCaption", "", 22, TextAnchor.UpperLeft, UiFactory.TextColor);
-            weaponCaption.rectTransform.anchorMin = weaponCaption.rectTransform.anchorMax = new Vector2(0, 1);
-            weaponCaption.rectTransform.pivot = new Vector2(0, 1);
-            weaponCaption.rectTransform.sizeDelta = new Vector2(560, 32);
-            weaponCaption.rectTransform.anchoredPosition = new Vector2(40, -382);
+            // Оружие в руках и его прокачка — на плашке под портретом.
+            var captionPlate = AtlasImage(topLeft, "WeaponCaptionPlate", "CaptionPlate", new Vector2(0, 1), new Vector2(0, 1), new Vector2(48, -556), 1f);
+            captionPlate.rectTransform.sizeDelta = new Vector2(450, 62);
+            var weaponCaption = UiFactory.Text(captionPlate.transform, "WeaponCaption", "", 24, TextAnchor.MiddleCenter, UiFactory.TextColor);
+            UiFactory.Stretch(weaponCaption.rectTransform);
+            weaponCaption.rectTransform.offsetMin = new Vector2(40, 2);
+            weaponCaption.rectTransform.offsetMax = new Vector2(-40, 0);
 
             var description = UiFactory.Text(topLeft, "Description", "", 24, TextAnchor.UpperLeft, UiFactory.TextColor);
             description.rectTransform.anchorMin = description.rectTransform.anchorMax = new Vector2(0, 1);
             description.rectTransform.pivot = new Vector2(0, 1);
-            description.rectTransform.anchoredPosition = new Vector2(660, -640);
+            description.rectTransform.sizeDelta = new Vector2(820, 160);
+            description.rectTransform.anchoredPosition = new Vector2(946, -640);
 
-            var help = UiFactory.Text(topLeft, "Help", "", 20, TextAnchor.UpperLeft, UiFactory.MutedText);
-            help.rectTransform.anchorMin = help.rectTransform.anchorMax = new Vector2(0, 1);
-            help.rectTransform.pivot = new Vector2(0, 1);
-            help.rectTransform.anchoredPosition = new Vector2(40, -640);
+            // Подсказка управления — на длинной плашке внизу окна.
+            var helpPlate = AtlasImage(topLeft, "HelpPlate", "LongPlate", new Vector2(0, 1), new Vector2(0, 1), new Vector2(56, -838), 1f);
+            helpPlate.rectTransform.sizeDelta = new Vector2(1700, 74);
+            var help = UiFactory.Text(helpPlate.transform, "Help", "", 22, TextAnchor.MiddleCenter, UiFactory.TextColor);
+            UiFactory.Stretch(help.rectTransform);
+            help.rectTransform.offsetMin = new Vector2(60, 2);
+            help.rectTransform.offsetMax = new Vector2(-60, 0);
 
             // Иконка перетаскивания — поверх всего.
-            var ghost = UiFactory.Image(go.transform, "DragGhost", Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(90, 90));
+            var ghost = UiFactory.Image(go.transform, "DragGhost", Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(100, 100));
             ghost.raycastTarget = false;
             ghost.preserveAspect = true;
             ghost.gameObject.SetActive(false);
@@ -551,15 +718,25 @@ namespace ColorsAction.Unity.Editor
             Set(view, "help", help);
             Set(view, "previewImage", preview);
             Set(view, "weaponCaption", weaponCaption);
+            SetFloat(view, "slotSize", 140f);
+            SetFloat(view, "gap", 18f);
+            SetVector(view, "previewPosition", previewPos);
+            SetVector(view, "previewSize", previewSize);
+            SetVector(view, "crossCenter", new Vector2(700, -372));
+            SetFloat(view, "crossSlotSize", 120f);
+            SetFloat(view, "crossGap", 12f);
+            SetVector(view, "gridOrigin", new Vector2(946, -149));
             return go;
         }
 
-        private static void Title(Transform parent, string text, Vector2 pos)
+        private static void TitlePlate(Transform parent, string text, Vector2 pos)
         {
-            var t = UiFactory.Text(parent, "Title", text, 30, TextAnchor.UpperLeft, UiFactory.TextColor);
-            t.rectTransform.anchorMin = t.rectTransform.anchorMax = new Vector2(0, 1);
-            t.rectTransform.pivot = new Vector2(0, 1);
-            t.rectTransform.anchoredPosition = pos;
+            var plate = AtlasImage(parent, "TitlePlate", "TitlePlate", new Vector2(0, 1), new Vector2(0, 1), pos, 0.83f);
+            var t = UiFactory.Text(plate.transform, "Title", text, 34, TextAnchor.MiddleCenter, UiFactory.TextColor);
+            UiFactory.Stretch(t.rectTransform);
+            t.rectTransform.offsetMin = new Vector2(0, 3);
+            t.fontStyle = FontStyle.Bold;
+            UiFactory.Outline(t);
         }
 
         // ------------------------------------------------------------------ предметы на земле
@@ -738,6 +915,27 @@ namespace ColorsAction.Unity.Editor
             }
 
             p.objectReferenceValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetFloat(Object target, string field, float value)
+        {
+            var so = new SerializedObject(target);
+            so.FindProperty(field).floatValue = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetVector(Object target, string field, Vector2 value)
+        {
+            var so = new SerializedObject(target);
+            so.FindProperty(field).vector2Value = value;
+            so.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void SetColor(Object target, string field, Color value)
+        {
+            var so = new SerializedObject(target);
+            so.FindProperty(field).colorValue = value;
             so.ApplyModifiedPropertiesWithoutUndo();
         }
 

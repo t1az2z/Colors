@@ -57,6 +57,8 @@ namespace ColorsAction.Unity
                 Instantiate(hudPrefab, parent, false).name = "Hud";
             if (FindAnyObjectByType<WeaponWheel>() == null)
                 WeaponWheel.Create(parent, host.Container);
+            // Белый контур цели фиксации.
+            LockOnOutline.Ensure();
             if (inventoryPrefab == null)
                 inventoryPrefab = Resources.Load<InventoryView>(InventoryResource);
             // Меню костра: префаб Resources/UI/BonfireMenu, пока его не собрали в редакторе — строится кодом.

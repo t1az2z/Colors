@@ -10,8 +10,10 @@ using UnityEngine.UI;
 namespace ColorsAction.Unity
 {
     /// <summary>
-    /// HUD: слева вверху — здоровье (скруглённая полоса с цифрами) и выносливость под ним, опыт;
-    /// справа вверху — активное оружие кружком (подпись — кнопка колеса оружия), без оружия кружка нет;
+    /// HUD (макет Tools/UI/ref_hud.png, спрайты Art/UI/Atlas): слева вверху — здоровье (рамка с ромбом и цифрами) и
+    /// выносливость под ним, слева внизу — крестовина предметов 1–4, справа внизу — опыт на плашке с кубиками
+    /// (только несколько секунд после получения опыта); справа вверху — активное оружие в медальоне
+    /// (подпись — кнопка колеса оружия), без оружия медальона нет;
     /// подсказка взаимодействия, всплывающие сообщения и цифры урона.
     /// Вёрстка — префаб Resources/UI/Hud (Canvas + CanvasScaler 1920×1080), его создаёт <see cref="GameBootstrap"/>.
     /// Ширина полос берётся из префаба (размер Fill/Lag при полном значении).
@@ -30,6 +32,9 @@ namespace ColorsAction.Unity
 
         [Header("Тексты")]
         [SerializeField] private Text xpText;
+        [Tooltip("Плашка опыта: видна только несколько секунд после получения опыта (пусто — видна всегда).")]
+        [SerializeField] private CanvasGroup experienceGroup;
+        [SerializeField] private float experienceShowTime = 3.5f;
         [SerializeField] private Text prompt;
         [SerializeField] private Text toast;
         [SerializeField] private Text schemeLabel;
@@ -73,6 +78,8 @@ namespace ColorsAction.Unity
         private float staminaShown = 1f;
         private float healthShown = 1f;
         private float healthShake;
+        private float experienceTimer;
+        private float experienceAlpha;
 
         protected override void OnConstruct(IResolver resolver)
         {
@@ -117,6 +124,16 @@ namespace ColorsAction.Unity
             subscriptions.Add(events.Subscribe<DamageDealt>(OnDamage));
             subscriptions.Add(events.Subscribe<QuickItemUsed>(OnQuickItemUsed));
             subscriptions.Add(session.Vitals.Health.Current.Subscribe(_ => healthShake = 0.35f, false));
+            var lastExperience = session.Experience.Value;
+            subscriptions.Add(session.Experience.Subscribe(xp =>
+            {
+                // Плашка опыта показывается, только когда опыт прибавился.
+                if (xp > lastExperience)
+                    experienceTimer = experienceShowTime;
+                lastExperience = xp;
+            }, false));
+            if (experienceGroup != null)
+                experienceGroup.alpha = 0f;
             session.Inventory.Changed += RefreshHands;
             RefreshHands();
         }
@@ -158,11 +175,9 @@ namespace ColorsAction.Unity
             // Здоровье: заполнение сразу, светлый "хвост" догоняет; при уроне полоса дрожит.
             var health = session.Vitals.Health;
             var hp = health.Fraction;
-            healthFill.rectTransform.sizeDelta = new Vector2(Mathf.Max(0f, healthWidth * hp), healthHeight);
-            healthFill.enabled = hp > 0.001f;
+            SetBar(healthFill, healthWidth, healthHeight, hp);
             healthShown = hp > healthShown ? hp : Mathf.MoveTowards(healthShown, hp, dt * 0.5f);
-            healthLag.rectTransform.sizeDelta = new Vector2(healthWidth * healthShown, healthHeight);
-            healthLag.enabled = healthShown > 0.001f;
+            SetBar(healthLag, healthWidth, healthHeight, healthShown);
             healthText.text = $"{Mathf.CeilToInt(health.Current.Value)} / {Mathf.RoundToInt(health.Max)}";
             if (healthShake > 0f)
             {
@@ -173,13 +188,19 @@ namespace ColorsAction.Unity
 
             // Выносливость.
             var fraction = session.Stamina.Fraction;
-            staminaFill.rectTransform.sizeDelta = new Vector2(staminaWidth * fraction, staminaHeight);
-            staminaFill.enabled = fraction > 0.001f;
+            SetBar(staminaFill, staminaWidth, staminaHeight, fraction);
             staminaShown = fraction > staminaShown ? fraction : Mathf.MoveTowards(staminaShown, fraction, dt * 0.6f);
-            staminaLag.rectTransform.sizeDelta = new Vector2(staminaWidth * staminaShown, staminaHeight);
-            staminaLag.enabled = staminaShown > 0.001f;
+            SetBar(staminaLag, staminaWidth, staminaHeight, staminaShown);
 
             xpText.text = strings.Format("hud.experience", session.Experience.Value);
+            if (experienceGroup != null)
+            {
+                experienceTimer = Mathf.Max(0f, experienceTimer - dt);
+                // Появляется быстро, исчезает плавно за последние полсекунды.
+                var shown = experienceTimer > 0f ? 1f : 0f;
+                experienceAlpha = Mathf.MoveTowards(experienceAlpha, shown, dt * (shown > experienceAlpha ? 6f : 2f));
+                experienceGroup.alpha = experienceAlpha;
+            }
 
             // Подпись кружка — кнопка колеса: им оружие и меняется.
             if (primaryWeapon != null)
@@ -201,6 +222,19 @@ namespace ColorsAction.Unity
             }
 
             UpdateNumbers(dt);
+        }
+
+        /// <summary>
+        /// Заполнение полосы: у Filled-картинки (новый HUD из атласа) — fillAmount, у старой плашки — ширина.
+        /// </summary>
+        private static void SetBar(Image bar, float width, float height, float fraction)
+        {
+            fraction = Mathf.Clamp01(fraction);
+            if (bar.type == Image.Type.Filled)
+                bar.fillAmount = fraction;
+            else
+                bar.rectTransform.sizeDelta = new Vector2(Mathf.Max(0f, width * fraction), height);
+            bar.enabled = fraction > 0.001f;
         }
 
         private void LateUpdate()
