@@ -475,7 +475,7 @@ function newLevel(w, l, name) {
   L.floors = [{ id: 'f0', name: 'Этаж 0', baseY: 0 }];
   L.blocks = blocks; L.objects = [{ id: 'spawn', kind: 'PlayerSpawn', cell: [Math.floor(w / 2), 0, 1], yaw: 0, height: 2 }]; L.points = [];
   undoStack.length = redoStack.length = 0; tx = null; sel.obj = sel.point = null; activeFloor = 0;
-  computeBounds(); needMesh = true; changed(); fitView(); renderName(); renderPanel();
+  computeBounds(); needMesh = true; changed(); fitView(); renderName(); renderPanel(); unlinkFile();
 }
 function fileNameFrom(s) {
   const tr = { а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sch',ы:'y',э:'e',ю:'yu',я:'ya' };
@@ -488,13 +488,16 @@ function fileNameFrom(s) {
 const LS_KEY = 'colorsaction.leveleditor.v1';
 function autosave() {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ file: L.file, data: toJSON(), floor: activeFloor }));
-    savedAt = new Date(); renderSaved();
+    const data = toJSON();
+    localStorage.setItem(LS_KEY, JSON.stringify({ file: L.file, data, floor: activeFloor }));
+    savedAt = new Date(); dirty = JSON.stringify(data) !== fileSig; renderSaved();
   } catch (e) { $('#saved').textContent = 'не сохранено в браузере'; }
 }
 function renderSaved() {
-  if (!savedAt) return;
-  $('#saved').textContent = 'черновик ' + savedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const t = savedAt ? 'черновик ' + savedAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '';
+  const f = fileHandle ? (dirty ? '● ' : '✓ ') + fileHandle.name : '';
+  $('#saved').textContent = [f, t].filter(Boolean).join(' · ');
+  $('#saved').title = fileHandle ? (dirty ? 'Есть изменения, не записанные в ' : 'Всё записано в ') + fileHandle.name + ' (Ctrl+S — сохранить)' : 'Файл не привязан: «Сохранить» спросит, куда записать';
 }
 let restoredDraft = false;
 function restore() {
@@ -507,14 +510,103 @@ function restore() {
 
 // ============================================================================ сохранение и открытие файлов
 
-function levelBlob() { return new Blob([JSON.stringify(toJSON(), null, 2) + '\n'], { type: 'application/json' }); }
+function levelBlob() { return new Blob([levelText()], { type: 'application/json' }); }
 function download() {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(levelBlob()); a.download = L.file + '.json';
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  toastSaved('Скачан ' + L.file + '.json');
+}
+function toastSaved(msg) {
   const w = keyWarnings();
-  toast('Скачан ' + L.file + '.json' + (w.length ? ' · ⚠ ' + w[0] + (w.length > 1 ? ` (и ещё ${w.length - 1})` : '') : ''), w.length ? 5000 : 2000);
+  toast(msg + (w.length ? ' · ⚠ ' + w[0] + (w.length > 1 ? ` (и ещё ${w.length - 1})` : '') : ''), w.length ? 5000 : 2000);
+}
+
+// ------------------------------------------------------------------ запись прямо в файл (File System Access API, Chrome/Edge на ПК)
+// Открытый через «Открыть файл…» или выбранный в «Сохранить как…» файл запоминается (хэндл — в IndexedDB, переживает перезагрузку),
+// и «Сохранить» / Ctrl+S перезаписывают его. Где API нет (Safari, iPad, Firefox) — как раньше: скачивание.
+const FSA = typeof window.showOpenFilePicker === 'function' && typeof window.showSaveFilePicker === 'function';
+const PICKER = { id: 'colorsaction-levels', types: [{ description: 'Уровень ColorsAction', accept: { 'application/json': ['.json'] } }] };
+let fileHandle = null, fileSig = null, dirty = false;
+const baseName = n => n.replace(/(\.json)?(\.txt)?$/i, '');
+
+function idb(mode, fn) {
+  return new Promise((res, rej) => {
+    if (!window.indexedDB) return res(null);
+    const r = indexedDB.open('colorsaction.leveleditor', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onerror = () => rej(r.error);
+    r.onsuccess = () => {
+      const db = r.result, t = db.transaction('kv', mode), q = fn(t.objectStore('kv'));
+      t.oncomplete = () => { db.close(); res(q && q.result); };
+      t.onerror = t.onabort = () => { db.close(); rej(t.error); };
+    };
+  });
+}
+const storeHandle = h => idb('readwrite', s => h ? s.put({ handle: h, sig: fileSig }, 'file') : s.delete('file')).catch(() => {});
+
+function linkFile(h, sig) {
+  fileHandle = h; fileSig = h ? (sig ?? JSON.stringify(toJSON())) : null; dirty = false;
+  storeHandle(h); renderSaved(); renderSaveButton();
+}
+const unlinkFile = () => { if (fileHandle) linkFile(null); };
+function renderSaveButton() {
+  $('#bSave').textContent = fileHandle || !FSA ? '⤓ Сохранить' : '⤓ Сохранить…';
+  $('#bSave').title = fileHandle ? 'Записать в ' + fileHandle.name + ' (Ctrl+S)' : FSA ? 'Выбрать файл и записать (Ctrl+S)' : 'Скачать ' + L.file + '.json (Ctrl+S)';
+}
+// После перезагрузки: черновик тот же, что был привязан к файлу, — вернём привязку (разрешение на запись браузер спросит при первом «Сохранить»).
+async function restoreHandle() {
+  if (!FSA || !restoredDraft) return;
+  try {
+    const d = await idb('readonly', s => s.get('file'));
+    if (!d || !d.handle || baseName(d.handle.name) !== L.file) return;
+    fileHandle = d.handle; fileSig = d.sig ?? null;
+    dirty = JSON.stringify(toJSON()) !== fileSig; renderSaved(); renderSaveButton();
+  } catch (e) { /* нет — значит нет */ }
+}
+async function writeTo(h) {
+  if (h.queryPermission && (await h.queryPermission({ mode: 'readwrite' })) !== 'granted'
+      && (await h.requestPermission({ mode: 'readwrite' })) !== 'granted') throw new Error('нет разрешения на запись');
+  const text = levelText(), w = await h.createWritable();
+  await w.write(text); await w.close();
+  return text;
+}
+let saving = false;
+async function save() {
+  if (!FSA) return download();
+  if (!fileHandle) return saveAs();
+  if (saving) return; saving = true;
+  try {
+    await writeTo(fileHandle);
+    linkFile(fileHandle); toastSaved('Сохранён ' + fileHandle.name);
+  } catch (e) {
+    if (e.name === 'NotFoundError') { toast('Файл ' + fileHandle.name + ' не найден — выбери, куда сохранить', 3500); unlinkFile(); saving = false; return saveAs(); }
+    toast('Не получилось записать ' + fileHandle.name + ': ' + (e.message || e.name) + '. Скачиваю', 4000); download();
+  } finally { saving = false; }
+}
+async function saveAs() {
+  if (!FSA) return renameDialog(true);
+  let h;
+  try { h = await showSaveFilePicker({ ...PICKER, suggestedName: L.file + '.json', ...(fileHandle ? { startIn: fileHandle } : {}) }); }
+  catch (e) { if (e.name !== 'AbortError') { toast('Окно сохранения не открылось (' + (e.message || e.name) + '), скачиваю', 3500); download(); } return; }
+  try {
+    const f = cleanFileName(baseName(h.name));
+    if (f && f !== L.file) { L.file = f; renderName(); autosave(); }
+    await writeTo(h);
+    linkFile(h); toastSaved('Сохранён ' + h.name);
+  } catch (e) { toast('Не получилось записать ' + h.name + ': ' + (e.message || e.name), 4000); }
+}
+async function openFile() {
+  if (!FSA) { $('#fileInput').value = ''; $('#fileInput').click(); return; }
+  let h;
+  try { [h] = await showOpenFilePicker({ ...PICKER, ...(fileHandle ? { startIn: fileHandle } : {}) }); }
+  catch (e) { if (e.name !== 'AbortError') { $('#fileInput').value = ''; $('#fileInput').click(); } return; }
+  try {
+    const f = await h.getFile();
+    fromJSON(JSON.parse(await f.text()), baseName(f.name));
+    linkFile(h); autosave(); toast('Открыт ' + f.name + ' — «Сохранить» запишет в него');
+  } catch (err) { toast('Не получилось открыть: ' + err.message, 4000); }
 }
 // ------------------------------------------------------------------ поделиться
 // Файлом .json умеет делиться только Safari (iPad/Mac): Chrome и Edge пускают в системное меню лишь картинки,
@@ -545,7 +637,7 @@ async function openFromHash() {
   history.replaceState(null, '', location.href.split('#')[0]);
   if (!d || !d.data) return;
   const apply = () => {
-    try { fromJSON(d.data, d.file || fileNameFrom(d.data.name || '')); autosave(); toast('Открыт уровень из ссылки: ' + L.name, 3000); }
+    try { fromJSON(d.data, d.file || fileNameFrom(d.data.name || '')); unlinkFile(); autosave(); toast('Открыт уровень из ссылки: ' + L.name, 3000); }
     catch (e) { toast('Не получилось открыть уровень из ссылки: ' + e.message, 4000); }
   };
   const same = JSON.stringify(toJSON()) === JSON.stringify(d.data);
@@ -602,10 +694,9 @@ async function share() {
     h('div', { class: 'actions' }, h('button', { on: { click: close } }, 'Закрыть')));
   });
 }
-function openFile() { $('#fileInput').value = ''; $('#fileInput').click(); }
 $('#fileInput').addEventListener('change', async e => {
   const f = e.target.files[0]; if (!f) return;
-  try { fromJSON(JSON.parse(await f.text()), f.name.replace(/(\.json)?(\.txt)?$/i, '')); toast('Открыт ' + f.name); }
+  try { fromJSON(JSON.parse(await f.text()), baseName(f.name)); unlinkFile(); toast('Открыт ' + f.name); }
   catch (err) { toast('Не получилось открыть: ' + err.message, 4000); }
 });
 
@@ -644,7 +735,7 @@ async function openSiteLevel(name) {
   try {
     const r = await fetch('levels/' + encodeURIComponent(name) + '.json', { cache: 'no-cache' });
     if (!r.ok) throw new Error(r.status);
-    fromJSON(await r.json(), name); toast('Открыт ' + name + ' из репозитория');
+    fromJSON(await r.json(), name); unlinkFile(); toast('Открыт ' + name + ' из репозитория');
   } catch (e) { toast('Не получилось загрузить ' + name, 3000); }
 }
 
@@ -1085,6 +1176,7 @@ function setLevelName(name, file) {
   name = String(name || '').trim() || L.name;
   file = cleanFileName(file) || fileNameFrom(name);
   if (name !== L.name) { touchMarkup(); L.name = name; commit(); }
+  if (file !== L.file) unlinkFile();
   L.file = file;
   renderName(); renderPanel(); autosave();
   toast('Уровень сохранится как ' + file + '.json');
@@ -1094,11 +1186,13 @@ function fileMenu() {
     const item = (title, sub, fn) => h('button', { on: { click: () => { close(); fn(); } } }, title, sub ? h('small', {}, sub) : null);
     m.append(h('h2', {}, 'Файл'), h('div', { class: 'menu' },
       item('Новый уровень', 'Пустая площадка с землёй', newLevelDialog),
-      item('Открыть файл…', 'JSON из папки VoxelLevels', openFile),
+      item('Открыть файл…', 'JSON из папки VoxelLevels' + (FSA ? ' — «Сохранить» потом запишет прямо в него' : ''), openFile),
       siteLevels.length ? h('div', { class: 'desc', style: 'margin:6px 2px 0' }, 'Уровни из репозитория:') : null,
       siteLevels.map(n => item(n, null, () => openSiteLevel(n))),
-      item('Скачать ' + L.file + '.json', 'Положить в Assets/StreamingAssets/Configs/VoxelLevels', download),
-      item('Сохранить как…', 'Скачать под другим названием и именем файла', () => renameDialog(true)),
+      FSA ? item(fileHandle ? 'Сохранить в ' + fileHandle.name : 'Сохранить…', fileHandle ? 'Перезаписать открытый файл (Ctrl+S)' : 'Выбрать файл, дальше «Сохранить» пишет в него', save) : null,
+      FSA ? item('Сохранить как…', 'В другой файл; дальше «Сохранить» пишет в него', saveAs) : null,
+      item('Скачать ' + L.file + '.json', 'Копия в «Загрузки» — положить в Assets/StreamingAssets/Configs/VoxelLevels', download),
+      FSA ? null : item('Сохранить как…', 'Скачать под другим названием и именем файла', () => renameDialog(true)),
       item('Переименовать…', 'Сейчас: ' + L.name + ' · ' + L.file + '.json', () => renameDialog(false)),
       item('Поделиться…', 'Файл, ссылка на уровень или JSON в буфер', share),
     ), h('div', { class: 'actions' }, h('button', { on: { click: close } }, 'Закрыть')));
@@ -2306,7 +2400,7 @@ window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); download(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); e.shiftKey ? saveAs() : save(); return; }
   if (e.key === 'q' || e.key === 'Q' || e.key === 'й') rotateCam(-1);
   if (e.key === 'e' || e.key === 'E' || e.key === 'у') rotateCam(1);
   if (e.key >= '0' && e.key <= '9') { st.height = +e.key; renderPanel(); hud(); }
@@ -2329,7 +2423,7 @@ function rotateCam(dir) { dir *= YAW_SIGN; cam.yawT = cam.snap ? Math.round((cam
 
 $('#bFile').onclick = fileMenu;
 $('#levelName').title = 'Переименовать';
-$('#bSave').onclick = download;
+$('#bSave').onclick = save;
 $('#levelName').onclick = () => renameDialog(false);
 $('#bUndo').onclick = undo;
 $('#bRedo').onclick = redo;
@@ -2344,7 +2438,7 @@ $('#cFit').onclick = fitView;
 
 renderTools();
 if (!restore()) newLevel(32, 32, 'Новый уровень');
-renderName(); renderFloors(); renderPanel(); updateUndoButtons(); hud();
+renderName(); renderFloors(); renderPanel(); updateUndoButtons(); hud(); renderSaveButton(); restoreHandle();
 resize(); fitView();
 loadSiteData();
 if (/[#&]lvl=/.test(location.hash)) openFromHash();
