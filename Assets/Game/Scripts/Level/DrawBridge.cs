@@ -37,7 +37,7 @@ namespace ColorsAction.Unity
         private const float HalfWidth = (WidthMax - WidthMin) * 0.5f;
         private const float GearThickness = 0.12f;
         private const float PostSize = 0.22f;
-        private const float AlertBase = 1.4f;                              // низ знака «!» над опорой, м
+        private const float AlertHeight = BridgeAlert.Height;              // высота знака «!», м
 
         private string id;
         private Material worldMaterial;
@@ -199,13 +199,11 @@ namespace ColorsAction.Unity
             leafTarget = leaf.gameObject.AddComponent<BridgeLeafTarget>();
             leafTarget.Init(chain);
 
-            // «!» над мостом, пока у игрока есть оружие, которым рвутся цепи.
+            // «!» у моста, пока у игрока есть оружие, которым рвутся цепи.
             var alertGo = new GameObject("Alert");
             alertGo.transform.SetParent(transform, false);
-            // Перед поднятой створкой, над пропастью, на высоте взгляда: камера сверху видит его издалека
-            // (верх створки на подходе к мосту часто за краем экрана).
-            var tan = Mathf.Tan(config.RaisedAngle * Mathf.Deg2Rad);
-            alertGo.transform.localPosition = new Vector3(Far - (AlertBase + 1.5f) / tan - 0.5f, AlertBase, WidthMid);
+            // В проёме дальней П-образной рамы, за поднятой створкой, посередине по высоте: виден с обеих сторон моста.
+            alertGo.transform.localPosition = new Vector3(farGantry, (config.GantryHeight - AlertHeight) * 0.5f, WidthMid);
             alert = alertGo.AddComponent<BridgeAlert>();
             // Освещённый, как остальные кубы мира, цвета цепей чуть светлее (в тени створки). Без эмиссии:
             // с ней куб в этом рендере выглядит полупрозрачным.

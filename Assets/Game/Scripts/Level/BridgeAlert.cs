@@ -4,8 +4,8 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Восклицательный знак над поднятым разводным мостом (<see cref="DrawBridge"/>): «здесь поможет дробовик».
-    /// Собран из кубиков, как весь мир: столбик и точка цвета цепей, висит перед поднятой створкой
-    /// на высоте взгляда, поэтому виден издалека. Покачивается вверх-вниз, медленно поворачивается и «дышит» сжатием-растяжением, как кубы
+    /// Собран из кубиков, как весь мир: столбик и точка цвета цепей, висит в проёме дальней рамы
+    /// за поднятой створкой, виден издалека с обеих сторон моста. Покачивается вверх-вниз, медленно поворачивается и «дышит» сжатием-растяжением, как кубы
     /// персонажей. Появляется с пружинкой, исчезает сжатием (<see cref="Shown"/>).
     /// </summary>
     public sealed class BridgeAlert : MonoBehaviour
@@ -13,6 +13,9 @@ namespace ColorsAction.Unity
         private const float Size = 0.34f;        // толщина столбика и точки, м
         private const float BarHeight = 0.9f;
         private const float Gap = 0.16f;
+        /// <summary>Полная высота знака (точка, зазор, столбик), м.</summary>
+        public const float Height = Size + Gap + BarHeight;
+
         private const float BobHeight = 0.14f;
         private const float BobSpeed = 2.2f;
         private const float SpinSpeed = 40f;     // градусов в секунду
