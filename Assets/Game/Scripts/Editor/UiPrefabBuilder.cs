@@ -677,7 +677,6 @@ namespace ColorsAction.Unity.Editor
             var previewRect = UiFactory.Rect(topLeft, "CharacterPreview", new Vector2(0, 1), new Vector2(0, 1), previewPos, previewSize);
             var preview = previewRect.gameObject.AddComponent<RawImage>();
             preview.color = Color.white;
-            frame.transform.SetAsLastSibling();
 
             // Слоты создаются в игре из префаба InventorySlot, в контейнер Slots (тот же левый верхний угол окна).
             var slots = UiFactory.Rect(topLeft, "Slots", new Vector2(0, 1), new Vector2(0, 1), Vector2.zero, Vector2.zero);

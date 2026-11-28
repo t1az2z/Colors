@@ -81,7 +81,8 @@ namespace ColorsAction.Unity
             previewCamera.farClipPlane = 20f;
             previewCamera.cullingMask = 1 << PreviewLayer;
             previewCamera.clearFlags = CameraClearFlags.SolidColor;
-            previewCamera.backgroundColor = new Color(0.16f, 0.17f, 0.19f, 1f);
+            // Прозрачный фон: за персонажем видна рамка-портрет инвентаря.
+            previewCamera.backgroundColor = new Color(0f, 0f, 0f, 0f);
             previewCamera.targetTexture = texture;
             previewCamera.depth = -100f;
 

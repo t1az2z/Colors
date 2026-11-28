@@ -226,7 +226,7 @@ namespace ColorsAction.Unity
             cracks = meshGo.AddComponent<CrackVisual>();
             cracks.Init(bodyRenderer, deformer, color);
             marker = AlertMarker.Create(transform, size + 0.75f);
-            bars = EnemyBars.Create(transform, size + 0.42f, Mathf.Max(0.9f, size * 1.15f), brain.Poise.Max > 0f);
+            bars = EnemyBars.Create(transform, size + 0.5f, Mathf.Max(1.5f, size * 1.9f), brain.Poise.Max > 0f);
             body.rotation = Quaternion.Euler(0, yaw, 0);
         }
 
