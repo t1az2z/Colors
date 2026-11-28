@@ -47,11 +47,39 @@
     "deathPieces": 24,
     "experiencePieces": 14,
     "attacks": [
-      { "motion": "Slam", "windup": 0.7, "strike": 0.1, "hold": 0.35, "recovery": 0.8, "damage": 35, "range": 2.6, "arc": 60, "knockback": 2.5, "lunge": 0.6, "weight": 1, "parryFrom": -0.05, "parryTo": 0.06, "areaRadius": 1.8, "areaOffset": 1.4 },
-      { "motion": "DiagonalRight", "windup": 0.45, "strike": 0.1, "hold": 0.12, "recovery": 0.4, "damage": 20, "range": 2.1, "arc": 120, "knockback": 1.2, "lunge": 0.4, "weight": 1, "parryFrom": -0.04, "parryTo": 0.07,
-        "combo": [
-          { "motion": "DiagonalLeft", "windup": 0.3, "strike": 0.1, "hold": 0.2, "recovery": 0.6, "damage": 20, "range": 2.1, "arc": 120, "knockback": 1.5, "lunge": 0.5, "parryFrom": -0.04, "parryTo": 0.07 }
-        ] }
+      {
+        "motion": "Slam",
+        "windup": 0.7,
+        "strike": 0.1,
+        "hold": 0.35,
+        "recovery": 0.8,
+        "damage": 35,
+        "range": 2.6,
+        "arc": 60,
+        "knockback": 2.5,
+        "lunge": 0.6,
+        "weight": 1,
+        "parryFrom": -0.05,
+        "parryTo": 0.06,
+        "areaRadius": 1.8,
+        "areaOffset": 1.4
+      },
+      {
+        "motion": "DiagonalRight",
+        "windup": 0.45,
+        "strike": 0.1,
+        "hold": 0.12,
+        "recovery": 0.4,
+        "damage": 20,
+        "range": 2.1,
+        "arc": 120,
+        "knockback": 1.2,
+        "lunge": 0.4,
+        "weight": 1,
+        "parryFrom": -0.04,
+        "parryTo": 0.07,
+        "combo": [{ "motion": "DiagonalLeft", "windup": 0.3, "strike": 0.1, "hold": 0.2, "recovery": 0.6, "damage": 20, "range": 2.1, "arc": 120, "knockback": 1.5, "lunge": 0.5, "parryFrom": -0.04, "parryTo": 0.07 }]
+      }
     ],
     "flankBias": 0.4,
     "parriedDuration": 3,

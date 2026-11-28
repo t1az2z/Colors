@@ -16,9 +16,5 @@
   "stickRotateSpeed": 140,
   "snapStep": 45,
   "followDamping": 0.15,
-  "curvedWorld": {
-    "curvature": 0.01,
-    "flatRadius": 6,
-    "cullingExtraAngle": 25
-  }
+  "curvedWorld": { "curvature": 0.005, "flatRadius": 6, "cullingExtraAngle": 25 }
 }
