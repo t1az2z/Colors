@@ -7,7 +7,8 @@ using UnityEngine;
 namespace ColorsAction.Unity.Editor
 {
     /// <summary>
-    /// Импорт спрайтов нового интерфейса (Art/UI/Atlas и Art/UI/Wheel — их рисует Tools/UI/make_ui_sprites.py):
+    /// Импорт спрайтов нового интерфейса (Art/UI/Atlas, Art/UI/Wheel и кнопки Resources/UI/InputGlyphs — их режет
+    /// Tools/UI/make_ui_sprites.py):
     /// спрайт без мипов, без сжатия, бордеры 9-slice из Tools/UI/borders.json, пивот сектора колеса (центр колеса)
     /// из Tools/UI/wheel.json.
     /// </summary>
@@ -15,11 +16,12 @@ namespace ColorsAction.Unity.Editor
     {
         private const string AtlasFolder = "Assets/Game/Art/UI/Atlas/";
         private const string WheelFolder = "Assets/Game/Art/UI/Wheel/";
+        private const string GlyphFolder = "Assets/Game/Resources/UI/InputGlyphs/";
 
         private void OnPreprocessTexture()
         {
             var path = assetPath.Replace('\\', '/');
-            if (!path.StartsWith(AtlasFolder) && !path.StartsWith(WheelFolder))
+            if (!path.StartsWith(AtlasFolder) && !path.StartsWith(WheelFolder) && !path.StartsWith(GlyphFolder))
                 return;
             var importer = (TextureImporter)assetImporter;
             var name = Path.GetFileNameWithoutExtension(path);

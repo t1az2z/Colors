@@ -433,8 +433,115 @@ def slice_atlas2():
         json.dump(borders, f, indent=2)
 
 
+# ---------------------------------------------------------------------------------------------- атлас 3 (костёр)
+
+SRC3 = os.path.join(ROOT, "Tools", "UI", "ui_atlas3_source.png")
+
+CROPS3 = {
+    "BonfireCardSelected": (1085, 52, 1512, 193),
+    "BonfireCard": (1085, 195, 1513, 335),
+    "BonfireCardLocked": (1085, 341, 1514, 480),
+}
+
+BORDERS3 = {
+    "BonfireCardSelected": (34, 34, 34, 34),
+    "BonfireCard": (34, 34, 34, 34),
+    "BonfireCardLocked": (34, 34, 34, 34),
+}
+
+
+def slice_atlas3():
+    src = defringe(np.array(Image.open(SRC3).convert("RGBA")))
+    for name, (x0, y0, x1, y1) in CROPS3.items():
+        save(keep_main(src[y0:y1, x0:x1].copy(), name), ATLAS_OUT, name)
+    with open(os.path.join(META_OUT, "borders.json"), "r", encoding="utf-8") as f:
+        borders = json.load(f)
+    borders.update({k: list(v) for k, v in BORDERS3.items()})
+    borders["BlankKey"] = [40, 0, 40, 0]
+    with open(os.path.join(META_OUT, "borders.json"), "w", encoding="utf-8") as f:
+        json.dump(borders, f, indent=2)
+
+
+# ---------------------------------------------------------------------------------------------- кнопки (глифы)
+
+GLYPH_SRC = os.path.join(ROOT, "Tools", "UI", "input_glyphs_atlas.png")
+GLYPH_JSON = os.path.join(ROOT, "Tools", "UI", "input_glyphs_atlas.json")
+GLYPH_OUT = os.path.join(ROOT, "Assets", "Game", "Resources", "UI", "InputGlyphs")
+
+# Имя в атласе → (семейство, имя контрола Input System с "_" вместо "/") — как ищет InputGlyphs.
+_KEY_NAMES = {
+    "Esc": "escape", "PrintScreen": "printScreen", "ScrollLock": "scrollLock", "Pause": "pause",
+    "Backquote": "backquote", "Minus": "minus", "Equals": "equals", "Backspace": "backspace", "Tab": "tab",
+    "LeftBracket": "leftBracket", "RightBracket": "rightBracket", "Backslash": "backslash", "CapsLock": "capsLock",
+    "Semicolon": "semicolon", "Quote": "quote", "Enter": "enter", "LeftShift": "leftShift", "Comma": "comma",
+    "Period": "period", "Slash": "slash", "RightShift": "rightShift", "LeftCtrl": "leftCtrl",
+    "LeftWindows": "leftMeta", "LeftAlt": "leftAlt", "Space": "space", "RightAlt": "rightAlt",
+    "RightWindows": "rightMeta", "ContextMenu": "contextMenu", "RightCtrl": "rightCtrl", "Insert": "insert",
+    "Home": "home", "PageUp": "pageUp", "Delete": "delete", "End": "end", "PageDown": "pageDown",
+    "UpArrow": "upArrow", "LeftArrow": "leftArrow", "DownArrow": "downArrow", "RightArrow": "rightArrow",
+    "NumLock": "numLock", "NumpadDivide": "numpadDivide", "NumpadMultiply": "numpadMultiply",
+    "NumpadMinus": "numpadMinus", "NumpadPlus": "numpadPlus", "NumpadEnter": "numpadEnter",
+    "NumpadPeriod": "numpadPeriod", "ISOBackslash": "oem102",
+}
+_PAD_NAMES = {
+    "Xbox_A": "buttonSouth", "Xbox_B": "buttonEast", "Xbox_X": "buttonWest", "Xbox_Y": "buttonNorth",
+    "Xbox_LB": "leftShoulder", "Xbox_RB": "rightShoulder", "Xbox_LT": "leftTrigger", "Xbox_RT": "rightTrigger",
+    "Xbox_LS": "leftStick", "Xbox_RS": "rightStick", "Xbox_L3": "leftStickPress", "Xbox_R3": "rightStickPress",
+    "Xbox_Dpad": "dpad", "Xbox_DpadUp": "dpad_up", "Xbox_DpadDown": "dpad_down", "Xbox_DpadLeft": "dpad_left",
+    "Xbox_DpadRight": "dpad_right", "Xbox_View": "select", "Xbox_Menu": "start",
+}
+_MOUSE_NAMES = {
+    "Mouse_Left": "leftButton", "Mouse_Right": "rightButton", "Mouse_Middle": "middleButton",
+    "Mouse_ScrollUp": "scroll_up", "Mouse_ScrollDown": "scroll_down",
+}
+
+
+def glyph_target(name):
+    if name in _PAD_NAMES:
+        return "xbox", _PAD_NAMES[name]
+    if name in _MOUSE_NAMES:
+        return "mouse", _MOUSE_NAMES[name]
+    if name == "BlankKey":
+        return "blank", "BlankKey"
+    if name == "BlankGamepad":
+        return "blank", "BlankGamepad"
+    if name in _KEY_NAMES:
+        return "keyboard", _KEY_NAMES[name]
+    if name.startswith("Alpha"):
+        return "keyboard", name[5:]
+    if name.startswith("Numpad"):
+        return "keyboard", "numpad" + name[6:]
+    if len(name) <= 3:  # A..Z, F1..F12
+        return "keyboard", name.lower()
+    return None
+
+
+def slice_glyphs():
+    src = defringe(np.array(Image.open(GLYPH_SRC).convert("RGBA")))
+    H = src.shape[0]
+    with open(GLYPH_JSON, encoding="utf-8") as f:
+        meta = json.load(f)
+    for sp in meta["sprites"]:
+        target = glyph_target(sp["name"])
+        if target is None:
+            continue
+        x, w, h = sp["x"], sp["width"], sp["height"]
+        top = H - sp["y"] - h  # в разметке начало координат — снизу слева
+        cell = src[top:top + h, x:x + w].copy()
+        ys, xs = np.nonzero(cell[..., 3] > 8)
+        if len(xs) == 0:
+            continue
+        pad = 2
+        y0, y1 = max(0, ys.min() - pad), min(h, ys.max() + 1 + pad)
+        x0, x1 = max(0, xs.min() - pad), min(w, xs.max() + 1 + pad)
+        family, control = target
+        save(cell[y0:y1, x0:x1], os.path.join(GLYPH_OUT, family), control)
+
+
 if __name__ == "__main__":
     slice_atlas()
     make_wheel()
     slice_atlas2()
+    slice_atlas3()
+    slice_glyphs()
     print("ok")

@@ -13,6 +13,13 @@ namespace ColorsAction.Unity
         [SerializeField] private UnityEngine.UI.Text state;
         [SerializeField] private UnityEngine.UI.Outline cursor;
 
+        [Header("Карточка из атласа (пусто — фон просто красится цветом)")]
+        [SerializeField] private Sprite cardSprite;
+        [SerializeField] private Sprite selectedSprite;
+        [SerializeField] private Sprite lockedSprite;
+        [Tooltip("Плашка цены/состояния (прячется, когда текста нет).")]
+        [SerializeField] private GameObject statePlate;
+
         private BonfireView owner;
 
         public int Tier => tier;
@@ -33,13 +40,22 @@ namespace ColorsAction.Unity
             Cell = cell;
         }
 
-        public void Show(string title, string stateText, Color color, bool bright, bool selected)
+        public void Show(string title, string stateText, Color color, bool bright, bool selected, bool locked = false)
         {
+            if (cardSprite != null)
+            {
+                // Выбранная — карточка в золотой рамке, закрытая — тёмная; цвет только слегка тонирует.
+                background.sprite = selected && selectedSprite != null ? selectedSprite : locked && lockedSprite != null ? lockedSprite : cardSprite;
+            }
+
             background.color = color;
             label.text = title;
             label.color = bright ? UiFactory.TextColor : UiFactory.MutedText;
             state.text = stateText;
-            cursor.enabled = selected;
+            if (statePlate != null)
+                statePlate.SetActive(!string.IsNullOrEmpty(stateText));
+            if (cursor != null)
+                cursor.enabled = selected;
         }
 
         public void OnPointerEnter(PointerEventData eventData) => owner?.OnHover(Cell);

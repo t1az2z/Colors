@@ -251,6 +251,9 @@ namespace ColorsAction.Unity
             image.raycastTarget = false;
             if (glyph.Icon != null)
             {
+                // Кнопки из атласа: рамка занимает часть картинки, поэтому они крупнее строки текста.
+                height = Mathf.Round(style.FontSize * 1.65f);
+                element.preferredHeight = element.minHeight = height;
                 image.sprite = glyph.Icon;
                 image.preserveAspect = true;
                 var aspect = glyph.Icon.rect.height > 0 ? glyph.Icon.rect.width / glyph.Icon.rect.height : 1f;
@@ -259,8 +262,30 @@ namespace ColorsAction.Unity
             }
 
             var round = glyph.Shape == GlyphShape.FaceButton;
-            UiSprites.Apply(image, round ? UiSprites.Circle : UiSprites.Rounded, !round);
             var pad = glyph.Shape == GlyphShape.FaceButton || glyph.Shape == GlyphShape.PadButton;
+            // Пустая клавиша / кнопка из атласа кнопок, подпись поверх; нет атласа — плашка, нарисованная кодом.
+            var blank = glyphs == null ? null : round ? glyphs.BlankPad : glyphs.BlankKey;
+            if (blank != null)
+            {
+                height = Mathf.Round(style.FontSize * 1.65f);
+                element.preferredHeight = element.minHeight = height;
+                image.sprite = blank;
+                image.type = round ? Image.Type.Simple : Image.Type.Sliced;
+                image.pixelsPerUnitMultiplier = blank.rect.height / height;
+                image.color = Color.white;
+                var text = round ? new Color(0.95f, 0.9f, 0.92f, 1f) : new Color(0.2f, 0.13f, 0.22f, 1f);
+                var size = Mathf.RoundToInt(style.FontSize * (glyph.Label.Length > 2 ? 0.62f : 0.75f));
+                var caption = UiFactory.Text(go.transform, "Label", glyph.Label, size, TextAnchor.MiddleCenter, text);
+                caption.font = style.Font;
+                caption.fontStyle = FontStyle.Bold;
+                UiFactory.Stretch(caption.rectTransform);
+                caption.rectTransform.offsetMin = new Vector2(0, height * 0.06f);
+                var aspect = blank.rect.width / blank.rect.height;
+                element.preferredWidth = element.minWidth = round ? height * aspect : Mathf.Max(height * aspect, caption.preferredWidth + style.FontSize * 0.9f);
+                return go;
+            }
+
+            UiSprites.Apply(image, round ? UiSprites.Circle : UiSprites.Rounded, !round);
             image.color = glyph.Tint ?? (pad ? style.PadColor : style.KeyColor);
 
             var labelSize = Mathf.RoundToInt(style.FontSize * (glyph.Label.Length > 2 ? 0.72f : 0.85f));

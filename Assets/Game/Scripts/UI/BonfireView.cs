@@ -11,8 +11,8 @@ namespace ColorsAction.Unity
     /// Меню костра (префаб Resources/UI/BonfireMenu со своим Canvas + CanvasScaler 1920×1080): оружие игрока строками,
     /// по 3 апгрейда в строке. Геймпад: D-pad/стик — выбор, A — изучить, B — уйти от костра.
     /// Мышь: наведение — описание, щелчок — изучить; Esc — уйти. Логика — <see cref="BonfireScreenViewModel"/>.
-    /// Префаб собирает <c>ColorsAction → UI → Build Bonfire Menu Prefab</c>; пока его нет, меню строится кодом
-    /// (<see cref="BuildDefault"/>, та же раскладка).
+    /// Префаб по макету Tools/UI/ref_bonfire.png собирает <c>ColorsAction → UI → Rebuild Bonfire Menu</c>
+    /// (BonfireMenuPrefabBuilder, спрайты атласов Art/UI/Atlas); пока его нет, меню строится кодом (<see cref="BuildDefault"/>).
     /// </summary>
     public sealed class BonfireView : MonoBehaviour
     {
@@ -83,6 +83,17 @@ namespace ColorsAction.Unity
                     title.color = Color.Lerp(palette.Get(row.Color), Color.white, 0.35f);
                 }
 
+                // Иконка оружия строки (есть в префабе из атласа): спрайт из ItemIcons HUD.
+                var icon = go.transform.Find("Icon")?.GetComponent<UnityEngine.UI.Image>();
+                if (icon != null)
+                {
+                    var hud = FindAnyObjectByType<Hud>();
+                    var sprite = hud != null && hud.Icons != null ? hud.Icons.Find(row.ItemId) : null;
+                    icon.sprite = sprite;
+                    icon.enabled = sprite != null;
+                    icon.preserveAspect = true;
+                }
+
                 foreach (var cell in go.GetComponentsInChildren<BonfireCell>(true))
                 {
                     cell.Init(this, new UpgradeCell(r, cell.Tier));
@@ -116,7 +127,7 @@ namespace ColorsAction.Unity
                 }
 
                 cell.Show($"{cell.Tier}. {tier?.Name}", state, color, status == UpgradeTierStatus.Owned || status == UpgradeTierStatus.Available,
-                    vm.Cursor.Value.Equals(cell.Cell));
+                    vm.Cursor.Value.Equals(cell.Cell), status == UpgradeTierStatus.Locked);
             }
         }
 

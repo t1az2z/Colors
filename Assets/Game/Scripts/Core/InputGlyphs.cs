@@ -38,8 +38,9 @@ namespace ColorsAction.Unity
     /// <c>{action:id}</c> в тексте подсказки. Пути кнопок — из привязок <see cref="GameInput"/> (переназначение подхватится само),
     /// подписи — <c>controls</c> в файле языка (<see cref="Strings.ControlLabel"/>), иначе имя из Input System.
     /// <para>Иконки: спрайт <c>Resources/UI/InputGlyphs/&lt;семейство&gt;/&lt;кнопка&gt;</c> (семейство — keyboard, mouse, xbox, ps;
-    /// кнопка — конец пути с <c>_</c> вместо <c>/</c>: <c>buttonSouth</c>, <c>dpad_up</c>, <c>leftButton</c>). Нет спрайта —
-    /// интерфейс рисует клавишу с подписью.</para>
+    /// кнопка — конец пути с <c>_</c> вместо <c>/</c>: <c>buttonSouth</c>, <c>dpad_up</c>, <c>leftButton</c>); спрайты режет
+    /// Tools/UI/make_ui_sprites.py из атласа Tools/UI/input_glyphs_atlas.png. Нет спрайта — интерфейс рисует подпись
+    /// на пустой клавише или кнопке того же атласа (<see cref="BlankKey"/>, <see cref="BlankPad"/>).</para>
     /// </summary>
     public sealed class InputGlyphs
     {
@@ -88,6 +89,12 @@ namespace ColorsAction.Unity
                 result.Add(new InputGlyph(actionId, null, GlyphShape.Key, null));
             return result;
         }
+
+        /// <summary>Пустая клавиша (9-slice) — под подпись кнопки, у которой нет своего спрайта.</summary>
+        public Sprite BlankKey => Icon("blank/BlankKey");
+
+        /// <summary>Пустая круглая кнопка геймпада — под подпись кнопки без своего спрайта (кнопки PlayStation).</summary>
+        public Sprite BlankPad => Icon("blank/BlankGamepad");
 
         /// <summary>Подпись действия одной строкой ("F", "Q / E", "LB / RB") — для мест без иконок.</summary>
         public string Label(string actionId)

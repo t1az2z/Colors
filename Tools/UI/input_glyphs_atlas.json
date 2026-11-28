@@ -1,0 +1,939 @@
+{
+  "cellSize": 128,
+  "columns": 12,
+  "rows": 12,
+  "origin": "bottom-left",
+  "sprites": [
+    {
+      "name": "Esc",
+      "x": 0,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F1",
+      "x": 128,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F2",
+      "x": 256,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F3",
+      "x": 384,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F4",
+      "x": 512,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F5",
+      "x": 640,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F6",
+      "x": 768,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F7",
+      "x": 896,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F8",
+      "x": 1024,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F9",
+      "x": 1152,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F10",
+      "x": 1280,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F11",
+      "x": 1408,
+      "y": 1408,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F12",
+      "x": 0,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "PrintScreen",
+      "x": 128,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "ScrollLock",
+      "x": 256,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Pause",
+      "x": 384,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Backquote",
+      "x": 512,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha1",
+      "x": 640,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha2",
+      "x": 768,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha3",
+      "x": 896,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha4",
+      "x": 1024,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha5",
+      "x": 1152,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha6",
+      "x": 1280,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha7",
+      "x": 1408,
+      "y": 1280,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha8",
+      "x": 0,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha9",
+      "x": 128,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Alpha0",
+      "x": 256,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Minus",
+      "x": 384,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Equals",
+      "x": 512,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Backspace",
+      "x": 640,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Tab",
+      "x": 768,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Q",
+      "x": 896,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "W",
+      "x": 1024,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "E",
+      "x": 1152,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "R",
+      "x": 1280,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "T",
+      "x": 1408,
+      "y": 1152,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Y",
+      "x": 0,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "U",
+      "x": 128,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "I",
+      "x": 256,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "O",
+      "x": 384,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "P",
+      "x": 512,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LeftBracket",
+      "x": 640,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "RightBracket",
+      "x": 768,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Backslash",
+      "x": 896,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "CapsLock",
+      "x": 1024,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "A",
+      "x": 1152,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "S",
+      "x": 1280,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "D",
+      "x": 1408,
+      "y": 1024,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "F",
+      "x": 0,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "G",
+      "x": 128,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "H",
+      "x": 256,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "J",
+      "x": 384,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "K",
+      "x": 512,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "L",
+      "x": 640,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Semicolon",
+      "x": 768,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Quote",
+      "x": 896,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Enter",
+      "x": 1024,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LeftShift",
+      "x": 1152,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "ISOBackslash",
+      "x": 1280,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Z",
+      "x": 1408,
+      "y": 896,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "X",
+      "x": 0,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "C",
+      "x": 128,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "V",
+      "x": 256,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "B",
+      "x": 384,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "N",
+      "x": 512,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "M",
+      "x": 640,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Comma",
+      "x": 768,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Period",
+      "x": 896,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Slash",
+      "x": 1024,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "RightShift",
+      "x": 1152,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LeftCtrl",
+      "x": 1280,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LeftWindows",
+      "x": 1408,
+      "y": 768,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LeftAlt",
+      "x": 0,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Space",
+      "x": 128,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "RightAlt",
+      "x": 256,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "RightWindows",
+      "x": 384,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "ContextMenu",
+      "x": 512,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "RightCtrl",
+      "x": 640,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Insert",
+      "x": 768,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Home",
+      "x": 896,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "PageUp",
+      "x": 1024,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Delete",
+      "x": 1152,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "End",
+      "x": 1280,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "PageDown",
+      "x": 1408,
+      "y": 640,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "UpArrow",
+      "x": 0,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "LeftArrow",
+      "x": 128,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "DownArrow",
+      "x": 256,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "RightArrow",
+      "x": 384,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "NumLock",
+      "x": 512,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "NumpadDivide",
+      "x": 640,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "NumpadMultiply",
+      "x": 768,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "NumpadMinus",
+      "x": 896,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad7",
+      "x": 1024,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad8",
+      "x": 1152,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad9",
+      "x": 1280,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "NumpadPlus",
+      "x": 1408,
+      "y": 512,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad4",
+      "x": 0,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad5",
+      "x": 128,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad6",
+      "x": 256,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad1",
+      "x": 384,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad2",
+      "x": 512,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad3",
+      "x": 640,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "NumpadEnter",
+      "x": 768,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Numpad0",
+      "x": 896,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "NumpadPeriod",
+      "x": 1024,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_A",
+      "x": 1152,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_B",
+      "x": 1280,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_X",
+      "x": 1408,
+      "y": 384,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_Y",
+      "x": 0,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_LB",
+      "x": 128,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_RB",
+      "x": 256,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_LT",
+      "x": 384,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_RT",
+      "x": 512,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_LS",
+      "x": 640,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_RS",
+      "x": 768,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_L3",
+      "x": 896,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_R3",
+      "x": 1024,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_Dpad",
+      "x": 1152,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_DpadUp",
+      "x": 1280,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_DpadDown",
+      "x": 1408,
+      "y": 256,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_DpadLeft",
+      "x": 0,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_DpadRight",
+      "x": 128,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_View",
+      "x": 256,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_Menu",
+      "x": 384,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_Guide",
+      "x": 512,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Xbox_Share",
+      "x": 640,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mouse_Left",
+      "x": 768,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mouse_Right",
+      "x": 896,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mouse_Middle",
+      "x": 1024,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mouse_ScrollUp",
+      "x": 1152,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "Mouse_ScrollDown",
+      "x": 1280,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "BlankKey",
+      "x": 1408,
+      "y": 128,
+      "width": 128,
+      "height": 128
+    },
+    {
+      "name": "BlankGamepad",
+      "x": 0,
+      "y": 0,
+      "width": 128,
+      "height": 128
+    }
+  ]
+}

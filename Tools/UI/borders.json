@@ -88,5 +88,29 @@
     60,
     64,
     60
+  ],
+  "BonfireCardSelected": [
+    34,
+    34,
+    34,
+    34
+  ],
+  "BonfireCard": [
+    34,
+    34,
+    34,
+    34
+  ],
+  "BonfireCardLocked": [
+    34,
+    34,
+    34,
+    34
+  ],
+  "BlankKey": [
+    40,
+    0,
+    40,
+    0
   ]
 }
