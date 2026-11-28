@@ -201,6 +201,12 @@ namespace ColorsAction.Unity
                     continue;
                 }
 
+                if (segment.Kind == PromptSegmentKind.Icon)
+                {
+                    parts.Add(IconPart(row, segment.Value));
+                    continue;
+                }
+
                 var keys = glyphs != null ? glyphs.Resolve(segment.Value) : new List<InputGlyph> { new InputGlyph(segment.Value, null, GlyphShape.Key, null) };
                 // Несколько кнопок одного действия ("Q / E") — через косую черту, клавиши WASD — подряд.
                 var separated = keys.Count > 1 && keys.Count <= 2;
@@ -236,6 +242,32 @@ namespace ColorsAction.Unity
             t.fontStyle = style.FontStyle;
             CopyEffect(t.gameObject);
             return t.gameObject;
+        }
+
+        /// <summary>Папка значков строки <c>{icon:id}</c> в Resources.</summary>
+        public const string IconsPath = "UI/PromptIcons/";
+
+        /// <summary>
+        /// Значок в строке (<c>{icon:id}</c>): спрайт <c>Resources/UI/PromptIcons/&lt;id&gt;</c> высотой с клавишу;
+        /// нет спрайта — текст из <see cref="PromptText.Plain"/> (у «!» — сам знак).
+        /// </summary>
+        private GameObject IconPart(Transform row, string id)
+        {
+            var sprite = Resources.Load<Sprite>(IconsPath + id);
+            if (sprite == null)
+                return TextPart(row, PromptText.Plain("{icon:" + id + "}", null));
+            var height = Mathf.Round(style.FontSize * 1.5f);
+            var go = new GameObject("Icon", typeof(RectTransform));
+            go.transform.SetParent(row, false);
+            var element = go.AddComponent<LayoutElement>();
+            var image = go.AddComponent<Image>();
+            image.raycastTarget = false;
+            image.sprite = sprite;
+            image.preserveAspect = true;
+            var aspect = sprite.rect.height > 0 ? sprite.rect.width / sprite.rect.height : 1f;
+            element.preferredHeight = element.minHeight = height;
+            element.preferredWidth = element.minWidth = height * aspect;
+            return go;
         }
 
         private GameObject KeyPart(Transform row, InputGlyph glyph)

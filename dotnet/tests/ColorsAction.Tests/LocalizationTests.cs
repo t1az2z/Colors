@@ -36,6 +36,19 @@ namespace ColorsAction.Tests
         }
 
         [Test]
+        public void Parse_IconTokens_AndUnblockableHintText()
+        {
+            var segments = PromptText.Parse("Атаки со знаком {icon:unblockable} нельзя блокировать");
+            Assert.That(segments, Is.EqualTo(new List<PromptSegment>
+            {
+                PromptSegment.Text("Атаки со знаком "),
+                PromptSegment.Icon(PromptText.UnblockableIcon),
+                PromptSegment.Text(" нельзя блокировать")
+            }));
+            Assert.That(PromptText.Plain("{icon:unblockable} {icon:other}{action:block}", a => "ПКМ"), Is.EqualTo("! [ПКМ]"));
+        }
+
+        [Test]
         public void Substitute_ReplacesArgsButKeepsActionTokens()
         {
             var text = PromptText.Substitute("{action:interact} {0} +{1}", new object[] { "Металл", 3 });

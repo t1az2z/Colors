@@ -160,6 +160,9 @@ namespace ColorsAction.Combat
             return t >= from && t <= to;
         }
 
+        /// <summary>Замах неблокируемого удара (<see cref="EnemyAttackConfig.Unblockable"/>): над врагом горит знак «!».</summary>
+        public bool UnblockableWindup => State == EnemyState.Windup && Attack != null && Attack.Unblockable;
+
         /// <summary>Атаку ещё можно сорвать парированием, если игрок попал вовремя (замах, удар, фиксация).</summary>
         public bool CanBeParried => Attack != null &&
                                     (State == EnemyState.Windup || State == EnemyState.Strike || State == EnemyState.Hold);

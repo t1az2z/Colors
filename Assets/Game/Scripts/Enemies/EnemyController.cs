@@ -685,7 +685,8 @@ namespace ColorsAction.Unity
         {
             hitThisAttack = true;
             // Усиление врага статус-эффектом; уязвимость игрока учитывает PlayerVitals.
-            playerDamage.ReceiveEnemyHit(attack.Damage * brain.Status.DamageDealtMultiplier, transform.position, attack.Knockback);
+            playerDamage.ReceiveEnemyHit(attack.Damage * brain.Status.DamageDealtMultiplier, transform.position, attack.Knockback,
+                attack.Unblockable);
         }
 
         /// <summary>

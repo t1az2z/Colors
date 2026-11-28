@@ -10,7 +10,10 @@ namespace ColorsAction.Localization
         Text,
 
         /// <summary>Кнопка действия: <see cref="PromptSegment.Value"/> — id действия ("interact", "jump"…).</summary>
-        Action
+        Action,
+
+        /// <summary>Значок в строке: <see cref="PromptSegment.Value"/> — id значка ("unblockable" — знак «!» неблокируемой атаки).</summary>
+        Icon
     }
 
     public readonly struct PromptSegment : IEquatable<PromptSegment>
@@ -28,23 +31,31 @@ namespace ColorsAction.Localization
 
         public static PromptSegment Action(string id) => new PromptSegment(PromptSegmentKind.Action, id);
 
+        public static PromptSegment Icon(string id) => new PromptSegment(PromptSegmentKind.Icon, id);
+
         public bool Equals(PromptSegment other) => Kind == other.Kind && Value == other.Value;
 
         public override bool Equals(object obj) => obj is PromptSegment other && Equals(other);
 
         public override int GetHashCode() => ((int)Kind * 397) ^ (Value?.GetHashCode() ?? 0);
 
-        public override string ToString() => Kind == PromptSegmentKind.Action ? "{action:" + Value + "}" : Value;
+        public override string ToString() => Kind == PromptSegmentKind.Action ? "{action:" + Value + "}"
+            : Kind == PromptSegmentKind.Icon ? "{icon:" + Value + "}" : Value;
     }
 
     /// <summary>
     /// Разметка текста подсказок: <c>{0}</c>… — аргументы (<see cref="Substitute"/>), <c>{action:id}</c> — кнопка действия
-    /// (<see cref="Parse"/> разбивает текст на куски для отрисовки: текст и кнопки), <c>{{</c> / <c>}}</c> — скобки.
+    /// (<see cref="Parse"/> разбивает текст на куски для отрисовки: текст, кнопки и значки), <c>{icon:id}</c> — значок
+    /// (например знак «!» неблокируемой атаки), <c>{{</c> / <c>}}</c> — скобки.
     /// Незнакомые <c>{…}</c> остаются текстом как есть.
     /// </summary>
     public static class PromptText
     {
         public const string ActionPrefix = "action:";
+        public const string IconPrefix = "icon:";
+
+        /// <summary>Значок знака «!» неблокируемой атаки врага.</summary>
+        public const string UnblockableIcon = "unblockable";
 
         /// <summary>Подставить аргументы <c>{0}</c>, <c>{1}</c>…; остальная разметка не трогается.</summary>
         public static string Substitute(string template, object[] args)
@@ -80,7 +91,7 @@ namespace ColorsAction.Localization
             return sb.ToString();
         }
 
-        /// <summary>Разбить текст на куски: текст и кнопки действий. Соседние куски текста склеиваются.</summary>
+        /// <summary>Разбить текст на куски: текст, кнопки действий и значки. Соседние куски текста склеиваются.</summary>
         public static List<PromptSegment> Parse(string text)
         {
             var result = new List<PromptSegment>();
@@ -97,10 +108,12 @@ namespace ColorsAction.Localization
                     continue;
                 }
 
-                if (c == '{' && string.CompareOrdinal(text, i + 1, ActionPrefix, 0, ActionPrefix.Length) == 0)
+                var isAction = c == '{' && string.CompareOrdinal(text, i + 1, ActionPrefix, 0, ActionPrefix.Length) == 0;
+                var isIcon = !isAction && c == '{' && string.CompareOrdinal(text, i + 1, IconPrefix, 0, IconPrefix.Length) == 0;
+                if (isAction || isIcon)
                 {
                     var close = text.IndexOf('}', i + 1);
-                    var start = i + 1 + ActionPrefix.Length;
+                    var start = i + 1 + (isAction ? ActionPrefix.Length : IconPrefix.Length);
                     if (close > start)
                     {
                         if (sb.Length > 0)
@@ -109,7 +122,8 @@ namespace ColorsAction.Localization
                             sb.Clear();
                         }
 
-                        result.Add(PromptSegment.Action(text.Substring(start, close - start).Trim()));
+                        var id = text.Substring(start, close - start).Trim();
+                        result.Add(isAction ? PromptSegment.Action(id) : PromptSegment.Icon(id));
                         i = close;
                         continue;
                     }
@@ -123,7 +137,10 @@ namespace ColorsAction.Localization
             return result;
         }
 
-        /// <summary>Текст без иконок: кнопки — подписью в квадратных скобках, "[F] взять" (логи, тесты, простые Text).</summary>
+        /// <summary>
+        /// Текст без иконок: кнопки — подписью в квадратных скобках, "[F] взять"; значок «!» — "!", прочие значки — пропускаются
+        /// (логи, тесты, простые Text).
+        /// </summary>
         public static string Plain(string text, Func<string, string> actionLabel)
         {
             var sb = new StringBuilder();
@@ -131,6 +148,8 @@ namespace ColorsAction.Localization
             {
                 if (segment.Kind == PromptSegmentKind.Text)
                     sb.Append(segment.Value);
+                else if (segment.Kind == PromptSegmentKind.Icon)
+                    sb.Append(segment.Value == UnblockableIcon ? "!" : string.Empty);
                 else
                     sb.Append('[').Append(actionLabel != null ? actionLabel(segment.Value) : segment.Value).Append(']');
             }

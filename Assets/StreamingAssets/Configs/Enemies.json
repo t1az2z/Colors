@@ -62,7 +62,8 @@
         "parryFrom": -0.05,
         "parryTo": 0.06,
         "areaRadius": 1.8,
-        "areaOffset": 1.4
+        "areaOffset": 1.4,
+        "unblockable": true
       },
       {
         "motion": "DiagonalRight",
