@@ -371,11 +371,15 @@ namespace ColorsAction.Unity.Editor
             // Смещения заливки внутри рамки — в пикселях исходного атласа (см. CROPS в make_ui_sprites.py), × масштаб.
             const float hpScale = 0.83f;
             var hpFrame = AtlasImage(root, "Health", "HealthFrame", topLeft, new Vector2(0, 1), new Vector2(92, -46), hpScale);
-            var healthLag = AtlasImage(hpFrame.transform, "Lag", "HealthFillWhite", topLeft, new Vector2(0, 1),
-                new Vector2(13, -14) * hpScale, hpScale);
+            // Заливка вписана во внутреннюю тёмную область рамки (замер по пикселям атласа: рамка x 20–575, y 15–71;
+            // непрозрачная часть заливки x 6–564, y 5–54), по высоте растянута на всю подложку.
+            var hpFillPos = new Vector2(14f, -9.3f) * hpScale;
+            var hpFillSize = new Vector2(568f, 68.4f) * hpScale;
+            var healthLag = AtlasImage(hpFrame.transform, "Lag", "HealthFillWhite", topLeft, new Vector2(0, 1), hpFillPos, hpScale);
+            healthLag.rectTransform.sizeDelta = hpFillSize;
             healthLag.color = new Color(1f, 0.88f, 0.72f, 1f);
-            var healthFill = AtlasImage(hpFrame.transform, "Fill", "HealthFill", topLeft, new Vector2(0, 1),
-                new Vector2(13, -14) * hpScale, hpScale);
+            var healthFill = AtlasImage(hpFrame.transform, "Fill", "HealthFill", topLeft, new Vector2(0, 1), hpFillPos, hpScale);
+            healthFill.rectTransform.sizeDelta = hpFillSize;
             MakeFilled(healthLag);
             MakeFilled(healthFill);
             var healthText = UiFactory.Text(hpFrame.transform, "Value", "100 / 100", 30, TextAnchor.MiddleCenter, Color.white);
@@ -395,11 +399,14 @@ namespace ColorsAction.Unity.Editor
             // Выносливость — под здоровьем, тоньше, зелёная.
             const float stScale = 0.88f;
             var stFrame = AtlasImage(root, "Stamina", "StaminaFrame", topLeft, new Vector2(0, 1), new Vector2(112, -112), stScale);
-            var staminaLag = AtlasImage(stFrame.transform, "Lag", "StaminaFillWhite", topLeft, new Vector2(0, 1),
-                new Vector2(13.5f, -10.5f) * stScale, stScale);
+            // Рамка x 19–414, y 16–38; заливка x 5–400, y 5–25.
+            var stFillPos = new Vector2(14f, -10.5f) * stScale;
+            var stFillSize = new Vector2(407f, 35f) * stScale;
+            var staminaLag = AtlasImage(stFrame.transform, "Lag", "StaminaFillWhite", topLeft, new Vector2(0, 1), stFillPos, stScale);
+            staminaLag.rectTransform.sizeDelta = stFillSize;
             staminaLag.color = new Color(1f, 0.8f, 0.45f, 1f);
-            var staminaFill = AtlasImage(stFrame.transform, "Fill", "StaminaFill", topLeft, new Vector2(0, 1),
-                new Vector2(13.5f, -10.5f) * stScale, stScale);
+            var staminaFill = AtlasImage(stFrame.transform, "Fill", "StaminaFill", topLeft, new Vector2(0, 1), stFillPos, stScale);
+            staminaFill.rectTransform.sizeDelta = stFillSize;
             MakeFilled(staminaLag);
             MakeFilled(staminaFill);
 

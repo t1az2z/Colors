@@ -5,7 +5,8 @@ namespace ColorsAction.Unity
 {
     /// <summary>
     /// Полосы над врагом (макет Tools/UI/ref_enemy_bars.png): красная — здоровье (со светлым «хвостом» урона),
-    /// под ней белая — стойкость (<see cref="ColorsAction.Combat.Poise"/>, её заполняют парирования; есть не у всех).
+    /// под ней белая — стойкость (<see cref="ColorsAction.Combat.Poise"/>, её заполняют удары и парирования; видна,
+    /// только пока не пуста).
     /// Повёрнуты к камере. Видны, пока враг — цель фиксации, недавно получил урон или стойкость не пуста;
     /// трещины на теле остаются как были. Спрайты — <see cref="UiAtlas"/> (Resources/UI/UiAtlas).
     /// </summary>
@@ -14,13 +15,15 @@ namespace ColorsAction.Unity
         /// <summary>Сколько секунд полосы видны после удара.</summary>
         private const float ShowAfterHit = 4f;
 
-        // Размер рамок и смещение заливок внутри — в пикселях атласа (CROPS в Tools/UI/make_ui_sprites.py).
+        // Размер рамок и заливок в пикселях атласа: заливка вписана во внутреннюю тёмную область рамки по замеру
+        // пикселей (здоровье: рамка x 21–168, y 16–28, заливка x 5–159, y 6–15; стойкость: рамка x 21–122, y 16–26,
+        // заливка x 6–114, y 6–12), по высоте — на всю подложку.
         private static readonly Vector2 HealthFrameSize = new Vector2(190, 44);
-        private static readonly Vector2 HealthFillOffset = new Vector2(12.5f, 11f);
-        private static readonly Vector2 HealthFillSize = new Vector2(165, 22);
+        private static readonly Vector2 HealthFillOffset = new Vector2(16.2f, 8.2f);
+        private static readonly Vector2 HealthFillSize = new Vector2(157.6f, 28.6f);
         private static readonly Vector2 PoiseFrameSize = new Vector2(144, 43);
-        private static readonly Vector2 PoiseFillOffset = new Vector2(11.5f, 12f);
-        private static readonly Vector2 PoiseFillSize = new Vector2(121, 19);
+        private static readonly Vector2 PoiseFillOffset = new Vector2(15.4f, 6.6f);
+        private static readonly Vector2 PoiseFillSize = new Vector2(113.2f, 29.9f);
         private const float PoiseOverlap = 10f;
 
         private static readonly Color PoiseColor = new Color(1f, 0.98f, 0.95f, 1f);
@@ -35,6 +38,7 @@ namespace ColorsAction.Unity
         private Image healthLag;
         private Image poiseFill;
         private GameObject poiseRoot;
+        private bool hasPoise;
         private Transform anchor;
         private float height;
         private float scale;
@@ -76,7 +80,8 @@ namespace ColorsAction.Unity
                 top, new Vector2(0.5f, 1f), new Vector2(0f, -(HealthFrameSize.y - PoiseOverlap)), PoiseFrameSize);
             bars.poiseRoot = poiseFrame.gameObject;
             bars.poiseFill = Fill(poiseFrame.transform, "Fill", atlas != null ? atlas.EnemyPoiseFill : null, PoiseColor, PoiseFillOffset, PoiseFillSize);
-            bars.poiseRoot.SetActive(hasPoise);
+            bars.hasPoise = hasPoise;
+            bars.poiseRoot.SetActive(false);
 
             var healthFrame = Picture(go.transform, "Health", atlas != null ? atlas.EnemyHealthFrame : null, new Color(0.2f, 0.15f, 0.25f, 0.85f),
                 top, new Vector2(0.5f, 1f), Vector2.zero, HealthFrameSize);
@@ -149,7 +154,11 @@ namespace ColorsAction.Unity
             healthFill.enabled = health > 0.001f;
             healthLag.fillAmount = healthShown;
             healthLag.enabled = healthShown > 0.001f;
-            if (poiseRoot.activeSelf)
+            // Белая полоса — только пока стойкость не пуста (или враг ошеломлён).
+            var showPoise = hasPoise && (broken || poiseShown > 0.001f || poise > 0.001f);
+            if (poiseRoot.activeSelf != showPoise)
+                poiseRoot.SetActive(showPoise);
+            if (showPoise)
             {
                 poiseFill.fillAmount = poiseShown;
                 poiseFill.enabled = poiseShown > 0.001f;
