@@ -1,3 +1,4 @@
+using ColorsAction.Animation;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using GameCore.Config;
@@ -33,7 +34,6 @@ namespace ColorsAction.Unity
         private float coyoteTimer;
         private float jumpBufferTimer;
         private float windupTimer = -1f;
-        private float swayPhase;
         private float airTime;
 
         // Отскок: логика серии (какой шаг, окно комбо, буфер, пауза) — в DodgeCombo, здесь движение и анимация.
@@ -587,35 +587,117 @@ namespace ColorsAction.Unity
 
         // ------------------------------------------------------------------ деформация
 
+        /// <summary>
+        /// Форма куба каждый кадр. Цикл шагов (покачивание, сжатие на шаге и вытягивание между шагами) и дыхание —
+        /// прямые добавки <see cref="CubeDeformer.DirectSquash"/>/<see cref="CubeDeformer.DirectBend"/>; осмотр по
+        /// сторонам — добавки к скручиванию и поклону; глаза — взгляд и моргание. Числа — Configs/Animations.json → "player".
+        /// Отклик на прыжки, приземления, удары и перекаты — пружины деформера (Player.json → "deformation").
+        /// </summary>
         private void UpdateDeformation(float dt)
         {
+            EnsureAnimation();
+            UpdateIdle(dt);
+            var speed = horizontalVelocity.magnitude;
+            steps.Tick(dt, speed, config.WalkSpeed, config.WalkSpeed * config.RunMultiplier,
+                motor.Grounded && !rolling && windupTimer < 0f && !leaping);
+            deformer.DirectBend = new Vector2(steps.Sway, 0f);
+            deformer.DirectSquash = steps.Squash + idle.BreathSquash;
+            deformer.TwistOffset = idle.Twist;
+            deformer.PitchOffset = idle.Pitch;
+            deformer.EyeOffset = new Vector2(idle.EyeX, idle.EyeY);
+            deformer.EyeBlink = idle.Blink;
+            deformer.EyeClosedScale = animConfig.Blink.Closed;
             if (rolling)
                 return;
-            var d = config.Deformation;
-            var local = Quaternion.Inverse(body.rotation) * horizontalVelocity;
-            var speed01 = Mathf.Clamp01(horizontalVelocity.magnitude / (config.WalkSpeed * config.RunMultiplier));
 
             if (windupTimer < 0f)
             {
-                // На земле: покачивание из стороны в сторону и лёгкое "подпрыгивание" в такт шагу.
-                // Верх отстаёт от низа: наклон против скорости.
-                if (motor.Grounded && speed01 > 0.05f)
-                {
-                    swayPhase += horizontalVelocity.magnitude * d.WalkSwayPerMeter * Mathf.PI * dt;
-                    deformer.BendTarget = new Vector2(Mathf.Sin(swayPhase) * d.WalkBend * speed01, 0f);
-                    deformer.SquashTarget = -Mathf.Abs(Mathf.Sin(swayPhase)) * d.WalkBob * speed01;
-                }
-                else
-                {
-                    deformer.BendTarget = Vector2.zero;
-                    // В воздухе чуть вытянут при подъёме и сплющен при падении.
-                    deformer.SquashTarget = motor.Grounded ? 0f : Mathf.Clamp(motor.VerticalVelocity * 0.015f, -0.08f, 0.12f);
-                }
+                // На земле форму ведёт цикл шагов; в воздухе чуть вытянут при подъёме и сплющен при падении.
+                deformer.BendTarget = Vector2.zero;
+                deformer.SquashTarget = motor.Grounded ? 0f : Mathf.Clamp(motor.VerticalVelocity * 0.015f, -0.08f, 0.12f);
             }
 
             // Наклон вперёд по ходу движения; на бегу сильнее (скорость больше).
-            var lean = new Vector2(local.x, local.z) * d.MoveLean / Mathf.Max(0.1f, config.WalkSpeed);
-            deformer.LeanTarget = lean;
+            var local = Quaternion.Inverse(body.rotation) * horizontalVelocity;
+            deformer.LeanTarget = new Vector2(local.x, local.z) * animConfig.Move.Lean / Mathf.Max(0.1f, config.WalkSpeed);
+        }
+
+        // ------------------------------------------------------------------ анимации покоя
+
+        private CubeAnimationConfig animConfig;
+        private StepCycle steps;
+        private CubeIdleAnimator idle;
+        private float idleYaw;
+
+        /// <summary>Анимации покоя (дыхание, моргание, осмотр): для автотестов и снимков.</summary>
+        public CubeIdleAnimator Idle
+        {
+            get
+            {
+                EnsureAnimation();
+                return idle;
+            }
+        }
+
+        /// <summary>Цикл шагов (покачивание и сжатие-вытягивание): для автотестов и снимков.</summary>
+        public StepCycle Steps
+        {
+            get
+            {
+                EnsureAnimation();
+                return steps;
+            }
+        }
+
+        /// <summary>Прервать анимации покоя (по игроку ударили).</summary>
+        public void InterruptIdle() => idle?.Interrupt();
+
+        private void EnsureAnimation()
+        {
+            if (idle != null)
+                return;
+            ConfigTable<CubeAnimationConfig> table = null;
+            var configs = resolver?.Resolve<ConfigService>();
+            if (configs != null && configs.Exists(CubeAnimationConfig.Key))
+                table = configs.LoadTable<CubeAnimationConfig>(CubeAnimationConfig.Key);
+            animConfig = CubeAnimationConfig.Resolve(table, CubeAnimationConfig.PlayerId, CubeAnimationConfig.PlayerId);
+            steps = new StepCycle(animConfig.Move);
+            idle = new CubeIdleAnimator(animConfig, GetHashCode());
+            idleYaw = yaw;
+        }
+
+        /// <summary>
+        /// Покой: стоит на земле и ничего не делает (не идёт, не бьёт, не блокирует, не в отскоке и не в прыжке) — дышит,
+        /// моргает, через несколько секунд осматривается. Любое действие (нажатие, ввод движения, поворот, фиксация на
+        /// цели, колесо оружия, удар по игроку) прерывает осмотр и моргание и обнуляет счётчик покоя.
+        /// </summary>
+        private void UpdateIdle(float dt)
+        {
+            var standing = !Frozen && !Stunned && motor.Grounded && !rolling && windupTimer < 0f && !leaping
+                           && horizontalVelocity.sqrMagnitude < 0.04f && knockback.sqrMagnitude < 0.01f
+                           && (combat == null || combat.Calm);
+            var turned = Mathf.Abs(Mathf.DeltaAngle(idleYaw, yaw)) > 0.5f;
+            idleYaw = yaw;
+            var action = turned || WeaponWheel.IsOpen || (lockOn != null && lockOn.Active) || (HasControl && ActionPressed());
+            idle.Tick(dt, standing, action);
+        }
+
+        private static readonly GameAction[] IdleBreakers =
+        {
+            GameAction.Jump, GameAction.Roll, GameAction.Primary, GameAction.Secondary, GameAction.Interact,
+            GameAction.Run, GameAction.LockOn, GameAction.Wheel, GameAction.Inventory
+        };
+
+        private bool ActionPressed()
+        {
+            if (input == null)
+                return false;
+            if (input.MoveVector.sqrMagnitude > 0.01f)
+                return true;
+            foreach (var a in IdleBreakers)
+                if (input.Pressed(a) || input.Held(a))
+                    return true;
+            return false;
         }
     }
 }

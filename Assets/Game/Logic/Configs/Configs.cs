@@ -255,10 +255,7 @@ namespace ColorsAction.Configs
         public float Stiffness { get; set; } = 220f;
         public float Damping { get; set; } = 9f;
 
-        public float WalkBend { get; set; } = 0.08f;
-        public float WalkSwayPerMeter { get; set; } = 1.6f;
-        public float WalkBob { get; set; } = 0.04f;
-        public float MoveLean { get; set; } = 0.06f;
+        // Ходьба и бег (покачивание, сжатие на шагах, наклон), дыхание и прочие анимации покоя — Configs/Animations.json.
 
         public float JumpWindupSquash { get; set; } = -0.3f;
         public float JumpTakeoffStretch { get; set; } = 0.25f;

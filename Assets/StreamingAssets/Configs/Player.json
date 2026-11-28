@@ -62,10 +62,6 @@
   "deformation": {
     "stiffness": 270,
     "damping": 9,
-    "walkBend": 0.08,
-    "walkSwayPerMeter": 1.6,
-    "walkBob": 0.04,
-    "moveLean": 0.06,
     "jumpWindupSquash": -0.3,
     "jumpTakeoffStretch": 0.25,
     "landSquashPerSpeed": -0.035,

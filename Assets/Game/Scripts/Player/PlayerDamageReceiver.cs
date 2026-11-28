@@ -80,6 +80,7 @@ namespace ColorsAction.Unity
                 return false;
             if (controller.Invulnerable)
                 return false; // увернулся перекатом
+            controller.InterruptIdle(); // удар (и принятый блоком) прерывает дыхание и осмотр
 
             var away = transform.position - from;
             away.y = 0;

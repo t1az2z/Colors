@@ -98,6 +98,14 @@ namespace ColorsAction.Unity
         public int PelletHitCount { get; private set; }
 
         public bool IsBusy => attacking != null;
+
+        /// <summary>
+        /// Руки ничего не делают: нет удара, блока, удара щитом, заряда и выстрела дробовика (и его отдачи) —
+        /// персонаж может стоять в покое (дыхание, осмотр).
+        /// </summary>
+        public bool Calm => attacking == null && !Blocking && !Bashing && !GunCharging && !GunParryShotPending &&
+                            !(hands[0]?.ShotTime < 0.6f) && !(hands[1]?.ShotTime < 0.6f);
+
         public bool Blocking { get; private set; }
         public bool LockFacing => (attacking != null && attackTime > step.Duration * step.ActiveFrom * 0.5f) || hands[0]?.ShotTime < 0.25f || hands[1]?.ShotTime < 0.25f;
         public Vector3? FacingOverride => null;

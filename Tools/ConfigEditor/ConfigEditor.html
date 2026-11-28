@@ -151,7 +151,7 @@
    Описания параметров — в SCHEMA ниже. Неописанные ключи показываются как есть.
    ===================================================================== */
 
-const FILE_ORDER = ['Player', 'Camera', 'Items', 'Upgrades', 'Enemies', 'StatusEffects', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Water', 'Movement', 'Game'];
+const FILE_ORDER = ['Player', 'Animations', 'Camera', 'Items', 'Upgrades', 'Enemies', 'StatusEffects', 'Combat', 'Colors', 'Inventory', 'Dummy', 'Crates', 'Chests', 'Bridges', 'Water', 'Movement', 'Game'];
 const S = { dir: null, files: {}, current: null, levels: [], mode: 'none' };
 
 /* ---------- утилиты ---------- */
@@ -199,7 +199,139 @@ function fmt(v, ind = '') {
    ===================================================================== */
 const U = { bl: 'бл', bls: 'бл/с', bls2: 'бл/с²', s: 'с', deg: '°', degs: '°/с', x: '×', frac: 'доля', pts: 'ед.' };
 
+/* Animations.json: одинаковые блоки у игрока (player) и врагов (enemy, или запись с id типа врага). */
+function animMoveFields(p, enemy) {
+  const walk = enemy ? 'на половине скорости врага (обход, ожидание)' : 'на скорости ходьбы';
+  const run = enemy ? 'в погоне (полная скорость врага)' : 'на скорости бега';
+  return [
+    { k: p + '.move.walkStepRate', l: 'Шагов в секунду — ходьба', d: `Частота шагов ${walk}. Одно покачивание из стороны в сторону — два шага. Медленнее — шаги реже.`, u: 'шаг/с', min: 0, max: 10, step: 0.1, def: 3.2 },
+    { k: p + '.move.runStepRate', l: 'Шагов в секунду — бег', d: `Частота шагов ${run}.`, u: 'шаг/с', min: 0, max: 12, step: 0.1, def: 4.2 },
+    { k: p + '.move.squash', l: 'Сжатие на шаге — ходьба', d: 'В крайней точке покачивания куб «встаёт на ногу»: оседает вниз и расширяется в стороны (объём сохраняется).', u: U.frac, min: 0, max: 0.3, step: 0.005, def: 0.03 },
+    { k: p + '.move.stretch', l: 'Вытягивание между шагами — ходьба', d: 'Посередине между шагами куб вытягивается вверх и сужается.', u: U.frac, min: 0, max: 0.3, step: 0.005, def: 0.02 },
+    { k: p + '.move.runSquash', l: 'Сжатие на шаге — бег', d: 'То же на бегу. Между ходьбой и бегом — плавный переход по скорости.', u: U.frac, min: 0, max: 0.3, step: 0.005, def: 0.08 },
+    { k: p + '.move.runStretch', l: 'Вытягивание между шагами — бег', d: '', u: U.frac, min: 0, max: 0.3, step: 0.005, def: 0.06 },
+    { k: p + '.move.bend', l: 'Покачивание — ходьба', d: 'Насколько верх куба уходит в сторону на каждом шаге.', u: U.frac, min: 0, max: 0.4, step: 0.005, def: 0.07 },
+    { k: p + '.move.runBend', l: 'Покачивание — бег', d: '', u: U.frac, min: 0, max: 0.4, step: 0.005, def: 0.09 },
+    { k: p + '.move.lean', l: 'Наклон по ходу', d: `Отклонение верха куба вперёд ${walk}; быстрее — пропорционально сильнее.`, u: U.frac, min: 0, max: 0.3, step: 0.005, def: 0.06 },
+    { k: p + '.move.fadeTime', l: 'Появление шагов', d: 'За сколько секунд шаги проявляются после старта или приземления и гаснут при остановке.', u: U.s, min: 0, max: 1, step: 0.01, def: 0.12 },
+  ];
+}
+function animIdleFields(p) {
+  return [
+    { k: p + '.breath.period', l: 'Период дыхания', d: 'Один вдох и выдох, секунды.', u: U.s, min: 0.2, max: 10, step: 0.1, def: 3.2 },
+    { k: p + '.breath.amount', l: 'Сила дыхания', d: 'На вдохе куб вытягивается вверх и сужается, на выдохе оседает и расширяется (объём тот же).', u: U.frac, min: 0, max: 0.15, step: 0.002, def: 0.03 },
+    { k: p + '.breath.inhale', l: 'Доля вдоха', d: 'Меньше 0.5 — короткий вдох и долгий выдох.', u: U.frac, min: 0.1, max: 0.9, step: 0.01, def: 0.42 },
+    { k: p + '.breath.fadeTime', l: 'Появление дыхания', d: 'За сколько секунд дыхание проявляется, когда куб встал. Любое действие гасит его втрое быстрее.', u: U.s, min: 0, max: 2, step: 0.05, def: 0.4 },
+    { k: p + '.blink.enabled', l: 'Моргает', t: 'bool', def: true, d: '' },
+    { k: p + '.blink.intervalMin', l: 'Пауза между морганиями от', u: U.s, min: 0.2, max: 20, step: 0.1, def: 2.4, d: 'Пауза случайная в пределах «от — до».' },
+    { k: p + '.blink.intervalMax', l: 'Пауза между морганиями до', u: U.s, min: 0.2, max: 30, step: 0.1, def: 5.5, d: '' },
+    { k: p + '.blink.duration', l: 'Длительность моргания', u: U.s, min: 0.02, max: 1, step: 0.01, def: 0.16, d: 'Закрыть и открыть глаза.' },
+    { k: p + '.blink.doubleChance', l: 'Двойное моргание', u: U.frac, min: 0, max: 1, step: 0.05, def: 0.2, d: 'Вероятность моргнуть дважды подряд.' },
+    { k: p + '.blink.closed', l: 'Закрытый глаз', u: U.frac, min: 0, max: 1, step: 0.01, def: 0.12, d: 'Высота закрытого глаза, доля открытого: 0 — тонкая линия.' },
+    { k: p + '.blink.whileMoving', l: 'Моргать и в движении', t: 'bool', def: false, d: 'Выключено — моргает только стоя, любое действие открывает глаза.' },
+  ];
+}
+function breathWave(cycles, inhale) {
+  const u = cycles - Math.floor(cycles), i = clamp(inhale, 0.05, 0.95), half = i / 2;
+  const ph = u < half ? u / half * 0.25 : u < 1 - half ? 0.25 + (u - half) / (1 - i) * 0.5 : 0.75 + (u - (1 - half)) / half * 0.25;
+  return Math.sin(ph * Math.PI * 2);
+}
+function vizAnimMove(m, walkSpeed, runSpeed) {
+  m = m || {};
+  const sq = (rate, s, st, t) => { const w = Math.cos(2 * Math.PI * rate * t); return w >= 0 ? w * st : w * s; };
+  const walk = [], run = [], sway = [];
+  const wr = num(m.walkStepRate, 3.2), rr = num(m.runStepRate, 4.2);
+  for (let i = 0; i <= 200; i++) {
+    const t = i / 200;
+    walk.push([t, sq(wr, num(m.squash, 0.03), num(m.stretch, 0.02), t)]);
+    run.push([t, sq(rr, num(m.runSquash, 0.08), num(m.runStretch, 0.06), t)]);
+    sway.push([t, Math.sin(Math.PI * wr * t) * num(m.bend, 0.07)]);
+  }
+  const shapes = [['шаг', -num(m.squash, 0.03), 0], ['между шагами', num(m.stretch, 0.02), 0], ['шаг, бег', -num(m.runSquash, 0.08), 0], ['между, бег', num(m.runStretch, 0.06), 0], ['покачивание', 0, num(m.runBend, 0.09)]];
+  const W = 560, H = 120, step = W / shapes.length;
+  let g = `<line x1="0" x2="${W}" y1="${H - 26}" y2="${H - 26}" stroke="${C.grid2}"/>`;
+  shapes.forEach(([n, s, b], i) => { const cx = step * (i + 0.5); g += cubeShape(cx, H - 26, 44, s, b) + T(cx, H - 12, n, { anchor: 'middle', size: 10 }) + T(cx, H - 1, s ? (s > 0 ? '+' : '') + r2(s, 3) : b ? `изгиб ${r2(b)}` : '', { anchor: 'middle', size: 9 }); });
+  const f = [['Ходьба', `${r2(wr, 1)} шаг/с, покачивание раз в ${r2(2 / Math.max(0.01, wr))} с`], ['Бег', `${r2(rr, 1)} шаг/с`]];
+  if (walkSpeed > 0) f.push(['Длина шага', `ходьба ${r2(walkSpeed / Math.max(0.01, wr))} бл, бег ${r2(runSpeed / Math.max(0.01, rr))} бл`]);
+  return `<h4>Формы на шагах (объём сохраняется: ниже — шире, выше — уже)</h4>` + svgWrap(W, H, g)
+    + `<h4>Сжатие (−) и вытягивание (+) за секунду</h4>` + chart(560, 150, [{ pts: walk, c: C.blue, name: 'ходьба' }, { pts: run, c: C.orange, name: 'бег' }, { pts: sway, c: C.grid2, name: 'покачивание (ходьба)', dash: true, w: 1.2 }], { xl: 'секунды', legend: true })
+    + facts(f);
+}
+function vizAnimIdle(b, k) {
+  b = b || {}; k = k || {};
+  const P = Math.max(0.2, num(b.period, 3.2)), A = num(b.amount, 0.03), inh = num(b.inhale, 0.42), pts = [];
+  for (let i = 0; i <= 200; i++) { const t = i / 200 * P * 2; pts.push([t, breathWave(t / P, inh) * A]); }
+  const shapes = [['вдох', A, 0], ['покой', 0, 0], ['выдох', -A, 0]];
+  const W = 560, H = 110, step = W / shapes.length;
+  let g = `<line x1="0" x2="${W}" y1="${H - 26}" y2="${H - 26}" stroke="${C.grid2}"/>`;
+  shapes.forEach(([n, s], i) => { const cx = step * (i + 0.5); g += cubeShape(cx, H - 26, 44, s * 3) + T(cx, H - 12, n, { anchor: 'middle', size: 10 }) + T(cx, H - 1, s ? (s > 0 ? '+' : '') + r2(s, 3) : '', { anchor: 'middle', size: 9 }); });
+  const avg = (num(k.intervalMin, 2.4) + num(k.intervalMax, 5.5)) / 2;
+  return `<h4>Дыхание (формы — с утроенной силой, чтобы было видно)</h4>` + svgWrap(W, H, g) + chart(560, 140, [{ pts, c: C.teal }], { xl: 'секунды' })
+    + facts([['Вдохов в минуту', r2(60 / P, 1)], ['Моргание', k.enabled === false ? 'выключено' : `примерно раз в ${r2(avg, 1)} с`]]);
+}
+function vizAnimPlayer({ d }) {
+  const p = S.files.Player?.data || {}, w = num(p.walkSpeed, 6.4);
+  return vizAnimMove(d.player?.move, w, w * num(p.runMultiplier, 1.5));
+}
+function vizAnimEnemy({ d }) { return vizAnimMove(d.enemy?.move, 0, 0); }
+function vizLookAround({ d }) {
+  const l = d.player?.lookAround || {}, dur = Math.max(0.5, num(l.duration, 3.4));
+  // Те же ключи, что в CubeIdleAnimator: глаза ведут, тело догоняет.
+  const keyed = (keys, u) => { for (let i = 2; i < keys.length; i += 2) { if (u > keys[i]) continue; const t0 = keys[i - 2], t1 = keys[i], k = t1 > t0 ? (u - t0) / (t1 - t0) : 1, s = k * k * (3 - 2 * k); return keys[i - 1] + (keys[i + 1] - keys[i - 1]) * s; } return keys[keys.length - 1]; };
+  const EK = [0, 0, 0.07, 1, 0.44, 1, 0.5, -1, 0.84, -1, 0.9, 0, 1, 0], TK = [0, 0, 0.1, 0, 0.27, 1, 0.44, 1, 0.64, -1, 0.82, -1, 1, 0];
+  const eyes = [], twist = [];
+  for (let i = 0; i <= 200; i++) { const u = i / 200; eyes.push([u * dur, keyed(EK, u)]); twist.push([u * dur, keyed(TK, u)]); }
+  return `<h4>Осмотр: глаза (доля сдвига) и скручивание тела (доля угла)</h4>` + chart(560, 150, [{ pts: eyes, c: C.blue, name: `глаза, ±${r2(num(l.eyeShift, 0.1))}` }, { pts: twist, c: C.orange, name: `тело, ±${r2(num(l.twist, 32), 0)}°` }], { xl: 'секунды', legend: true, y0: -1.1, y1: 1.1 })
+    + facts([['Первый осмотр', `через ${r2(num(l.delay, 4))} с покоя`], ['Дальше', `каждые ${r2(num(l.repeatMin, 6))}–${r2(num(l.repeatMax, 11))} с`], ['Сторона', 'случайная']]);
+}
+
 const SCHEMA = {
+  Animations: {
+    title: 'Анимации', desc: 'Процедурная анимация кубов деформацией (Animations.json): шаги при ходьбе и беге, дыхание и моргание в покое, осмотр по сторонам у игрока, верчение оружия у врагов. «enemy» — для всех врагов; запись с id типа врага (как в Enemies.json) заменяет её для этого типа целиком. Любое действие (ввод, удар, атака, погоня) прерывает анимации покоя. Отклик на прыжки, удары и перекаты — Игрок → Деформация куба.',
+    sections: [
+      { title: 'Игрок: ходьба и бег', viz: vizAnimPlayer, fields: animMoveFields('player', false) },
+      { title: 'Игрок: дыхание и моргание', viz: ({ d }) => vizAnimIdle(d.player?.breath, d.player?.blink), fields: animIdleFields('player') },
+      { title: 'Игрок: осмотр по сторонам', sub: 'после нескольких секунд без действий: глаза в сторону, следом скручивается верх куба, потом в другую сторону', viz: vizLookAround, fields: [
+        { k: 'player.lookAround.delay', l: 'Через сколько покоя', d: 'Сколько секунд стоять без действий до первого осмотра.', u: U.s, min: 0, max: 30, step: 0.5, def: 4 },
+        { k: 'player.lookAround.repeatMin', l: 'Повтор от', d: 'Пауза до следующего осмотра, если игрок всё ещё стоит, — случайная «от — до».', u: U.s, min: 0, max: 60, step: 0.5, def: 6 },
+        { k: 'player.lookAround.repeatMax', l: 'Повтор до', d: '', u: U.s, min: 0, max: 60, step: 0.5, def: 11 },
+        { k: 'player.lookAround.duration', l: 'Длительность', d: 'Один осмотр влево и вправо.', u: U.s, min: 0.5, max: 10, step: 0.1, def: 3.4 },
+        { k: 'player.lookAround.twist', l: 'Скручивание', d: 'На сколько градусов поворачивается верх куба (низ стоит на месте).', u: U.deg, min: 0, max: 80, step: 1, def: 32 },
+        { k: 'player.lookAround.eyeShift', l: 'Сдвиг глаз', d: 'Насколько глаза уходят по передней грани в сторону взгляда.', u: U.frac, min: 0, max: 0.2, step: 0.005, def: 0.1 },
+        { k: 'player.lookAround.pitch', l: 'Приподнять голову', d: 'Лёгкий наклон назад на поворотах, градусы.', u: U.deg, min: -20, max: 20, step: 0.5, def: 3 },
+      ] },
+      { title: 'Враги: ходьба и бег', viz: vizAnimEnemy, fields: animMoveFields('enemy', true) },
+      { title: 'Враги: дыхание и моргание', viz: ({ d }) => vizAnimIdle(d.enemy?.breath, d.enemy?.blink), fields: animIdleFields('enemy') },
+      { title: 'Враги: верчение оружия', sub: 'редкий idle: поднимает оружие перед собой и вертит, как будто рассматривает; глаза следят за вершиной', fields: [
+        { k: 'enemy.inspect.delay', l: 'Через сколько покоя', d: 'Минимум секунд покоя до первого раза (плюс случайная пауза).', u: U.s, min: 0, max: 60, step: 0.5, def: 3 },
+        { k: 'enemy.inspect.intervalMin', l: 'Пауза от', d: 'Между разами — случайная пауза «от — до» секунд покоя.', u: U.s, min: 0, max: 120, step: 0.5, def: 8 },
+        { k: 'enemy.inspect.intervalMax', l: 'Пауза до', d: '', u: U.s, min: 0, max: 120, step: 0.5, def: 15 },
+        { k: 'enemy.inspect.duration', l: 'Длительность', d: 'Поднять, повертеть и вернуть в стойку.', u: U.s, min: 0.5, max: 15, step: 0.1, def: 3.8 },
+        { k: 'enemy.inspect.raise', l: 'Доля на подъём', d: '', u: U.frac, min: 0.02, max: 0.45, step: 0.01, def: 0.18 },
+        { k: 'enemy.inspect.lower', l: 'Доля на возврат', d: '', u: U.frac, min: 0.02, max: 0.45, step: 0.01, def: 0.2 },
+        { k: 'enemy.inspect.turns', l: 'Оборотов', d: 'Сколько раз вершина оружия обходит круг вокруг вертикали.', u: 'об.', min: 0, max: 5, step: 0.05, def: 1.25 },
+        { k: 'enemy.inspect.tilt', l: 'Наклон оружия', d: 'Отклонение оружия от вертикали, градусы (в начале — вершиной к себе).', u: U.deg, min: 0, max: 85, step: 1, def: 34 },
+        { k: 'enemy.inspect.pitch', l: 'Поклон к оружию', d: 'Градусы у верха куба.', u: U.deg, min: -20, max: 30, step: 0.5, def: 7 },
+        { k: 'enemy.inspect.followTwist', l: 'Скручивание вслед', d: 'Верх куба поворачивается за вершиной оружия, градусы.', u: U.deg, min: 0, max: 40, step: 1, def: 8 },
+        { k: 'enemy.inspect.eyeShift', l: 'Глаза за оружием', d: 'Насколько глаза следят за вершиной оружия.', u: U.frac, min: 0, max: 0.2, step: 0.005, def: 0.08 },
+      ] },
+    ],
+    validate(d) {
+      const w = [];
+      for (const id of ['player', 'enemy']) {
+        const b = d[id]?.blink || {};
+        if (num(b.intervalMax, 5.5) < num(b.intervalMin, 2.4)) w.push(`${id}: пауза моргания «до» меньше «от» — игра возьмёт «от».`);
+        const m = d[id]?.move || {};
+        if (num(m.runStepRate, 4.2) < num(m.walkStepRate, 3.2)) w.push(`${id}: на бегу шагов в секунду меньше, чем при ходьбе.`);
+      }
+      const l = d.player?.lookAround || {};
+      if (num(l.repeatMax, 11) < num(l.repeatMin, 6)) w.push('Осмотр: повтор «до» меньше «от».');
+      const i = d.enemy?.inspect || {};
+      if (num(i.raise, 0.18) + num(i.lower, 0.2) > 0.9) w.push('Верчение оружия: подъём и возврат занимают почти всё время — на верчение не останется.');
+      return w;
+    },
+  },
+
   Player: {
     title: 'Игрок', desc: 'Движение, прыжок, серия отскоков, выносливость и деформация куба игрока. 1 блок = размер куба = 1 метр.',
     sections: [
@@ -261,10 +393,6 @@ const SCHEMA = {
       { title: 'Деформация куба', sub: 'пружина сжатия/изгиба; отрицательное сжатие — сплющивание, положительное — вытягивание', viz: vizDeform, fields: [
         { k: 'deformation.stiffness', l: 'Жёсткость пружины', d: 'Как быстро куб возвращается к исходной форме. Больше — быстрее и мельче колебания.', u: '', min: 20, max: 800, step: 5 },
         { k: 'deformation.damping', l: 'Затухание', d: 'Гасит покачивание (wobble). Меньше — дольше трясётся.', u: '', min: 0, max: 60, step: 0.5 },
-        { k: 'deformation.walkBend', l: 'Изгиб при ходьбе', d: 'Амплитуда покачивания из стороны в сторону.', u: U.frac, min: 0, max: 0.4, step: 0.005 },
-        { k: 'deformation.walkSwayPerMeter', l: 'Частота покачивания', d: 'Сколько полупериодов покачивания на каждый пройденный блок.', u: '1/бл', min: 0, max: 5, step: 0.05 },
-        { k: 'deformation.walkBob', l: 'Подпрыгивание при ходьбе', d: 'Насколько куб приседает на каждом «шаге».', u: U.frac, min: 0, max: 0.3, step: 0.005 },
-        { k: 'deformation.moveLean', l: 'Наклон при разгоне', d: 'Отклонение верха куба при движении.', u: U.frac, min: 0, max: 0.3, step: 0.005 },
         { k: 'deformation.jumpWindupSquash', l: 'Сжатие перед прыжком', d: 'Форма в момент замаха.', u: U.frac, min: -0.8, max: 0, step: 0.01 },
         { k: 'deformation.jumpTakeoffStretch', l: 'Вытягивание при отрыве', d: 'Форма в момент прыжка вверх.', u: U.frac, min: 0, max: 0.8, step: 0.01 },
         { k: 'deformation.landSquashPerSpeed', l: 'Сжатие от скорости приземления', d: 'Сжатие на каждый бл/с скорости удара о землю.', u: 'на бл/с', min: -0.2, max: 0, step: 0.001 },
@@ -1857,14 +1985,14 @@ function vizDeform({ d }) {
   const k = num(df.stiffness, 220), c = num(df.damping, 9);
   const J = jumpModel(d);
   const landSq = Math.max(num(df.maxLandSquash, -0.4), num(df.landSquashPerSpeed, -0.035) * J.landV);
-  const shapes = [['покой', 0, 0], ['замах', num(df.jumpWindupSquash), 0], ['отрыв', num(df.jumpTakeoffStretch), 0], ['приземление', landSq, 0], ['перекат', num(dodgeFlipStep(d).landSquash, -0.25), num(dodgeFlipStep(d).bend, 0.18)], ['удар', num(df.hitSquash), 0], ['ходьба', 0, num(df.walkBend)]];
+  const shapes = [['покой', 0, 0], ['замах', num(df.jumpWindupSquash), 0], ['отрыв', num(df.jumpTakeoffStretch), 0], ['приземление', landSq, 0], ['перекат', num(dodgeFlipStep(d).landSquash, -0.25), num(dodgeFlipStep(d).bend, 0.18)], ['удар', num(df.hitSquash), 0]];
   const W = 560, H = 120, step = W / shapes.length; let g = `<line x1="0" x2="${W}" y1="${H - 26}" y2="${H - 26}" stroke="${C.grid2}"/>`;
   shapes.forEach(([n, sq, b], i) => { const cx = step * (i + 0.5); g += cubeShape(cx, H - 26, 44, sq, b) + T(cx, H - 12, n, { anchor: 'middle', size: 10 }) + T(cx, H - 1, sq ? (sq > 0 ? '+' : '') + r2(sq) : b ? `изгиб ${r2(b)}` : '', { anchor: 'middle', size: 9 }); });
   const resp = springSim(k, c, landSq, 0, 1.2);
   const zeta = c / (2 * Math.sqrt(k));
   return `<h4>Формы куба</h4>` + svgWrap(W, H, g)
     + `<h4>Возврат формы после приземления с прыжка (wobble)</h4>` + chart(560, 160, [{ pts: resp, c: C.blue }], { xl: 'секунды' })
-    + facts([['Успокаивается за', `${r2(settleTime(resp, landSq))} с`], ['Колебаний', zeta >= 1 ? 'нет (переторможено)' : zeta > 0.6 ? 'почти нет' : zeta > 0.3 ? 'одно-два' : 'много'], ['Приземление с прыжка', `${r2(J.landV)} бл/с → сжатие ${r2(landSq)}`], ['Период покачивания ходьбы', `${r2(2 / Math.max(0.01, num(df.walkSwayPerMeter, 1.6)))} бл`]]);
+    + facts([['Успокаивается за', `${r2(settleTime(resp, landSq))} с`], ['Колебаний', zeta >= 1 ? 'нет (переторможено)' : zeta > 0.6 ? 'почти нет' : zeta > 0.3 ? 'одно-два' : 'много'], ['Приземление с прыжка', `${r2(J.landV)} бл/с → сжатие ${r2(landSq)}`], ['Ходьба, бег, дыхание', 'вкладка «Анимации»']]);
 }
 
 function vizCamera({ d }) {

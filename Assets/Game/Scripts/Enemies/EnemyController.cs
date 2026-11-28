@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ColorsAction.Animation;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
 using ColorsAction.Level.Navigation;
@@ -63,7 +64,10 @@ namespace ColorsAction.Unity
         private Vector3 velocity;
         private Vector3 push;
         private float flash;
-        private float swayPhase;
+        // Анимации шагов и покоя (Configs/Animations.json: запись с id типа врага или общая "enemy").
+        private CubeAnimationConfig animConfig;
+        private StepCycle steps;
+        private CubeIdleAnimator idle;
         private bool hitThisAttack;
         private bool strikeEndedThisFrame;
         private float lungeDone;
@@ -72,6 +76,9 @@ namespace ColorsAction.Unity
         private float hopTimer = -1f;
 
         public EnemyBrain Brain => brain;
+
+        /// <summary>Анимации покоя (дыхание, моргание, верчение оружия): для автотестов и снимков.</summary>
+        public CubeIdleAnimator Idle => idle;
 
         /// <summary>Статус-эффекты врага (живут в <see cref="EnemyBrain.Status"/>).</summary>
         public StatusEffects Status => brain?.Status;
@@ -149,6 +156,10 @@ namespace ColorsAction.Unity
                     navigator = new EnemyNavigator(reach, movement);
             }
 
+            var animations = configs.Exists(CubeAnimationConfig.Key) ? configs.LoadTable<CubeAnimationConfig>(CubeAnimationConfig.Key) : null;
+            animConfig = CubeAnimationConfig.Resolve(animations, typeId, CubeAnimationConfig.EnemyId);
+            steps = new StepCycle(animConfig.Move);
+            idle = new CubeIdleAnimator(animConfig, id * 104729);
             brain.StateChanged += OnStateChanged;
             BuildBody();
             if (isActiveAndEnabled && !all.Contains(this))
@@ -735,6 +746,7 @@ namespace ColorsAction.Unity
             if (Dead)
                 return;
             var interrupted = brain.OnDamaged(hit.Poise);
+            idle?.Interrupt();
             flash = 0.12f;
             ApplyColor();
             var dir = hit.Direction;
@@ -835,6 +847,29 @@ namespace ColorsAction.Unity
         private static Pose Lowered => new Pose(new Vector3(0.64f, 0.24f, 0.18f),
             Quaternion.FromToRotation(Vector3.up, new Vector3(0.18f, -0.72f, 0.67f).normalized));
 
+        /// <summary>
+        /// Редкий idle (Animations.json → inspect): оружие поднято перед собой, наклонено вершиной к глазам и
+        /// вертится вокруг вертикали — вершина обходит круг (к себе → вправо → от себя → влево), как будто враг
+        /// его рассматривает; заодно чуть проворачивается в пальцах. <paramref name="u"/> — доля верчения 0..1:
+        /// подъём из стойки, верчение, возврат в стойку.
+        /// </summary>
+        private Pose InspectPose(float u)
+        {
+            var inspect = animConfig.Inspect;
+            var lift = CubeIdleAnimator.InspectLift(inspect, u);
+            var angle = CubeIdleAnimator.InspectAngle(inspect, u);
+            var tilt = inspect.Tilt * Mathf.Deg2Rad;
+            // angle 0 — вершиной к себе (-Z), π/2 — вправо (+X), как взгляд в CubeIdleAnimator.
+            var flat = new Vector3(Mathf.Sin(angle), 0f, -Mathf.Cos(angle));
+            var dir = (Vector3.up * Mathf.Cos(tilt) + flat * Mathf.Sin(tilt)).normalized;
+            // Рука перед лицом чуть правее (сторона оружия) и далеко вперёд: вершина, наклонённая к себе,
+            // проходит над передним верхним ребром и не закрывает глаза целиком.
+            var pos = new Vector3(0.18f, 0.38f + Mathf.Sin(angle * 2f) * 0.025f, 1.05f);
+            var roll = Quaternion.AngleAxis(angle * Mathf.Rad2Deg * 0.5f, Vector3.up);
+            var front = new Pose(pos, Quaternion.FromToRotation(Vector3.up, dir) * roll);
+            return lift >= 1f ? front : PlayerCombat.AroundBody(Rest, front, lift);
+        }
+
         /// <param name="t">Время с момента столкновения оружия со щитом (до него — отрицательное).</param>
         private Pose ParriedPose(float t)
         {
@@ -887,6 +922,8 @@ namespace ColorsAction.Unity
                 stunned.position += new Vector3(0f, Mathf.Sin(brain.StateTime * 5f) * 0.015f, 0f);
                 return stunned;
             }
+            if (!brain.IsAttacking && idle != null && idle.InspectWeight > 0f && idle.InspectProgress >= 0f)
+                return PlayerCombat.AroundBody(Rest, InspectPose(idle.InspectProgress), idle.InspectWeight);
             var attack = brain.Attack;
             if (attack == null)
                 return Rest;
@@ -960,21 +997,26 @@ namespace ColorsAction.Unity
             var p = brain.PhaseProgress;
             var speed = velocity.magnitude;
 
-            // Ходьба: покачивание из стороны в сторону, как у игрока; наклон вперёд по ходу.
-            if (motor.Grounded && speed > 0.3f && !brain.IsAttacking)
-            {
-                swayPhase += speed * 1.8f * Mathf.PI * dt;
-                deformer.BendTarget = new Vector2(Mathf.Sin(swayPhase) * 0.09f, 0f);
-                deformer.SquashTarget = -Mathf.Abs(Mathf.Sin(swayPhase)) * 0.05f;
-            }
-            else
-            {
-                deformer.BendTarget = Vector2.zero;
-                deformer.SquashTarget = state == EnemyState.Windup ? -0.12f * p : 0f;
-            }
+            // Ходьба и бег — цикл шагов, как у игрока (Animations.json → move): покачивание, сжатие на шаге,
+            // вытягивание между шагами. Для врага «ходьба» — половина его скорости, «бег» — погоня на полной.
+            steps.Tick(dt, speed, config.MoveSpeed * 0.5f, config.MoveSpeed, motor.Grounded && !brain.IsAttacking);
+            deformer.DirectBend = new Vector2(steps.Sway, 0f);
+            deformer.BendTarget = Vector2.zero;
+            deformer.SquashTarget = state == EnemyState.Windup ? -0.12f * p : 0f;
+
+            // Покой: дыхание, моргание, изредка верчение оружия. Любое другое состояние (заметил игрока, удар,
+            // оглушение) или толчок прерывает их.
+            var standing = state == EnemyState.Idle && motor.Grounded && speed < 0.3f && push.sqrMagnitude < 0.04f && hopTimer < 0f;
+            idle.Tick(dt, standing, false);
+            deformer.DirectSquash = steps.Squash + idle.BreathSquash;
+            deformer.TwistOffset = idle.Twist;
+            deformer.PitchOffset = idle.Pitch;
+            deformer.EyeOffset = new Vector2(idle.EyeX, idle.EyeY);
+            deformer.EyeBlink = idle.Blink;
+            deformer.EyeClosedScale = animConfig.Blink.Closed;
 
             var local = Quaternion.Inverse(body.rotation) * velocity;
-            deformer.LeanTarget = new Vector2(local.x, local.z) * 0.012f;
+            deformer.LeanTarget = new Vector2(local.x, local.z) * animConfig.Move.Lean / Mathf.Max(0.1f, config.MoveSpeed);
 
             // Замах: отклон назад и закрутка; удар — поклон и раскрутка.
             float twist = 0f, pitch = 0f;

@@ -53,6 +53,38 @@ namespace ColorsAction.Unity
         public float DirSquashTarget { get; set; }
         public Vector2 DirSquashAxis { get; set; } = new Vector2(0f, 1f);
 
+        // ---- Анимации движения и покоя (Configs/Animations.json): складываются с тем, что пишут удары, прыжки и перекаты.
+
+        /// <summary>
+        /// Прямая добавка к сжатию, без пружины (цикл шагов, дыхание): амплитуда точная при любой частоте.
+        /// Объём сохраняется так же, как у <see cref="SquashTarget"/>.
+        /// </summary>
+        public float DirectSquash { get; set; }
+
+        /// <summary>Прямая добавка к изгибу (X/Z меша, квадратично по высоте), без пружины: покачивание шагов.</summary>
+        public Vector2 DirectBend { get; set; }
+
+        /// <summary>
+        /// Добавка к цели скручивания, градусы (осмотр по сторонам, слежение за оружием). Идёт через ту же пружину,
+        /// что и <see cref="TwistTarget"/> — удары её не затирают.
+        /// </summary>
+        public float TwistOffset { get; set; }
+
+        /// <summary>Добавка к цели поклона, градусы (через пружину поклона).</summary>
+        public float PitchOffset { get; set; }
+
+        /// <summary>Сдвиг глаз по передней грани (X — вправо, Y — вверх), доля куба. Без пружины.</summary>
+        public Vector2 EyeOffset { get; set; }
+
+        /// <summary>Закрытость глаз: 0 — открыты, 1 — закрыты (сплющены по высоте до <see cref="EyeClosedScale"/>).</summary>
+        public float EyeBlink { get; set; }
+
+        /// <summary>Высота закрытого глаза, доля открытого.</summary>
+        public float EyeClosedScale { get; set; } = 0.12f;
+
+        /// <summary>У меша есть глаза (второй сабмеш): моргание и взгляд работают.</summary>
+        public bool HasEyes => eyeIndices != null;
+
         public float Squash => squash.Value;
 
         /// <summary>
@@ -122,6 +154,69 @@ namespace ColorsAction.Unity
             filter.sharedMesh = mesh;
             rest = source.vertices;
             work = new Vector3[rest.Length];
+            FindEyes(source);
+        }
+
+        // ---- Глаза: вершины второго сабмеша (тёмные пластины на передней грани), центр своего глаза по высоте.
+
+        private int[] eyeIndices;
+        private float[] eyeCenterY;
+
+        /// <summary>
+        /// Глаза — сабмеш 1 (материал Eyes, см. Tools/Blender/make_models.py). Каждый глаз — вершины по одну сторону
+        /// от середины по X; моргание сплющивает глаз к его собственному центру.
+        /// </summary>
+        private void FindEyes(Mesh source)
+        {
+            eyeIndices = null;
+            eyeCenterY = null;
+            if (source.subMeshCount < 2)
+                return;
+            var set = new System.Collections.Generic.HashSet<int>(source.GetTriangles(1));
+            if (set.Count == 0)
+                return;
+            eyeIndices = new int[set.Count];
+            set.CopyTo(eyeIndices);
+            float leftMin = float.MaxValue, leftMax = float.MinValue, rightMin = float.MaxValue, rightMax = float.MinValue;
+            foreach (var i in eyeIndices)
+            {
+                var y = rest[i].y;
+                if (rest[i].x < 0f)
+                {
+                    leftMin = Mathf.Min(leftMin, y);
+                    leftMax = Mathf.Max(leftMax, y);
+                }
+                else
+                {
+                    rightMin = Mathf.Min(rightMin, y);
+                    rightMax = Mathf.Max(rightMax, y);
+                }
+            }
+
+            eyeCenterY = new float[eyeIndices.Length];
+            for (int k = 0; k < eyeIndices.Length; k++)
+                eyeCenterY[k] = rest[eyeIndices[k]].x < 0f ? (leftMin + leftMax) * 0.5f : (rightMin + rightMax) * 0.5f;
+        }
+
+        /// <summary>Глаза в покое: сдвиг взгляда и моргание (до деформации тела, поэтому глаза гнутся вместе с ним).</summary>
+        private void ApplyEyes()
+        {
+            if (eyeIndices == null)
+                return;
+            var blink = Mathf.Clamp01(EyeBlink);
+            var scale = 1f - blink * (1f - Mathf.Clamp01(EyeClosedScale));
+            var offset = EyeOffset;
+            for (int k = 0; k < eyeIndices.Length; k++)
+            {
+                var i = eyeIndices[k];
+                var p = rest[i];
+                if (dents != null)
+                    p += dents[i];
+                var cy = eyeCenterY[k];
+                p.y = cy + (p.y - cy) * scale + offset.y;
+                p.x += offset.x;
+                work[i] = DeformPoint(p);
+            }
         }
 
         /// <summary>Мгновенно задать сжатие (кадры подготовки к прыжку).</summary>
@@ -154,6 +249,8 @@ namespace ColorsAction.Unity
             TwistTarget = PitchTarget = DirSquashTarget = 0f;
             SquashTarget = 0;
             BendTarget = LeanTarget = Vector2.zero;
+            DirectSquash = TwistOffset = PitchOffset = EyeBlink = 0f;
+            DirectBend = EyeOffset = Vector2.zero;
         }
 
         private void LateUpdate()
@@ -171,8 +268,8 @@ namespace ColorsAction.Unity
                 bendZ.Step(BendTarget.y, stiffness * 0.8f, damping, h);
                 leanX.Step(LeanTarget.x, stiffness * 0.6f, damping, h);
                 leanZ.Step(LeanTarget.y, stiffness * 0.6f, damping, h);
-                twist.Step(TwistTarget, stiffness * 0.9f, damping * 0.8f, h);
-                pitch.Step(PitchTarget, stiffness * 0.9f, damping, h);
+                twist.Step(TwistTarget + TwistOffset, stiffness * 0.9f, damping * 0.8f, h);
+                pitch.Step(PitchTarget + PitchOffset, stiffness * 0.9f, damping, h);
                 dirSquash.Step(DirSquashTarget, stiffness, damping, h);
             }
 
@@ -184,6 +281,7 @@ namespace ColorsAction.Unity
                 dents = null;
             for (int i = 0; i < rest.Length; i++)
                 work[i] = DeformPoint(dents != null ? rest[i] + dents[i] : rest[i]);
+            ApplyEyes();
             mesh.vertices = work;
             mesh.RecalculateNormals();
             mesh.RecalculateBounds();
@@ -208,6 +306,17 @@ namespace ColorsAction.Unity
                 x += axis.x * along * ds;
                 z += axis.y * along * ds;
                 y *= 1f - ds * 0.5f;
+            }
+
+            // Прямое сжатие (шаги, дыхание) поверх пружины: тот же закон с сохранением объёма (CubeShape) —
+            // сплющенный шире, вытянутый уже.
+            var direct = Mathf.Clamp(DirectSquash, -0.4f, 0.4f);
+            if (Mathf.Abs(direct) > 1e-5f)
+            {
+                var wide = ColorsAction.Animation.CubeShape.WidthScale(direct);
+                x *= wide;
+                z *= wide;
+                y *= ColorsAction.Animation.CubeShape.HeightScale(direct);
             }
 
             // Скручивание: угол растёт от низа к верху (плавно), как у закручиваемого бруска.
@@ -235,9 +344,9 @@ namespace ColorsAction.Unity
             }
 
             return new Vector3(
-                x + bendX.Value * t2 + leanX.Value * t,
+                x + (bendX.Value + DirectBend.x) * t2 + leanX.Value * t,
                 y,
-                z + bendZ.Value * t2 + leanZ.Value * t);
+                z + (bendZ.Value + DirectBend.y) * t2 + leanZ.Value * t);
         }
 
         /// <summary>Поворот, который деформация даёт в точке (для сокетов рук: оружие крутится вместе с кубом).</summary>
