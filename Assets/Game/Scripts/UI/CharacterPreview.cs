@@ -95,6 +95,7 @@ namespace ColorsAction.Unity
             var holder = new GameObject("Holder");
             holder.SetActive(false);
             var copy = Instantiate(source.gameObject, holder.transform, false);
+            CopyPropertyBlocks(source, copy.transform);
             Strip(copy);
             copy.transform.SetParent(turntable, false);
             copy.transform.localPosition = Vector3.zero;
@@ -103,6 +104,35 @@ namespace ColorsAction.Unity
             SetLayer(copy.transform);
             Destroy(holder);
             copy.SetActive(true);
+        }
+
+        /// <summary>
+        /// Цвет оружия в руках и свечение (<see cref="ItemVisual"/>, <see cref="WeaponGlow"/>) задаются через
+        /// MaterialPropertyBlock, а Instantiate их не копирует: без этого копия показала бы исходный цвет материалов.
+        /// Порядок рендереров у копии тот же, что у оригинала (до Strip).
+        /// </summary>
+        private static void CopyPropertyBlocks(Transform source, Transform copy)
+        {
+            var from = source.GetComponentsInChildren<Renderer>(true);
+            var to = copy.GetComponentsInChildren<Renderer>(true);
+            if (from.Length != to.Length)
+                return;
+            var block = new MaterialPropertyBlock();
+            for (int i = 0; i < from.Length; i++)
+            {
+                if (!from[i].HasPropertyBlock())
+                    continue;
+                from[i].GetPropertyBlock(block);
+                if (!block.isEmpty)
+                    to[i].SetPropertyBlock(block);
+                var count = from[i].sharedMaterials.Length;
+                for (int index = 0; index < count; index++)
+                {
+                    from[i].GetPropertyBlock(block, index);
+                    if (!block.isEmpty)
+                        to[i].SetPropertyBlock(block, index);
+                }
+            }
         }
 
         private static void Strip(GameObject root)
