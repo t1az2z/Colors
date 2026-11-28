@@ -16,7 +16,7 @@
     "hint.lockOn": "{action:lockOn} фиксация",
     "hint.switchTarget": "{action:switchTarget} влево / вправо — сменить цель",
     "hint.cameraTurn": "{action:cameraTurn} поворот камеры",
-    "hint.unblockable": "Атаки со знаком {icon:unblockable} нельзя блокировать",
+    "hint.unblockable": "Атаки со знаком {icon:unblockable}\nнельзя блокировать",
 
     "hud.interact": "{action:interact} {0}",
     "hud.experience": "Опыт  {0}",

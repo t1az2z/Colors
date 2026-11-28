@@ -72,6 +72,94 @@ namespace ColorsAction.Unity
     }
 
     /// <summary>
+    /// Знак «!» неблокируемой атаки над головой врага (спрайт <c>Resources/UI/PromptIcons/unblockable</c>, тот же, что
+    /// в подсказке на полу): выскакивает с перелётом в начале замаха, пульсирует, пока идёт замах, и быстро сжимается.
+    /// </summary>
+    public sealed class UnblockableMarker : MonoBehaviour
+    {
+        /// <summary>Ширина знака в мире, метры.</summary>
+        private const float WorldSize = 1f;
+        private const float CanvasSize = 100f;
+
+        private RectTransform rect;
+        private Transform anchor;
+        private float height;
+        private bool active;
+        private float time;
+        private float shown;
+
+        /// <summary>Знак сейчас виден (для автотестов).</summary>
+        public bool Visible => shown > 0.001f;
+
+        public static UnblockableMarker Create(Transform anchor, float height)
+        {
+            var go = new GameObject("UnblockableMarker", typeof(RectTransform));
+            var canvas = go.AddComponent<Canvas>();
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.sortingOrder = 21;
+            var marker = go.AddComponent<UnblockableMarker>();
+            marker.rect = (RectTransform)go.transform;
+            marker.rect.sizeDelta = new Vector2(CanvasSize, CanvasSize);
+            marker.anchor = anchor;
+            marker.height = height;
+            var sprite = Resources.Load<Sprite>(PromptLine.IconsPath + ColorsAction.Localization.PromptText.UnblockableIcon);
+            if (sprite != null)
+            {
+                var image = UiFactory.Image(go.transform, "Icon", Color.white, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(CanvasSize, CanvasSize));
+                image.sprite = sprite;
+                image.preserveAspect = true;
+                image.raycastTarget = false;
+            }
+            else
+            {
+                var label = UiFactory.Text(go.transform, "Text", "!", 120, TextAnchor.MiddleCenter, new Color(1f, 0.45f, 0.2f));
+                label.fontStyle = FontStyle.Bold;
+                UiFactory.Stretch(label.rectTransform);
+            }
+
+            marker.rect.localScale = Vector3.zero;
+            return marker;
+        }
+
+        /// <summary>Идёт замах неблокируемого удара: знак виден.</summary>
+        public void Set(bool on)
+        {
+            if (on && !active)
+                time = 0f;
+            active = on;
+        }
+
+        private void LateUpdate()
+        {
+            if (anchor == null)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            var dt = Time.deltaTime;
+            time += dt;
+            shown = Mathf.MoveTowards(shown, active ? 1f : 0f, dt * (active ? 100f : 8f));
+            if (shown <= 0.001f)
+            {
+                rect.localScale = Vector3.zero;
+                return;
+            }
+
+            // Выскакивает с перелётом, потом пульсирует.
+            var pop = time < 0.15f ? Mathf.Sin(time / 0.15f * Mathf.PI * 0.5f) * 1.3f
+                : Mathf.Lerp(1.3f, 1f, Mathf.Clamp01((time - 0.15f) / 0.12f));
+            var pulse = 1f + Mathf.Sin(time * 14f) * 0.06f;
+            rect.position = CurvedWorld.Bend(anchor.position + Vector3.up * height);
+            var cam = Camera.main;
+            if (cam != null)
+                rect.rotation = cam.transform.rotation;
+            rect.localScale = Vector3.one * (WorldSize / CanvasSize * pop * pulse * shown);
+        }
+    }
+
+    /// <summary>
     /// Здоровье, видимое по телу: целый → в трещинах (меньше 2/3) → с отколотыми углами (меньше 1/3).
     /// Трещины — текстура поверх цвета (рисуется кодом), сколы — вдавленные углы меша и разлетающиеся осколки.
     /// </summary>

@@ -625,7 +625,8 @@ namespace ColorsAction.Unity.Editor
         }
 
         /// <summary>
-        /// 17. Элитный мечник (тир, z ≥ 64): оранжевый куб 1.3; удар сверху бьёт по области, серия из двух ударов накрест;
+        /// 17. Элитный мечник (тир, z ≥ 64): оранжевый куб 1.3; удар сверху бьёт по области и не блокируется (знак «!»
+        /// над головой в замахе), серия из двух ударов накрест блокируется;
         /// парирование без полной шкалы только поглощает удар (серия продолжается), третье парирование ошеломляет.
         /// </summary>
         private static IEnumerator EliteSwordsman(GameInput input, PlayerController player, PlayerCombat combat, GameSession session)
@@ -668,6 +669,59 @@ namespace ColorsAction.Unity.Editor
             Check(hitsBy.Contains(ColorsAction.Configs.EnemyAttackMotion.Slam), $"overhead slam hits the player: hits by {string.Join(", ", hitsBy)}", "hit by Slam");
             Check(slamFx, "slam shows the ground wave", "GroundSlam playing at the slam");
             Check(secondCrossStrike, "cross combo: the second strike follows the first", "ComboIndex 1 strike seen");
+
+            // в) Неблокируемый удар сверху: знак «!» над головой во время замаха, заранее поднятый блок его не держит,
+            // а удары накрест блок держит (выносливость тратится, урона нет).
+            var markSeen = false;
+            var markOnBlockable = false;
+            var slamThroughBlock = false;
+            var crossBlocked = false;
+            var crossLeaked = false;
+            var shot = false;
+            input.ScriptHold(GameAction.Secondary, true);
+            for (int f = 0; f < 60 * 20 && !(slamThroughBlock && crossBlocked && markSeen); f++)
+            {
+                var face = elite.transform.position - player.transform.position;
+                face.y = 0f;
+                if (face.sqrMagnitude > 0.01f)
+                    player.Teleport(player.transform.position, Mathf.Atan2(face.x, face.z) * Mathf.Rad2Deg);
+                yield return 1;
+                var visible = elite.UnblockableMarkVisible;
+                if (brain.UnblockableWindup && brain.StateTime > 0.1f)
+                {
+                    markSeen |= visible;
+                    if (visible && !shot && brain.StateTime > 0.3f)
+                    {
+                        shot = true;
+                        ScreenCapture.CaptureScreenshot("Temp/unblockable_mark.png");
+                    }
+                }
+
+                markOnBlockable |= visible && brain.Attack != null && !brain.Attack.Unblockable && brain.StateTime > 0.2f;
+                var slam = brain.RootAttack != null && brain.RootAttack.Unblockable;
+                if (vitals.Health.Current.Value < vitals.Health.Max - 0.01f)
+                {
+                    if (slam && combat.Blocking)
+                        slamThroughBlock = true;
+                    else if (!slam)
+                        crossLeaked = true;
+                    vitals.Health.Restore();
+                }
+                else if (!slam && combat.Blocking && session.Stamina.Current.Value < session.Stamina.Max - 0.5f &&
+                         brain.State != ColorsAction.Combat.EnemyState.Windup)
+                {
+                    crossBlocked = true;
+                }
+
+                session.Stamina.Restore();
+            }
+
+            input.ScriptHold(GameAction.Secondary, false);
+            yield return 3;
+            Check(markSeen, "unblockable slam: \"!\" shows above the elite during the windup", "UnblockableMarkVisible in windup");
+            Check(!markOnBlockable, "no \"!\" for blockable cross strikes", "hidden for blockable attacks");
+            Check(slamThroughBlock, "unblockable slam goes through a held shield block", "health dropped while blocking the slam");
+            Check(crossBlocked && !crossLeaked, $"cross strikes are still blocked: blocked {crossBlocked}, leaked {crossLeaked}", "blocked, no damage");
 
             // б) Парирования: первые два только поглощают удар, третье заполняет шкалу (300) и ошеломляет.
             var absorbed = 0;

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using ColorsAction.Animation;
 using ColorsAction.Combat;
 using ColorsAction.Configs;
@@ -59,6 +60,10 @@ namespace ColorsAction.Unity
         private Renderer bodyRenderer;
         private MaterialPropertyBlock block;
         private AlertMarker marker;
+        private UnblockableMarker unblockableMarker;
+
+        /// <summary>Знак «!» неблокируемой атаки над головой виден (для автотестов).</summary>
+        public bool UnblockableMarkVisible => unblockableMarker != null && unblockableMarker.Visible;
         private EnemyBars bars;
         private float hitShake;
         private CrackVisual cracks;
@@ -230,6 +235,9 @@ namespace ColorsAction.Unity
             cracks = meshGo.AddComponent<CrackVisual>();
             cracks.Init(bodyRenderer, deformer, color);
             marker = AlertMarker.Create(transform, size + 0.75f);
+            // Знак неблокируемой атаки — только у врагов, у которых такая атака есть.
+            if (config.Attacks.Any(a => Enumerable.Range(0, a.Steps).Any(i => a.Step(i).Unblockable)))
+                unblockableMarker = UnblockableMarker.Create(transform, size + 1.05f);
             bars = EnemyBars.Create(transform, size + 0.5f, Mathf.Max(1.5f, size * 1.9f), brain.Poise.Max > 0f);
             body.rotation = Quaternion.Euler(0, yaw, 0);
         }
@@ -348,6 +356,8 @@ namespace ColorsAction.Unity
 
             tinted = tintNow;
             UpdateDeformation(dt);
+            if (unblockableMarker != null)
+                unblockableMarker.Set(brain.UnblockableWindup);
             if (bars != null)
                 bars.Set(brain.Health.Fraction, brain.Poise.Fraction, brain.Staggering,
                     brain.Status.Get(StatusEffectsConfig.StunId)?.RemainingFraction ?? 0f);
@@ -811,6 +821,8 @@ namespace ColorsAction.Unity
         {
             if (marker != null)
                 Destroy(marker.gameObject);
+            if (unblockableMarker != null)
+                Destroy(unblockableMarker.gameObject);
             if (bars != null)
                 Destroy(bars.gameObject);
         }
