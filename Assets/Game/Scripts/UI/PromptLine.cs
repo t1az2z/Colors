@@ -47,7 +47,8 @@ namespace ColorsAction.Unity
     /// Строка подсказки с кнопками: текст из файла языка с разметкой <c>{action:id}</c> (<see cref="PromptText"/>) —
     /// кнопки рисуются иконкой или клавишей с подписью под текущее устройство (<see cref="InputGlyphs"/>) и сами
     /// перерисовываются при смене клавиатуры на геймпад и обратно. Работает и в экранном Canvas, и в мировом (подсказки на полу).
-    /// <para>Вёрстка — горизонтальный ряд: куски текста (uGUI <see cref="Text"/>) и клавиши (<see cref="Image"/> + подпись).</para>
+    /// <para>Вёрстка — ряды друг под другом (перенос строки <c>\n</c> в тексте начинает новый ряд), в каждом ряду
+    /// по горизонтали куски текста (uGUI <see cref="Text"/>) и клавиши (<see cref="Image"/> + подпись).</para>
     /// </summary>
     [RequireComponent(typeof(RectTransform))]
     public sealed class PromptLine : MonoBehaviour
@@ -55,12 +56,13 @@ namespace ColorsAction.Unity
         private InputGlyphs glyphs;
         private PromptStyle style;
         private CanvasGroup group;
-        private HorizontalLayoutGroup layout;
+        private VerticalLayoutGroup layout;
         private string text = string.Empty;
         private bool builtForGamepad;
         private string builtFamily;
         private bool built;
         private readonly List<GameObject> parts = new List<GameObject>();
+        private readonly List<GameObject> rows = new List<GameObject>();
 
         /// <summary>Текущий текст с разметкой (уже переведённый).</summary>
         public string Text => text;
@@ -122,13 +124,13 @@ namespace ColorsAction.Unity
             group.blocksRaycasts = false;
             group.interactable = false;
             if (!TryGetComponent(out layout))
-                layout = gameObject.AddComponent<HorizontalLayoutGroup>();
+                layout = gameObject.AddComponent<VerticalLayoutGroup>();
             layout.childAlignment = style.Alignment;
             layout.childControlWidth = true;
             layout.childControlHeight = true;
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
-            layout.spacing = Mathf.Max(2f, style.FontSize * 0.25f);
+            layout.spacing = Mathf.Round(style.FontSize * 0.1f);
             // Строка растёт под содержимое вокруг своего pivot (у Text префаба рамка может быть меньше текста).
             if (!TryGetComponent<ContentSizeFitter>(out var fitter))
                 fitter = gameObject.AddComponent<ContentSizeFitter>();
@@ -169,21 +171,33 @@ namespace ColorsAction.Unity
 
         private void Rebuild()
         {
-            foreach (var part in parts)
-                if (part != null)
-                    Destroy(part);
+            foreach (var old in rows)
+                if (old != null)
+                {
+                    old.SetActive(false); // Destroy — в конце кадра, а вёрстка до этого не должна учитывать старые ряды
+                    Destroy(old);
+                }
+            rows.Clear();
             parts.Clear();
             builtForGamepad = glyphs != null && glyphs.UsingGamepad;
             builtFamily = builtForGamepad ? glyphs.Input.GamepadFamily : null;
             built = true;
 
-            foreach (var segment in PromptText.Parse(text))
+            var row = NewRow();
+            foreach (var segment in PromptText.Parse(text.Replace("\r", string.Empty)))
             {
                 if (segment.Kind == PromptSegmentKind.Text)
                 {
-                    var value = segment.Value.Trim();
-                    if (value.Length > 0)
-                        parts.Add(TextPart(value));
+                    var lines = segment.Value.Split('\n');
+                    for (int l = 0; l < lines.Length; l++)
+                    {
+                        if (l > 0)
+                            row = NewRow();
+                        var value = lines[l].Trim();
+                        if (value.Length > 0)
+                            parts.Add(TextPart(row, value));
+                    }
+
                     continue;
                 }
 
@@ -193,26 +207,42 @@ namespace ColorsAction.Unity
                 for (int i = 0; i < keys.Count; i++)
                 {
                     if (i > 0 && separated)
-                        parts.Add(TextPart("/"));
-                    parts.Add(KeyPart(keys[i]));
+                        parts.Add(TextPart(row, "/"));
+                    parts.Add(KeyPart(row, keys[i]));
                 }
             }
         }
 
-        private GameObject TextPart(string value)
+        /// <summary>Новый ряд строки: куски текста и клавиши в нём идут по горизонтали.</summary>
+        private Transform NewRow()
         {
-            var t = UiFactory.Text(transform, "Text", value, style.FontSize, TextAnchor.MiddleCenter, style.TextColor);
+            var go = new GameObject("Row", typeof(RectTransform));
+            go.transform.SetParent(transform, false);
+            var row = go.AddComponent<HorizontalLayoutGroup>();
+            row.childAlignment = style.Alignment;
+            row.childControlWidth = true;
+            row.childControlHeight = true;
+            row.childForceExpandWidth = false;
+            row.childForceExpandHeight = false;
+            row.spacing = Mathf.Max(2f, style.FontSize * 0.25f);
+            rows.Add(go);
+            return go.transform;
+        }
+
+        private GameObject TextPart(Transform row, string value)
+        {
+            var t = UiFactory.Text(row, "Text", value, style.FontSize, TextAnchor.MiddleCenter, style.TextColor);
             t.font = style.Font;
             t.fontStyle = style.FontStyle;
             CopyEffect(t.gameObject);
             return t.gameObject;
         }
 
-        private GameObject KeyPart(InputGlyph glyph)
+        private GameObject KeyPart(Transform row, InputGlyph glyph)
         {
             var height = Mathf.Round(style.FontSize * 1.3f);
             var go = new GameObject("Key", typeof(RectTransform));
-            go.transform.SetParent(transform, false);
+            go.transform.SetParent(row, false);
             var element = go.AddComponent<LayoutElement>();
             element.preferredHeight = height;
             element.minHeight = height;

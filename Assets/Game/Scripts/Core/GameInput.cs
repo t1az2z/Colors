@@ -224,11 +224,12 @@ namespace ColorsAction.Unity
             CameraStick = player.AddAction("CameraStick", InputActionType.Value, expectedControlLayout: "Vector2");
             CameraStick.AddBinding("<Gamepad>/rightStick");
 
+            // На геймпаде поворот инвертирован относительно Q/E: LB крутит камеру вправо, RB — влево.
             CameraLeft = player.AddAction("CameraLeft", InputActionType.Button);
-            CameraLeft.AddBinding("<Gamepad>/leftShoulder");
+            CameraLeft.AddBinding("<Gamepad>/rightShoulder");
             CameraLeft.AddBinding("<Keyboard>/q");
             CameraRight = player.AddAction("CameraRight", InputActionType.Button);
-            CameraRight.AddBinding("<Gamepad>/rightShoulder");
+            CameraRight.AddBinding("<Gamepad>/leftShoulder");
             CameraRight.AddBinding("<Keyboard>/e");
 
             LockOn = player.AddAction("LockOn", InputActionType.Button);

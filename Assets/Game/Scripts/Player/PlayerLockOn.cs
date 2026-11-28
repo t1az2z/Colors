@@ -12,7 +12,7 @@ namespace ColorsAction.Unity
     /// Фиксация на цели (СКМ / R3): персонаж всегда смотрит на цель, перекаты идут относительно неё (вбок — через бок
     /// персонажа), свободная камера доворачивается за спину. Повторное нажатие снимает фиксацию; она снимается и сама,
     /// если цель ушла дальше <see cref="CombatConfig.LockOnBreakRange"/>. Если цель-враг умерла, фиксация переходит
-    /// на врага, ближайшего к погибшему (в радиусе <see cref="CombatConfig.LockOnRange"/>), а если такого нет — снимается.
+    /// на врага, ближайшего к погибшему (в радиусе <see cref="CombatConfig.LockOnRetargetRange"/> от игрока), а если такого нет — снимается.
     /// Цели — враги, манекены и цепи разводных мостов (<see cref="BridgeChain"/>). Переключение на соседнюю цель — рывок правым стиком или мышью влево/вправо. Числа — Configs/Combat.json.
     /// </summary>
     [DefaultExecutionOrder(-50)]
@@ -192,7 +192,7 @@ namespace ColorsAction.Unity
             markerVisible = 0f;
         }
 
-        /// <summary>Перевести фиксацию на живого врага, ближайшего к точке (в радиусе фиксации от игрока); нет такого — снять.</summary>
+        /// <summary>Перевести фиксацию на живого врага, ближайшего к точке (в радиусе LockOnRetargetRange от игрока); нет такого — снять.</summary>
         private void RetargetNear(Vector3 from)
         {
             Release();
@@ -201,7 +201,7 @@ namespace ColorsAction.Unity
             foreach (var enemy in EnemyController.All)
                 Add(enemy);
             var p = transform.position;
-            var index = LockOnRules.Nearest(from.x, from.z, p.x, p.z, candidates, config.LockOnRange);
+            var index = LockOnRules.Nearest(from.x, from.z, p.x, p.z, candidates, config.LockOnRetargetRange);
             if (index >= 0)
             {
                 SetTarget(targets[index]);

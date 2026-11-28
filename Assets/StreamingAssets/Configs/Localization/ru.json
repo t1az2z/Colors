@@ -10,7 +10,7 @@
     "hint.wheel": "{action:wheel} выбор оружия",
     "hint.attack": "{action:attack} удар",
     "hint.block": "{action:block} блок",
-    "hint.parry": "{action:parry} парирование",
+    "hint.parry": "парирование {action:parry}\nво время атаки",
     "hint.items": "{action:items} использовать предмет",
     "hint.run": "{action:run} бег",
     "hint.lockOn": "{action:lockOn} фиксация",

@@ -10,6 +10,7 @@
   "attackerGap": 0.25,
   "lockOnRange": 12,
   "lockOnBreakRange": 19,
+  "lockOnRetargetRange": 5,
   "lockOnAnglePenalty": 4,
   "lockOnTurnSpeed": 900,
   "lockOnCameraSpeed": 4,

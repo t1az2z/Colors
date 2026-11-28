@@ -201,7 +201,7 @@ const HINT_OPTIONS = [
   ['run', 'Бег (Shift / L3)'],
   ['lockOn', 'Фиксация на цели (СКМ / R3)'],
   ['switchTarget', 'Смена цели (мышь / правый стик)'],
-  ['cameraTurn', 'Поворот камеры (Q E / LB RB)'],
+  ['cameraTurn', 'Поворот камеры (Q E / RB LB)'],
 ];
 const HINTS = HINT_OPTIONS.map(([v]) => v);
 // Кнопки действий подсказок для превью — копия привязок Assets/Game/Scripts/Core/GameInput.cs: [клавиатура/мышь, геймпад].
@@ -218,7 +218,7 @@ const HINT_KEYS = {
   items: [['<Keyboard>/1', '<Keyboard>/2', '<Keyboard>/3', '<Keyboard>/4'], ['<Gamepad>/dpad/up', '<Gamepad>/dpad/right', '<Gamepad>/dpad/down', '<Gamepad>/dpad/left']],
   run: [['<Keyboard>/leftShift'], ['<Gamepad>/leftStickPress']],
   lockOn: [['<Mouse>/middleButton'], ['<Gamepad>/rightStickPress']],
-  cameraTurn: [['<Keyboard>/q', '<Keyboard>/e'], ['<Gamepad>/leftShoulder', '<Gamepad>/rightShoulder']],
+  cameraTurn: [['<Keyboard>/q', '<Keyboard>/e'], ['<Gamepad>/rightShoulder', '<Gamepad>/leftShoulder']],
   switchTarget: [['<Mouse>/delta'], ['<Gamepad>/rightStick']],
 };
 /** Строки языка (Configs/Localization/ru.json), если сайт их отдаёт; иначе превью подсказок — по названиям из списка. */
@@ -1529,7 +1529,14 @@ function hintText(action) {
 function hintParts(action, pad) {
   const parts = [], re = /\{action:([^}]+)\}/g, text = hintText(action);
   let last = 0, m;
-  const pushText = t => { t = t.replace(/\{\{/g, '{').replace(/\}\}/g, '}').trim(); if (t) parts.push({ text: t }); };
+  // Перенос строки начинает новый ряд ({ br: true }), как ряды PromptLine в игре.
+  const pushText = t => {
+    t.replace(/\r/g, '').split('\n').forEach((line, i) => {
+      if (i > 0) parts.push({ br: true });
+      line = line.replace(/\{\{/g, '{').replace(/\}\}/g, '}').trim();
+      if (line) parts.push({ text: line });
+    });
+  };
   while ((m = re.exec(text))) {
     pushText(text.slice(last, m.index));
     const keys = (HINT_KEYS[m[1].trim()] || [[m[1]], [m[1]]])[pad ? 1 : 0];
@@ -1547,30 +1554,46 @@ function hintCanvas(action, pad) {
   const S = 2, F = HINT_FONT, keyH = Math.round(F * 1.3), gap = Math.max(2, F * 0.25), lineH = Math.max(keyH, Math.round(F * 1.15));
   const c = document.createElement('canvas'), g = c.getContext('2d');
   const font = px => `bold ${px}px Arial, "Liberation Sans", sans-serif`;
-  const parts = hintParts(action, pad);
-  for (const p of parts) {
-    if (p.text !== undefined) { g.font = font(F); p.w = g.measureText(p.text).width; continue; }
-    p.size = Math.round(F * (p.key.length > 2 ? 0.72 : 0.85));
-    g.font = font(p.size);
-    p.w = p.face ? keyH : Math.max(keyH, g.measureText(p.key).width + F * 0.6);
+  // Ряды строки: ряд — по горизонтали, ряды по центру друг под другом (VerticalLayoutGroup PromptLine, отступ 0.1 шрифта).
+  const rows = [[]];
+  for (const p of hintParts(action, pad)) {
+    if (p.br) { rows.push([]); continue; }
+    rows[rows.length - 1].push(p);
   }
-  const w = Math.ceil(parts.reduce((a, p) => a + p.w, 0) + gap * Math.max(0, parts.length - 1)) + 4, hgt = lineH + 4;
+  // Высота ряда — как в uGUI: у ряда только с текстом — высота текста, с клавишей — не меньше клавиши.
+  const textH = Math.round(F * 1.15), rowGap = Math.round(F * 0.1);
+  const rowInfo = rows.map(parts => {
+    for (const p of parts) {
+      if (p.text !== undefined) { g.font = font(F); p.w = g.measureText(p.text).width; continue; }
+      p.size = Math.round(F * (p.key.length > 2 ? 0.72 : 0.85));
+      g.font = font(p.size);
+      p.w = p.face ? keyH : Math.max(keyH, g.measureText(p.key).width + F * 0.6);
+    }
+    const w = parts.reduce((a, p) => a + p.w, 0) + gap * Math.max(0, parts.length - 1);
+    return { parts, w, h: parts.some(p => p.text === undefined) ? lineH : (parts.length ? textH : 0) };
+  });
+  const w = Math.ceil(Math.max(...rowInfo.map(r => r.w))) + 4;
+  const hgt = Math.ceil(rowInfo.reduce((a, r) => a + r.h, 0) + rowGap * Math.max(0, rowInfo.length - 1)) + 4;
   c.width = w * S; c.height = hgt * S;
   g.scale(S, S); g.textAlign = 'center'; g.textBaseline = 'middle';
-  let x = 2;
-  const cy = hgt / 2;
-  for (const p of parts) {
-    if (p.text !== undefined) { g.font = font(F); g.fillStyle = HINT_INK; g.fillText(p.text, x + p.w / 2, cy + F * 0.04); }
-    else {
-      g.fillStyle = p.tint || HINT_INK;
-      g.beginPath();
-      if (p.face) g.arc(x + p.w / 2, cy, keyH / 2, 0, Math.PI * 2);
-      else if (g.roundRect) g.roundRect(x, cy - keyH / 2, p.w, keyH, keyH * 0.25);
-      else g.rect(x, cy - keyH / 2, p.w, keyH);
-      g.fill();
-      g.font = font(p.size); g.fillStyle = p.tint ? '#ffffff' : HINT_KEY_TEXT; g.fillText(p.key, x + p.w / 2, cy + p.size * 0.04);
+  let top = 2;
+  for (const r of rowInfo) {
+    let x = (w - r.w) / 2;
+    const cy = top + r.h / 2;
+    top += r.h + rowGap;
+    for (const p of r.parts) {
+      if (p.text !== undefined) { g.font = font(F); g.fillStyle = HINT_INK; g.fillText(p.text, x + p.w / 2, cy + F * 0.04); }
+      else {
+        g.fillStyle = p.tint || HINT_INK;
+        g.beginPath();
+        if (p.face) g.arc(x + p.w / 2, cy, keyH / 2, 0, Math.PI * 2);
+        else if (g.roundRect) g.roundRect(x, cy - keyH / 2, p.w, keyH, keyH * 0.25);
+        else g.rect(x, cy - keyH / 2, p.w, keyH);
+        g.fill();
+        g.font = font(p.size); g.fillStyle = p.tint ? '#ffffff' : HINT_KEY_TEXT; g.fillText(p.key, x + p.w / 2, cy + p.size * 0.04);
+      }
+      x += p.w + gap;
     }
-    x += p.w + gap;
   }
   return { canvas: c, w, h: hgt };
 }

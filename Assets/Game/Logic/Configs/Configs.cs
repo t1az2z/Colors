@@ -1017,6 +1017,9 @@ namespace ColorsAction.Configs
         /// <summary>Фиксация снимается, если цель дальше этого, метры.</summary>
         public float LockOnBreakRange { get; set; } = 16f;
 
+        /// <summary>Цель умерла: фиксация переходит только на врага в этом радиусе от игрока, метры (кубы); иначе снимается.</summary>
+        public float LockOnRetargetRange { get; set; } = 5f;
+
         /// <summary>Цель в стороне от взгляда камеры считается дальше на столько метров за каждые 90°.</summary>
         public float LockOnAnglePenalty { get; set; } = 4f;
 

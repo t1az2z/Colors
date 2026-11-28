@@ -25,6 +25,9 @@ namespace ColorsAction.Unity
         /// <summary>Дуло в координатах модели оружия (ствол вдоль +Z).</summary>
         private static readonly Vector3 MuzzleOffset = new Vector3(0f, 0.05f, 0.84f);
 
+        /// <summary>Длина раструба от переднего края модели: при заряде он раскаляется до белого, м.</summary>
+        private const float MuzzleHeatLength = 0.2f;
+
         private readonly Collider[] aimOverlap = new Collider[32];
         private readonly AttackCharge gunCharge = new AttackCharge();
         private HandState gunChargeHand;
@@ -149,7 +152,7 @@ namespace ColorsAction.Unity
         {
             var result = gunCharge.Tick(dt, held, session.Stamina.TrySpend);
             var flash = gunCharge.Config != null ? gunCharge.Config.Flash : 0f;
-            var glow = flash > 0f ? WeaponGlow.For(hand.Visual, palette.Get(hand.Item.Color), combatConfig.HeldWeaponGlow) : null;
+            var glow = flash > 0f ? WeaponGlow.For(hand.Visual, palette.Get(hand.Item.Color), combatConfig.HeldWeaponGlow, MuzzleHeatLength) : null;
             switch (result)
             {
                 case ChargeEvent.Charged:
