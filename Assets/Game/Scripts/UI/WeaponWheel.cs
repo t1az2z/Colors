@@ -24,6 +24,12 @@ namespace ColorsAction.Unity
         private const float InnerRadius = 120f;
         private const float SectorGap = 0.006f;
 
+        /// <summary>Толщина белой обводки выбранного сектора: пиксели по радиусу и доля круга с каждой стороны.</summary>
+        private const float OutlineWidth = 8f;
+        private const float OutlineArc = 0.004f;
+
+        private static readonly Color HubIdle = new Color(0.1f, 0.1f, 0.12f, 0.92f);
+
         /// <summary>Колесо открыто: камера и атаки не читают мышь и стик.</summary>
         public static bool IsOpen { get; private set; }
 
@@ -41,6 +47,7 @@ namespace ColorsAction.Unity
         private CanvasGroup group;
         private Text title;
         private Text subtitle;
+        private Image hub;
         private readonly List<Sector> sectors = new List<Sector>();
 
         private float openT;
@@ -58,6 +65,7 @@ namespace ColorsAction.Unity
         {
             public string Color;
             public Image Fill;
+            public Image Outline;
             public Image Icon;
             public Text Label;
             public RectTransform Rect;
@@ -115,6 +123,21 @@ namespace ColorsAction.Unity
             for (int i = 0; i < colors.Count; i++)
             {
                 var s = new Sector { Color = colors[i] };
+                // Белая обводка — тот же сектор чуть больше и шире, под заливкой; видна только у выбранного.
+                var outline = UiFactory.Image(root, "Outline_" + colors[i], Color.white, new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * (Radius + OutlineWidth) * 2f);
+                UiSprites.Apply(outline, UiSprites.Circle, false);
+                outline.type = Image.Type.Filled;
+                outline.fillMethod = Image.FillMethod.Radial360;
+                outline.fillOrigin = (int)Image.Origin360.Top;
+                outline.fillClockwise = true;
+                outline.fillAmount = 1f / colors.Count - SectorGap + OutlineArc * 2f;
+                outline.rectTransform.localRotation =
+                    Quaternion.Euler(0f, 0f, -(i * step - step * 0.5f + SectorGap * 180f - OutlineArc * 360f));
+                outline.raycastTarget = false;
+                outline.enabled = false;
+                s.Outline = outline;
+
                 var fill = UiFactory.Image(root, "Sector_" + colors[i], Color.white, new Vector2(0.5f, 0.5f),
                     new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * Radius * 2f);
                 UiSprites.Apply(fill, UiSprites.Circle, false);
@@ -144,8 +167,8 @@ namespace ColorsAction.Unity
                 sectors.Add(s);
             }
 
-            // Середина — тёмный круг с названием оружия под курсором.
-            var hub = UiFactory.Image(root, "Hub", new Color(0.1f, 0.1f, 0.12f, 0.92f), new Vector2(0.5f, 0.5f),
+            // Середина — круг с названием оружия под курсором, залит цветом выбранного сектора (без выбора — тёмный).
+            hub = UiFactory.Image(root, "Hub", HubIdle, new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.one * InnerRadius * 2f);
             UiSprites.Apply(hub, UiSprites.Circle, false);
             hub.raycastTarget = false;
@@ -280,10 +303,16 @@ namespace ColorsAction.Unity
                 var owned = s.Weapon != null;
                 var hover = i == hovered;
                 // Пустой сектор виден с самого начала, но тусклый: игрок знает, сколько оружия ещё найти.
-                var alpha = owned ? (hover ? 1f : 0.75f) : (hover ? 0.4f : 0.25f);
+                var alpha = owned ? (hover ? 1f : 0.75f) : (hover ? 0.55f : 0.25f);
+                // Выбранный сектор ярче остальных и в белой обводке, чтобы бросался в глаза.
+                if (hover)
+                    color = Color.Lerp(color, Color.white, 0.25f);
                 color.a = alpha;
                 s.Fill.color = color;
-                s.Rect.localScale = Vector3.one * (hover ? 1.06f : s.Weapon != null && s.Weapon == active ? 1.02f : 1f);
+                var scale = Vector3.one * (hover ? 1.08f : s.Weapon != null && s.Weapon == active ? 1.02f : 1f);
+                s.Rect.localScale = scale;
+                s.Outline.enabled = hover;
+                s.Outline.rectTransform.localScale = scale;
 
                 if (owned && icons != null)
                 {
@@ -298,6 +327,7 @@ namespace ColorsAction.Unity
             }
 
             var h = hovered >= 0 && hovered < sectors.Count ? sectors[hovered] : null;
+            PaintHub(h, active);
             if (h?.Weapon != null)
             {
                 title.text = h.Weapon.Config.Name;
@@ -313,6 +343,27 @@ namespace ColorsAction.Unity
                 title.text = active != null ? active.Config.Name : "Без оружия";
                 subtitle.text = "выбери цвет";
             }
+        }
+
+        /// <summary>
+        /// Середина колеса — цвет выбранного сектора (пустой сектор — приглушённый), без выбора — цвет оружия в руках
+        /// или тёмная. Текст тёмный на светлых цветах (жёлтый), светлый на тёмных.
+        /// </summary>
+        private void PaintHub(Sector h, Item active)
+        {
+            Color fill;
+            if (h != null)
+                fill = h.Weapon != null ? palette.Get(h.Color) : Color.Lerp(HubIdle, palette.Get(h.Color), 0.5f);
+            else if (active != null && !string.IsNullOrEmpty(active.Config.Color))
+                fill = Color.Lerp(HubIdle, palette.Get(active.Config.Color), 0.6f);
+            else
+                fill = HubIdle;
+            fill.a = HubIdle.a;
+            hub.color = fill;
+
+            var light = 0.299f * fill.r + 0.587f * fill.g + 0.114f * fill.b > 0.55f;
+            title.color = light ? new Color(0.08f, 0.08f, 0.1f) : UiFactory.TextColor;
+            subtitle.color = light ? new Color(0.08f, 0.08f, 0.1f, 0.7f) : UiFactory.MutedText;
         }
     }
 }
