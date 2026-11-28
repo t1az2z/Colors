@@ -152,7 +152,9 @@ namespace ColorsAction.Unity.Editor
             input.ScriptedMove = null;
             yield return 0.2f;
             var x = player.transform.position.x;
-            Check(x < 11.6f, $"walking does not get past the raised leaf: player x={x:F2} y={player.transform.position.y:F2} (hinge at 12.0)", "x < 11.6");
+            // Упор в створку на шарнире x = 12: центр куба останавливается на полуширину коллайдера раньше.
+            var stopX = 12f - player.Config.ColliderWidth * 0.5f + 0.02f;
+            Check(x < stopX, $"walking does not get past the raised leaf: player x={x:F2} y={player.transform.position.y:F2} (hinge at 12.0)", $"x < {stopX:F2}");
 
             // 2. Прыжком с края ближней створки не перебраться.
             player.Teleport(new Vector3(7.6f, 0f, 3.5f), 90f);
@@ -163,7 +165,7 @@ namespace ColorsAction.Unity.Editor
             input.ScriptedMove = null;
             yield return 0.5f;
             x = player.transform.position.x;
-            Check(x < 11.6f, $"jump over is blocked: x={x:F2} y={player.transform.position.y:F2}", "x < 11.6");
+            Check(x < stopX, $"jump over is blocked: x={x:F2} y={player.transform.position.y:F2}", $"x < {stopX:F2}");
 
             // 3. Меч цепь не рвёт, только раскачивает.
             chain.ReceiveHit(new HitInfo { Damage = 100f, WeaponId = "sword", Direction = Vector3.right, Knockback = 1f });
