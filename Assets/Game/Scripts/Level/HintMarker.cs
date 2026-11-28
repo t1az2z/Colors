@@ -18,6 +18,8 @@ namespace ColorsAction.Unity
         private InputGlyphs glyphs;
         private PromptLine line;
         private Transform player;
+        private bool seated;
+        private int createdFrame;
         private string textKey;
         private System.Func<bool> done;
         private System.Action completed;
@@ -58,6 +60,7 @@ namespace ColorsAction.Unity
             marker.action = action;
             marker.glyphs = glyphs;
             marker.textKey = KeyFor(action);
+            marker.createdFrame = Time.frameCount;
 
             // "Выгравировано" на полу: текст и клавиши — тёмно-серые, подписи клавиш — светлые.
             var ink = new Color(0.32f, 0.33f, 0.37f, 1f);
@@ -85,6 +88,48 @@ namespace ColorsAction.Unity
             // Нет строки для действия — хотя бы кнопка.
             var text = strings != null && strings.Has(textKey) ? strings.Get(textKey) : "{action:" + action + "}";
             line.SetText(text);
+        }
+
+        /// <summary>
+        /// Положить надпись на пол: подняться до самой высокой точки уровня под ней (сглаженные перепады, соседние клетки
+        /// выше на ¼–½), но не больше чем на полклетки. Иначе края длинной надписи уходят под пол. Размер известен после вёрстки.
+        /// Тот же расчёт — hintFloor в веб-редакторе уровней.
+        /// </summary>
+        private void SitOnFloor()
+        {
+            var rect = (RectTransform)line.transform;
+            var size = Vector2.Scale(rect.rect.size, transform.lossyScale);
+            if (size.x <= 0f)
+                return;
+            seated = true;
+            var basePos = transform.position - Vector3.up * 0.02f;
+            var right = transform.right * (size.x * 0.5f);
+            var up = transform.up * (size.y * 0.5f);
+            var best = basePos.y;
+            var hits = new RaycastHit[8];
+            for (int i = -4; i <= 4; i++)
+            for (int j = -1; j <= 1; j++)
+            {
+                var p = basePos + right * (i / 4f) + up * j;
+                var count = Physics.RaycastNonAlloc(p + Vector3.up * 0.6f, Vector3.down, hits, 1.2f, ~0, QueryTriggerInteraction.Ignore);
+                for (int k = 0; k < count; k++)
+                {
+                    if (hits[k].collider.GetComponentInParent<Voxel.VoxelLevelView>() == null)
+                        continue;
+                    var y = hits[k].point.y;
+                    if (y > best && y <= basePos.y + 0.5f)
+                        best = y;
+                }
+            }
+
+            transform.position = new Vector3(transform.position.x, best + 0.02f, transform.position.z);
+        }
+
+        private void LateUpdate()
+        {
+            // Размер строки подсказки известен после вёрстки Canvas (она идёт после LateUpdate) — ждём кадр.
+            if (!seated && line != null && Time.frameCount > createdFrame + 1)
+                SitOnFloor();
         }
 
         private void Update()

@@ -1547,6 +1547,26 @@ function hintCanvas(action, pad) {
   }
   return { canvas: c, w, h: hgt };
 }
+/**
+ * Высота, на которую ложится подсказка: самая высокая точка пола под всей надписью (сглаженные перепады до 0.3 и
+ * неровные соседние клетки), но не дальше полклетки от её опоры — как HintMarker.SitOnFloor в игре.
+ */
+function hintFloor(cell, right, up, hw, hh) {
+  const base = surfaceOf(cell), cx = cell[0] + .5, cz = cell[2] + .5;
+  let best = base;
+  for (let i = -4; i <= 4; i++) for (let j = -1; j <= 1; j++) {
+    const px = cx + right[0] * hw * i / 4 + up[0] * hh * j, pz = cz + right[1] * hw * i / 4 + up[1] * hh * j;
+    const x = Math.floor(px), z = Math.floor(pz);
+    for (let yy = Math.floor(base) - 2; yy <= Math.floor(base) + 1; yy++) {
+      const b = getB(x, yy, z);
+      if (!b || !isSolid(b.s) || solidAt(x, yy + 1, z)) continue;
+      const corners = smoothCorners(x, yy, z, b);
+      const top = corners ? yy + Math.max(...corners) : yy + centerTop(b.s);
+      if (top > best && top <= base + 0.5) best = top;
+    }
+  }
+  return best;
+}
 function addHintMesh(o) {
   const fi = floorIndexOf(o.cell[1]);
   if (fi > activeFloor && st.upper === 'hide') return;
@@ -1558,9 +1578,11 @@ function addHintMesh(o) {
   // Как HintMarker в Unity (Euler(90, yaw, 0)): верх надписи смотрит по yaw (sin, cos), правый край — (cos, −sin).
   // Базис левый, как координаты Unity: отражённый кадр редактора (YAW_SIGN) показывает надпись не зеркальной.
   const yaw = (o.yaw || 0) * Math.PI / 180;
+  const right = [Math.cos(yaw), -Math.sin(yaw)], up = [Math.sin(yaw), Math.cos(yaw)];
+  const y = hintFloor(o.cell, right, up, w * HINT_PX / 2, hgt * HINT_PX / 2);
   m.matrixAutoUpdate = false;
-  m.matrix.makeBasis(new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), new THREE.Vector3(0, 1, 0))
-    .setPosition(o.cell[0] + .5, surfaceOf(o.cell) + 0.03, o.cell[2] + .5);
+  m.matrix.makeBasis(new THREE.Vector3(right[0], 0, right[1]), new THREE.Vector3(up[0], 0, up[1]), new THREE.Vector3(0, 1, 0))
+    .setPosition(o.cell[0] + .5, y + 0.03, o.cell[2] + .5);
   m.renderOrder = 4;
   markerGroup.add(m);
 }
