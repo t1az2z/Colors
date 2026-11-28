@@ -14,6 +14,7 @@
     "hint.items": "{action:items} использовать предмет",
     "hint.run": "{action:run} бег",
     "hint.lockOn": "{action:lockOn} фиксация",
+    "hint.switchTarget": "{action:switchTarget} влево / вправо — сменить цель",
     "hint.cameraTurn": "{action:cameraTurn} поворот камеры",
 
     "hud.interact": "{action:interact} {0}",
@@ -59,6 +60,7 @@
     "<Mouse>/rightButton": "ПКМ",
     "<Mouse>/middleButton": "СКМ",
     "<Mouse>/scroll": "Колесо",
+    "<Mouse>/delta": "Мышь",
 
     "<Gamepad>/buttonSouth": "A",
     "<Gamepad>/buttonEast": "B",

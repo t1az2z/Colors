@@ -61,6 +61,12 @@ namespace ColorsAction.Unity
         /// <summary>Фиксация на цели: средняя кнопка мыши / R3.</summary>
         public InputAction LockOn { get; private set; }
 
+        /// <summary>
+        /// Смена цели при фиксации: правый стик / рывок мышью в сторону. Только для подсказок (кнопки под устройство):
+        /// само переключение читает <see cref="PlayerLockOn"/> из <see cref="AimStick"/> и мыши.
+        /// </summary>
+        public InputAction SwitchTarget { get; private set; }
+
         /// <summary>Переключение схемы управления А/Б для сравнения в прототипе: F1 (Select теперь — инвентарь).</summary>
         public InputAction SwitchScheme { get; private set; }
         public InputAction Zoom { get; private set; }
@@ -228,6 +234,10 @@ namespace ColorsAction.Unity
             LockOn = player.AddAction("LockOn", InputActionType.Button);
             LockOn.AddBinding("<Mouse>/middleButton");
             LockOn.AddBinding("<Gamepad>/rightStickPress");
+
+            SwitchTarget = player.AddAction("SwitchTarget", InputActionType.Value, expectedControlLayout: "Vector2");
+            SwitchTarget.AddBinding("<Gamepad>/rightStick");
+            SwitchTarget.AddBinding("<Mouse>/delta");
 
             SwitchScheme = player.AddAction("SwitchScheme", InputActionType.Button);
             SwitchScheme.AddBinding("<Keyboard>/f1");
