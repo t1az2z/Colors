@@ -9,7 +9,7 @@ namespace ColorsAction.Unity.Editor
     /// <summary>
     /// Автопрогон разводного моста на карте VoxelLevels/BridgeTest (коридор, мост drawbridge_1 8×3 от x=4 по +X, z=2..4,
     /// дальняя створка на шарнире x=12, под ней поперёк коридора — пропасть x=8..11): поднятая створка не пускает пешком и прыжком, меч цепь не рвёт, фиксация
-    /// берёт цепь, выстрел из дробовика её рвёт, створка падает, по мосту можно пройти над пропастью.
+    /// берёт цепь, над мостом горит «!», выстрел из дробовика без фиксации (в створку или цепь) её рвёт, «!» гаснет, створка падает, по мосту можно пройти над пропастью.
     /// Нужен дробовик в руке (окно «Параметры запуска»). Меню: ColorsAction → Debug → Run Bridge Playtest (в Play Mode).
     /// Итог — в <c>Logs/bridge_playtest_result.txt</c> (первая строка PASS/FAIL N/M, дальше только упавшие проверки с ожидаемым и фактом).
     /// Скриншоты — в Temp/BridgePlaytest.
@@ -167,7 +167,8 @@ namespace ColorsAction.Unity.Editor
             x = player.transform.position.x;
             Check(x < stopX, $"jump over is blocked: x={x:F2} y={player.transform.position.y:F2}", $"x < {stopX:F2}");
 
-            // 3. Меч цепь не рвёт, только раскачивает.
+            // 3. Меч цепь не рвёт, только раскачивает — ни по цепи, ни по створке.
+            bridge.GetComponentInChildren<BridgeLeafTarget>()?.ReceiveHit(new HitInfo { Damage = 100f, WeaponId = "sword", Direction = Vector3.right, Knockback = 1f });
             chain.ReceiveHit(new HitInfo { Damage = 100f, WeaponId = "sword", Direction = Vector3.right, Knockback = 1f });
             Check(!chain.Broken && !chain.Accepts("sword") && chain.Accepts("shotgun"), "gate: shotgun only", "chain intact, accepts shotgun, rejects sword");
 
@@ -180,20 +181,28 @@ namespace ColorsAction.Unity.Editor
             yield return 0.3f;
             Check(lockOn.Target == chain, $"lock-on picks the chain: {(lockOn.Target != null ? lockOn.Target.name : "none")}", "target = chain");
             Shot("2_locked");
+            Check(bridge.Alert != null && bridge.Alert.Visible, "'!' above the raised bridge while the player has the shotgun", "alert visible");
 
-            // 5. Выстрел: цепь рвётся, мост запоминается опущенным, створка падает.
+            // 5. Выстрел без фиксации (просто в сторону моста): цепь рвётся, мост запоминается опущенным, створка падает.
+            lockOn.Release();
+            yield return 0.2f;
+            Check(!lockOn.Active, "shot without lock-on: lock released", "lock-on inactive");
+            // Прицел схемы Б (стик) — прямо на мост, чтобы мышь не уводила выстрел.
+            input.ScriptedAim = Dir(Vector3.right);
             var shots = 0;
             while (!chain.Broken && shots < 4)
             {
+                input.ScriptedAim = Dir(Vector3.right);
                 input.ScriptPress(GameAction.Primary);
                 shots++;
                 yield return 0.8f;
             }
 
+            input.ScriptedAim = null;
             Check(chain == null || chain.Broken, $"shotgun snaps the chain in {shots} shot(s): chain intact", "chain broken");
             Check(session.OpenedBridges.Contains(BridgeId), "lowered bridge remembered in session", $"OpenedBridges contains {BridgeId}");
-            Check(!lockOn.Active, "lock-on released after the chain snapped", "lock-on inactive");
             yield return 0.25f;
+            Check(bridge.Alert == null || !bridge.Alert.Shown, "'!' goes away once the chain snaps", "alert hidden");
             Shot("3_falling");
             yield return 2.5f;
             Check(Mathf.Approximately(bridge.LeafAngle, 0f) && !bridge.Falling, $"far leaf lies flat: {bridge.LeafAngle:F1}°, falling={bridge.Falling}", "0°, not falling");

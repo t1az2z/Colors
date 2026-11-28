@@ -37,6 +37,7 @@ namespace ColorsAction.Unity
         private const float HalfWidth = (WidthMax - WidthMin) * 0.5f;
         private const float GearThickness = 0.12f;
         private const float PostSize = 0.22f;
+        private const float AlertBase = 1.4f;                              // низ знака «!» над опорой, м
 
         private string id;
         private Material worldMaterial;
@@ -52,6 +53,8 @@ namespace ColorsAction.Unity
         private Transform leaf;
         private Transform debrisRoot;
         private BridgeChain chain;
+        private BridgeLeafTarget leafTarget;
+        private BridgeAlert alert;
         private CinemachineImpulseSource impulse;
 
         // Падение створки: угол от горизонтали (градусы) и угловая скорость (градусы/с).
@@ -75,6 +78,23 @@ namespace ColorsAction.Unity
         public bool Falling => falling || fallDelay >= 0f;
 
         public BridgeChain Chain => chain;
+
+        /// <summary>Знак «!» над поднятым мостом (null — мост уже опущен).</summary>
+        public BridgeAlert Alert => alert;
+
+        /// <summary>Есть ли у игрока оружие, которым рвутся цепи (<see cref="BridgeConfig.BreakableBy"/>; пусто — любое).</summary>
+        private bool PlayerCanBreak()
+        {
+            var inventory = session?.Inventory;
+            if (inventory == null)
+                return false;
+            if (config.BreakableBy.Count == 0)
+                return inventory.Weapons.Count > 0;
+            foreach (var weapon in config.BreakableBy)
+                if (inventory.HasWeapon(weapon))
+                    return true;
+            return false;
+        }
 
         /// <summary>Вызвать до Inject: id моста и материал мира.</summary>
         public void Init(string bridgeId, Material material)
@@ -174,6 +194,22 @@ namespace ColorsAction.Unity
             chainGo.transform.SetParent(transform, false);
             chain = chainGo.AddComponent<BridgeChain>();
             chain.Build(this, chains, chainMaterial, config.ChainLinks);
+
+            // Створка тоже цель: залп, упёршийся в неё (без фиксации на цепях), рвёт цепи.
+            leafTarget = leaf.gameObject.AddComponent<BridgeLeafTarget>();
+            leafTarget.Init(chain);
+
+            // «!» над мостом, пока у игрока есть оружие, которым рвутся цепи.
+            var alertGo = new GameObject("Alert");
+            alertGo.transform.SetParent(transform, false);
+            // Перед поднятой створкой, над пропастью, на высоте взгляда: камера сверху видит его издалека
+            // (верх створки на подходе к мосту часто за краем экрана).
+            var tan = Mathf.Tan(config.RaisedAngle * Mathf.Deg2Rad);
+            alertGo.transform.localPosition = new Vector3(Far - (AlertBase + 1.5f) / tan - 0.5f, AlertBase, WidthMid);
+            alert = alertGo.AddComponent<BridgeAlert>();
+            // Освещённый, как остальные кубы мира, цвета цепей чуть светлее (в тени створки). Без эмиссии:
+            // с ней куб в этом рендере выглядит полупрозрачным.
+            alert.Build(CreateMaterial("BridgeAlert", Shade(mechanism, 1.12f)));
 
             impulse = gameObject.AddComponent<CinemachineImpulseSource>();
             impulse.ImpulseDefinition.ImpulseShape = CinemachineImpulseDefinition.ImpulseShapes.Bump;
@@ -323,6 +359,11 @@ namespace ColorsAction.Unity
         {
             session?.OpenedBridges.Add(id);
             chain = null;
+            if (leafTarget != null)
+                Destroy(leafTarget);
+            leafTarget = null;
+            if (alert != null)
+                alert.Shown = false;
             fallDelay = config.FallDelay;
             trembleTimer = config.FallDelay;
             angularVelocity = 0f;
@@ -346,6 +387,8 @@ namespace ColorsAction.Unity
         {
             if (config == null || leaf == null)
                 return;
+            if (alert != null)
+                alert.Shown = chain != null && !chain.Broken && PlayerCanBreak();
             var dt = Time.deltaTime;
             if (flashTimer > 0f)
             {
