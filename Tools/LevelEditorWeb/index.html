@@ -170,7 +170,22 @@ const DEFAULT_AGGRO = 7;
 function isEnemy(o) { return o.kind === 'EnemySpawn' && o.item && o.item !== 'dummy'; }
 function aggroOf(o) { return Number.isFinite(+o.aggroRadius) && o.aggroRadius !== null ? +o.aggroRadius : DEFAULT_AGGRO; }
 // Действия для подсказок на полу (GameInput.Label в Unity): кнопка подставляется под устройство ввода.
-const HINTS = ['interact', 'jump', 'roll', 'attack', 'block', 'wheel', 'inventory', 'items', 'run', 'lockOn'];
+// Подсказки на полу: id действия и подпись в списке. Текст в игре — Configs/Localization/ru.json, ключ hint.<id>.
+const HINT_OPTIONS = [
+  ['interact', 'Взаимодействие (F / X)'],
+  ['jump', 'Прыжок (Пробел / A)'],
+  ['roll', 'Кувырок (Alt / B)'],
+  ['attack', 'Удар (ЛКМ / RT)'],
+  ['block', 'Блок (ПКМ / LT)'],
+  ['parry', 'Парирование (ПКМ / LT)'],
+  ['wheel', 'Выбор оружия (TAB / Y)'],
+  ['inventory', 'Инвентарь (I / Select)'],
+  ['items', 'Предметы (1–4 / крестовина)'],
+  ['run', 'Бег (Shift / L3)'],
+  ['lockOn', 'Фиксация на цели (СКМ / R3)'],
+  ['cameraTurn', 'Поворот камеры (Q E / LB RB)'],
+];
+const HINTS = HINT_OPTIONS.map(([v]) => v);
 const WORLD_COLOR = '#e4e5e9';
 
 const SHAPES = {
@@ -991,7 +1006,10 @@ function objectPanel() {
     else if (o.kind === 'Chest') out.push(H3('Ресурс в сундуке'), resourceList(o.item, v => edit(() => o.item = v)),
       row('Количество', stepper(o.count || 1, v => edit(() => o.count = v), 1, 99)));
     else if (o.kind !== 'PlayerSpawn' && o.kind !== 'Barrier' && o.kind !== 'Bonfire' && o.kind !== 'CrateStack' && o.kind !== 'DrawBridge' && o.kind !== 'KeyDoor')
-      out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
+      out.push(o.kind === 'WeaponPedestal' ? row('Оружие', itemSelect(o.item, v => edit(() => o.item = v)))
+        : o.kind === 'Hint' ? row('Подсказка', selectInput(o.item || 'interact',
+            HINT_OPTIONS.some(([v]) => v === o.item) || !o.item ? HINT_OPTIONS : [...HINT_OPTIONS, [o.item, o.item + ' (неизвестно)']],
+            v => edit(() => o.item = v || 'interact'))) : row(o.kind === 'Npc' ? 'Id NPC' : o.kind === 'Hint' ? 'Действие' : o.kind === 'EnemySpawn' ? 'Враг' : 'Предмет', textInput(o.item, v => edit(() => o.item = v), itemList)));
     out.push(h('div', { class: 'chips', style: 'margin-top:8px' },
       h('button', { class: 'danger', on: { click: () => { touchMarkup(); removeObject(o.id); sel.obj = null; commit(); renderPanel(); } } }, 'Удалить объект'),
       h('button', { on: { click: () => { sel.obj = null; renderPanel(); requestRender(); } } }, 'Снять выбор')));
