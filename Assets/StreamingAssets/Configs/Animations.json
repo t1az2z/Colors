@@ -3,12 +3,12 @@
     "move": {
       "walkStepRate": 3.2,
       "runStepRate": 4.2,
-      "bend": 0.07,
-      "runBend": 0.09,
-      "squash": 0.03,
-      "stretch": 0.02,
-      "runSquash": 0.08,
-      "runStretch": 0.06,
+      "bend": 0,
+      "runBend": 0,
+      "squash": 0.07,
+      "stretch": 0.06,
+      "runSquash": 0.1,
+      "runStretch": 0.08,
       "lean": 0.06,
       "fadeTime": 0.12
     },
