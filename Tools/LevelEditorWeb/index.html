@@ -977,6 +977,8 @@ function objectPanel() {
       if (v === 'KeyDoor' && o.kind !== v) { o.yaw = keyDoorAxis(o.yaw); o.height = st.doorHeight; o.color = null; o.item = null; }
       if (v !== 'EnemySpawn') o.key = null;
       if (v === 'Chest' && o.kind !== v) { o.color = null; o.item = st.objResource; o.count = st.chestCount; }
+      if (v === 'Item' && o.kind !== v && !PICKUPS.includes(o.item)) { o.color = null; o.item = st.objPickup; }
+      if (v === 'WeaponPedestal' && o.kind !== v && !ITEMS.includes(o.item)) { o.color = null; o.item = st.objItem; }
       o.kind = v;
     }))));
     out.push(row('Клетка', h('span', {}, cellStr(o.cell))));

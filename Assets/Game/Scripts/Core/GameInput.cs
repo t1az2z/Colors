@@ -326,7 +326,9 @@ namespace ColorsAction.Unity
         public System.Collections.Generic.List<InputAction> ActionsFor(string id)
         {
             var result = new System.Collections.Generic.List<InputAction>();
-            switch ((id ?? string.Empty).ToLowerInvariant())
+            if (string.IsNullOrEmpty(id))
+                return result;
+            switch (id.ToLowerInvariant())
             {
                 case "attack": result.Add(Primary); break;
                 case "block":
@@ -361,7 +363,7 @@ namespace ColorsAction.Unity
                 {
                     var parts = new System.Collections.Generic.List<string>();
                     for (int j = i + 1; j < bindings.Count && bindings[j].isPartOfComposite; j++)
-                        if (IsGamepadPath(bindings[j].effectivePath) == gamepad)
+                        if (!string.IsNullOrEmpty(bindings[j].effectivePath) && IsGamepadPath(bindings[j].effectivePath) == gamepad)
                             parts.Add(bindings[j].effectivePath);
                     if (parts.Count > 0)
                         return parts;

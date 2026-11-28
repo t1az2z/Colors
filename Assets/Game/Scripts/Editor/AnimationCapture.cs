@@ -144,7 +144,7 @@ namespace ColorsAction.Unity.Editor
                 return;
             }
 
-            if (Time.frameCount == lastFrame || (Time.frameCount - lastFrame) % every != 0)
+            if (Time.frameCount - lastFrame < every)
                 return;
             lastFrame = Time.frameCount;
             Shoot();

@@ -562,7 +562,8 @@ namespace ColorsAction.Unity
                         if (d != null && !d.IsOpen)
                             return false;
                     return true;
-                }, () => session?.CompletedHints.Add(id), boundPickups.Count == 0 ? HintMarker.OpenKey : null);
+                }, () => session?.CompletedHints.Add(id),
+                    boundPickups.Count == 0 && hint.Action == "interact" ? HintMarker.OpenKey : null);
             }
         }
 

@@ -80,6 +80,7 @@ namespace ColorsAction.Unity
         protected override void OnConstruct(IResolver resolver)
         {
             this.resolver = resolver;
+            idle = null; // если Idle/Steps прочитали до внедрения — пересобрать с Animations.json
             config = resolver.Resolve<ConfigService>().Load<PlayerConfig>(ConfigKeys.Player);
             cameraConfig = resolver.Resolve<ConfigService>().Load<CameraConfig>(ConfigKeys.Camera);
             input = resolver.Resolve<GameInput>();
