@@ -1,9 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(unity command:*)",
-      "Bash(git merge:*)",
-      "Bash(git checkout main)"
+		"Bash(unity command:*)",
+		"Bash(git merge:*)",
+		"Bash(git checkout main)",
+		"Bash(git push:*)",
+		"Bash(unity cmd:*)",
+		"Bash(unity status:*)",
+		"Bash(unity recompile:*)",
+		"Bash(unity test:*)",
+		"Bash(unity run:*)",
+		"Bash(unity job:*)",
     ]
   }
 }
