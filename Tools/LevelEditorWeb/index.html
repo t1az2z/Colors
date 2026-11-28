@@ -161,7 +161,7 @@ function resourceHex(id) { return PALETTE[RESOURCE_INFO[id]?.color]?.hex || OBJE
 function chestLabel(o) { return o.item ? `${resourceName(o.item)} ×${o.count || 1}` : 'пустой'; }
 // Типы врагов из Enemies.json: id → имя, цвет, элитный (★). Манекен — отдельный тип прототипа.
 // size — ребро куба врага в игре (Enemies.json), по нему рисуется спавн: референс масштаба для левел-дизайна.
-let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'green', size: 0.8 }, club_cube_orange: { name: 'Оранжевый куб с дубиной', color: 'orange', size: 0.85 }, elite_sword: { name: 'Элитный мечник', color: 'orange', elite: true, size: 1.3 }, dummy: { name: 'Манекен', color: null, size: 1 } };
+let ENEMY_INFO = { club_cube: { name: 'Куб с дубиной', color: 'green', size: 0.9 }, club_cube_orange: { name: 'Оранжевый куб с дубиной', color: 'orange', size: 0.9 }, elite_sword: { name: 'Элитный мечник', color: 'orange', elite: true, size: 1.3 }, dummy: { name: 'Манекен', color: null, size: 1 } };
 // Персонаж — куб 1×1×1 (GDD).
 const PLAYER_SIZE = 1;
 let ENEMIES = Object.keys(ENEMY_INFO);
@@ -721,7 +721,7 @@ async function loadSiteData() {
   const enemies = await tryJson('configs/Enemies.json');
   if (enemies) {
     const info = {};
-    for (const [k, v] of Object.entries(enemies)) info[k] = { name: v.name || k, color: v.color || null, elite: !!v.elite, size: v.size > 0 ? v.size : 0.8 }; // 0.8 — EnemyConfig.Size по умолчанию
+    for (const [k, v] of Object.entries(enemies)) info[k] = { name: v.name || k, color: v.color || null, elite: !!v.elite, size: v.size > 0 ? v.size : 0.9 }; // 0.9 — EnemyConfig.Size по умолчанию
     if (!info.dummy) info.dummy = { name: 'Манекен', color: null, size: 1 };
     ENEMY_INFO = info; ENEMIES = Object.keys(info);
     if (!info[st.objEnemy]) st.objEnemy = ENEMIES[0];

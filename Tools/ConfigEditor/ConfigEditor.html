@@ -1418,8 +1418,7 @@ const ENEMY_MOTIONS = [['Sweep', 'Размашистый горизонталь�
 const ENEMY_FIELDS = [
   { k: 'name', l: 'Название', t: 'text', d: 'Как тип врага называется в игре и в редакторе карт.' },
   { k: 'color', l: 'Цвет', t: 'colorRef', def: 'blue', d: 'Урон по врагу зависит от расстояния между цветом оружия и цветом врага на круге (Бой → Круг цветов).' },
-  { k: 'size', l: 'Размер', u: U.x, min: 0.3, max: 3, step: 0.05, def: 0.8, d: 'Масштаб куба: высота в блоках (1 — как игрок).' },
-  { k: 'width', l: 'Ширина', u: U.x, min: 0.3, max: 1, step: 0.05, def: 0.9, d: 'Ширина и глубина куба в долях размера (0.9 — куб 0.9×0.9 при размере 1). По ней же коллизия.' },
+  { k: 'size', l: 'Размер', u: U.bl, min: 0.3, max: 3, step: 0.05, def: 0.9, d: 'Размер куба в блоках: 0.9 — куб 0.9×0.9×0.9 (игрок 0.8×0.8, высота 1).' },
   { k: 'maxHealth', l: 'Здоровье', u: U.pts, min: 1, max: 1000, step: 1, def: 40, d: '' },
   { k: 'elite', l: 'Элитный', t: 'bool', def: false, d: 'В редакторах уровней помечен звездой ★.' },
   { k: 'weaponPrefab', l: 'Оружие (префаб)', t: 'text', def: 'Items/Club', d: 'Модель в руке из Resources, например Items/Club.' },
@@ -1471,7 +1470,7 @@ function validateEnemies(d) {
   const w = [];
   for (const [id, e] of Object.entries(d || {})) {
     if (!(e.attacks?.length)) w.push(`${id}: нужна хотя бы одна атака — иначе игра не загрузит конфиг.`);
-    if (!(num(e.maxHealth, 40) > 0) || !(num(e.size, 0.8) > 0)) w.push(`${id}: здоровье и размер должны быть больше 0.`);
+    if (!(num(e.maxHealth, 40) > 0) || !(num(e.size, 0.9) > 0)) w.push(`${id}: здоровье и размер должны быть больше 0.`);
     if (S.files.Movement && !S.files.Movement.data[e.movement || 'walker']) w.push(`${id}: профиля перемещения «${e.movement || 'walker'}» нет в Movement.json — достижимость игрока не проверяется.`);
     if (e.color && S.files.Colors && !S.files.Colors.data[e.color]) w.push(`${id}: цвета «${e.color}» нет в Colors.json.`);
     (e.attacks || []).forEach((a, i) => enemyAttackSteps(a).forEach((s, j) => { if (num(s.parryFrom, -0.18) > num(s.parryTo, 0.06)) w.push(`${id}, атака ${i + 1}${j ? `, удар серии ${j + 1}` : ''}: начало окна парирования позже конца.`); }));
@@ -2139,7 +2138,7 @@ function vizMoveProfile({ p }) {
 function vizEnemy({ e }) {
   const col = colorHex(e.color || 'blue');
   // Радиус агро — у каждого врага в уровне; здесь для картинки берём значение по умолчанию (LevelEnemy.DefaultAggroRadius).
-  const size = num(e.size, 0.8), aggro = 7, lose = Math.max(aggro, num(e.loseRadius, 13)), wait = num(e.waitDistance, 3.2);
+  const size = num(e.size, 0.9), aggro = 7, lose = Math.max(aggro, num(e.loseRadius, 13)), wait = num(e.waitDistance, 3.2);
   const attacks = e.attacks || [];
   const ph = enemyAttackPhases;
   // 1. Зоны сверху

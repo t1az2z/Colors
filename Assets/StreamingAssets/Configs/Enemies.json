@@ -2,7 +2,7 @@
   "club_cube": {
     "name": "Куб с дубиной",
     "color": "green",
-    "size": 0.8,
+    "size": 0.9,
     "maxHealth": 40,
     "weaponPrefab": "Items/Club",
     "loseRadius": 20,
@@ -28,7 +28,7 @@
   "club_cube_orange": {
     "name": "Оранжевый куб с дубиной",
     "color": "orange",
-    "size": 0.85,
+    "size": 0.9,
     "maxHealth": 55,
     "weaponPrefab": "Items/Club",
     "loseRadius": 20,

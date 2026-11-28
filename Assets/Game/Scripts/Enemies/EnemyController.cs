@@ -170,8 +170,7 @@ namespace ColorsAction.Unity
         {
             var size = config.Size;
             motor = gameObject.AddComponent<BoxMotor>();
-            // Коллизия по видимому кубу: ширина и глубина — Width × Size, высота — Size.
-            motor.Configure(config.Width * size, size, 0.3f);
+            motor.Configure(0.9f * size, size, 0.3f);
             // Не сталкиваемся с другими врагами (их разводит мягкое отталкивание) и с осколками.
             motor.CollisionMask = ~((1 << EnemyLayer) | (1 << Debris.Layer));
 
@@ -190,7 +189,6 @@ namespace ColorsAction.Unity
             bodyRenderer.sharedMaterials = bodyMaterials;
             deformer = meshGo.AddComponent<CubeDeformer>();
             deformer.Configure(200f, 9f);
-            deformer.Width = config.Width;
 
             color = palette.Get(config.Color);
             block = new MaterialPropertyBlock();

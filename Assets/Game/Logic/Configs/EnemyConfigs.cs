@@ -141,11 +141,8 @@ namespace ColorsAction.Configs
         /// <summary>Цвет врага (Colors.json): бонус урона оружием того же цвета.</summary>
         public string Color { get; set; } = "blue";
 
-        /// <summary>Размер куба: высота в блоках, масштаб всего тела.</summary>
-        public float Size { get; set; } = 0.8f;
-
-        /// <summary>Ширина и глубина куба в долях <see cref="Size"/> (0.9 — куб 0.9×0.9 при размере 1); по ней же коллизия.</summary>
-        public float Width { get; set; } = 0.9f;
+        /// <summary>Размер куба в блоках (куб размера 1 — как игрок по высоте).</summary>
+        public float Size { get; set; } = 0.9f;
 
         public float MaxHealth { get; set; } = 40f;
 
@@ -255,8 +252,8 @@ namespace ColorsAction.Configs
             Attacks ??= new List<EnemyAttackConfig>();
             if (Attacks.Count == 0)
                 throw new InvalidOperationException($"enemy '{Id}' needs at least one attack");
-            if (MaxHealth <= 0 || Size <= 0 || Width <= 0)
-                throw new InvalidOperationException($"enemy '{Id}': maxHealth, size and width must be positive");
+            if (MaxHealth <= 0 || Size <= 0)
+                throw new InvalidOperationException($"enemy '{Id}': maxHealth and size must be positive");
             if (Poise < 0f || DeflectDuration < 0f)
                 throw new InvalidOperationException($"enemy '{Id}': poise and deflectDuration must not be negative");
             foreach (var attack in Attacks)
