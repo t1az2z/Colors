@@ -161,6 +161,30 @@ namespace ColorsAction.Configs
         /// <summary>Яркость свечения (emission) на пике вспышки при силе 1; больше 1 — заметнее bloom.</summary>
         public float BlinkGlow { get; set; } = 2f;
 
+        /// <summary>Сколько секунд тело светится зелёным после лечения.</summary>
+        public float HealGlowDuration { get; set; } = 0.9f;
+
+        /// <summary>Сила зелёной подсветки тела на пике лечения (0..1: насколько цвет тянется к зелёному).</summary>
+        public float HealGlowStrength { get; set; } = 0.12f;
+
+        /// <summary>Яркость зелёного свечения (emission) на пике лечения; больше 1 — заметнее bloom.</summary>
+        public float HealGlow { get; set; } = 0.35f;
+
+        /// <summary>
+        /// Сила зелёной подсветки через <paramref name="elapsed"/> секунд после лечения: 0..1.
+        /// Быстрый подъём за первые 15% времени, затем плавное угасание до нуля к <see cref="HealGlowDuration"/>.
+        /// </summary>
+        public float HealGlowAmount(float elapsed)
+        {
+            if (HealGlowDuration <= 0f || elapsed < 0f || elapsed >= HealGlowDuration)
+                return 0f;
+            var t = elapsed / HealGlowDuration;
+            if (t < 0.15f)
+                return t / 0.15f;
+            var k = 1f - (t - 0.15f) / 0.85f;
+            return k * k * (3f - 2f * k);
+        }
+
         /// <summary>Максимум здоровья после <paramref name="levels"/> уровней прокачки здоровья.</summary>
         public float MaxAt(int levels) => Max + MaxPerLevel * Math.Max(0, levels);
 
@@ -186,6 +210,8 @@ namespace ColorsAction.Configs
                 throw new InvalidOperationException("health.maxPerLevel, hitInvulnerability and blinkRate, blinkGlow must not be negative");
             if (BlinkStrength < 0f || BlinkStrength > 1f)
                 throw new InvalidOperationException("health.blinkStrength must be within 0..1");
+            if (HealGlowDuration < 0f || HealGlow < 0f || HealGlowStrength < 0f || HealGlowStrength > 1f)
+                throw new InvalidOperationException("health.healGlowDuration and healGlow must not be negative, healGlowStrength within 0..1");
         }
     }
 

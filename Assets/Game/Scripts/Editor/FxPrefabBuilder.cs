@@ -53,6 +53,7 @@ namespace ColorsAction.Unity.Editor
             Save(BuildGroundSlam(soft, ringMat, solid, cube), "GroundSlam");
             Save(BuildHitFlash(soft, solid, cube), "HitFlash");
             BuildWaterSplashOnly();
+            BuildHealOnly();
             AssetDatabase.SaveAssets();
             Debug.Log("ColorsAction: FX prefabs built in " + FxPrefabs);
         }
@@ -68,6 +69,218 @@ namespace ColorsAction.Unity.Editor
             var cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
             Save(BuildWaterSplash(water, foam, cube), "WaterSplash");
             AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>Пересобрать только эффект лечения (остальные префабы не трогаются).</summary>
+        [MenuItem("ColorsAction/Build FX Prefabs (Heal only)")]
+        public static void BuildHealOnly()
+        {
+            EnsureFolder(Root + "/Art", "Fx");
+            EnsureFolder(Root + "/Resources", "Fx");
+            var dot = EnsureTexture("SoftDot", (u, v) =>
+            {
+                var d = Mathf.Clamp01(1f - Mathf.Sqrt(u * u + v * v));
+                return Mathf.Sqrt(d * d * (3f - 2f * d));
+            });
+            // Плюс с чётким краем и мягким ореолом вокруг.
+            var plus = EnsureTexture("Plus", (u, v) => Glowing(PlusDistance(u, v), 0.03f, 0.3f, 0.4f));
+            // Квадратик-искра с ореолом.
+            var square = EnsureTexture("Square", (u, v) =>
+            {
+                var d = Mathf.Max(Mathf.Abs(u), Mathf.Abs(v)) - 0.45f;
+                return Glowing(d, 0.04f, 0.5f, 0.35f);
+            });
+            // Лента: плотная середина поперёк (v), по длине — сплошная.
+            var ribbon = EnsureTexture("Ribbon", (u, v) =>
+            {
+                var a = Mathf.Clamp01(1f - Mathf.Abs(v));
+                return Mathf.Pow(a, 1.6f);
+            });
+
+            var soft = EnsureMaterial("FxSoft", dot, new Color(1.6f, 1.6f, 1.6f, 1f));
+            var plusMat = EnsureMaterial("FxPlus", plus, new Color(1.7f, 1.7f, 1.7f, 1f));
+            var squareMat = EnsureMaterial("FxSquare", square, new Color(2f, 2f, 2f, 1f));
+            var ribbonMat = EnsureMaterial("FxRibbon", ribbon, new Color(2.4f, 2.4f, 2.4f, 1f));
+            Save(BuildHealBurst(soft, plusMat, squareMat, ribbonMat), "HealBurst");
+            AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>Расстояние до контура плюса (отрицательное внутри); координаты -1..1.</summary>
+        private static float PlusDistance(float u, float v)
+        {
+            const float arm = 0.24f, length = 0.62f;
+            float Box(float x, float y, float hx, float hy)
+            {
+                var dx = Mathf.Abs(x) - hx;
+                var dy = Mathf.Abs(y) - hy;
+                var outside = new Vector2(Mathf.Max(dx, 0f), Mathf.Max(dy, 0f)).magnitude;
+                return outside + Mathf.Min(Mathf.Max(dx, dy), 0f);
+            }
+
+            return Mathf.Min(Box(u, v, arm, length), Box(u, v, length, arm));
+        }
+
+        /// <summary>Альфа фигуры по расстоянию до края: сплошная внутри, сглаженный край, затухающий ореол снаружи.</summary>
+        private static float Glowing(float distance, float edge, float glowWidth, float glowAlpha)
+        {
+            var core = Mathf.Clamp01(0.5f - distance / edge);
+            var g = Mathf.Clamp01(1f - distance / glowWidth);
+            return Mathf.Max(core, glowAlpha * g * g);
+        }
+
+        // ------------------------------------------------------------------ лечение
+
+        /// <summary>
+        /// Лечение (по референсу): мягкое зелёное сияние вокруг куба, две спиральные ленты закручиваются вверх,
+        /// зелёные искры-квадратики и плюсы (один крупный над головой) поднимаются вверх и гаснут.
+        /// Все системы в локальном пространстве: эффект идёт за игроком. Время игровое. Опора — точка у ног куба.
+        /// </summary>
+        private static GameObject BuildHealBurst(Material soft, Material plus, Material square, Material ribbon)
+        {
+            var green = new Color(0.5f, 1f, 0.32f, 1f);
+            var light = new Color(0.62f, 1f, 0.45f, 1f);
+
+            var go = new GameObject("HealBurst");
+            var glow = go.AddComponent<ParticleSystem>();
+            Setup(glow, soft, loop: false, unscaled: false, maxParticles: 2);
+            Local(glow);
+            var main = glow.main;
+            main.duration = 1f;
+            main.startLifetime = 0.75f;
+            main.startSize = 1.9f;
+            main.startSpeed = 0f;
+            main.startColor = new Color(green.r, green.g, green.b, 0.3f);
+            Burst(glow, 1);
+            SizeOverLifetime(glow, new AnimationCurve(new Keyframe(0f, 0.6f), new Keyframe(0.2f, 1.05f), new Keyframe(1f, 1.15f)));
+            ColorOverLifetime(glow, Fade(1f, 0.7f, 0f));
+            glow.transform.localPosition = Vector3.up * 0.55f;
+
+            // Ленты: голова частицы летит по спирали (орбита вокруг оси Y + подъём), за ней — след-лента.
+            var ribbons = Child(go, "Ribbons");
+            Setup(ribbons, ribbon, loop: false, unscaled: false, maxParticles: 4);
+            Local(ribbons);
+            main = ribbons.main;
+            main.startLifetime = 0.9f;
+            main.startSize = 0.16f;
+            main.startSpeed = 0f;
+            main.startColor = green;
+            Burst(ribbons, 2);
+            var shape = ribbons.shape;
+            shape.enabled = true;
+            shape.shapeType = ParticleSystemShapeType.Circle;
+            shape.radius = 0.78f;
+            shape.radiusThickness = 0f;
+            shape.arcMode = ParticleSystemShapeMultiModeValue.BurstSpread;
+            shape.rotation = new Vector3(90f, 0f, 0f); // круг в плоскости земли
+            var vel = ribbons.velocityOverLifetime;
+            vel.enabled = true;
+            vel.space = ParticleSystemSimulationSpace.Local;
+            vel.x = vel.y = vel.z = new ParticleSystem.MinMaxCurve(0f);
+            vel.y = new ParticleSystem.MinMaxCurve(1.5f);
+            vel.orbitalX = vel.orbitalZ = new ParticleSystem.MinMaxCurve(0f);
+            vel.orbitalY = new ParticleSystem.MinMaxCurve(7f);
+            vel.radial = new ParticleSystem.MinMaxCurve(-0.15f);
+            ColorOverLifetime(ribbons, Fade(1f, 1f, 0f));
+            var trails = ribbons.trails;
+            trails.enabled = true;
+            trails.mode = ParticleSystemTrailMode.PerParticle;
+            trails.lifetime = 0.5f;
+            trails.minVertexDistance = 0.03f;
+            trails.textureMode = ParticleSystemTrailTextureMode.Stretch;
+            trails.sizeAffectsWidth = true;
+            trails.widthOverTrail = new ParticleSystem.MinMaxCurve(1f, new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0.15f)));
+            trails.inheritParticleColor = true;
+            trails.dieWithParticles = true;
+            trails.worldSpace = false;
+            var tg = new Gradient();
+            tg.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.6f, 0.5f), new GradientAlphaKey(0f, 1f) });
+            trails.colorOverTrail = tg;
+            ribbons.GetComponent<ParticleSystemRenderer>().trailMaterial = ribbon;
+            ribbons.transform.localPosition = Vector3.up * 0.05f;
+
+            // Искры-квадратики: разлетаются вокруг куба и всплывают.
+            var sparks = Child(go, "Sparks");
+            Setup(sparks, square, loop: false, unscaled: false, maxParticles: 32);
+            Local(sparks);
+            main = sparks.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.6f, 1.1f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.06f, 0.13f);
+            main.startSpeed = 0f;
+            main.startColor = green;
+            Emission(sparks, 30f);
+            var se = sparks.emission;
+            se.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)6) });
+            Shape(sparks, ParticleSystemShapeType.Sphere, 0.75f);
+            var sv = sparks.velocityOverLifetime;
+            sv.enabled = true;
+            sv.space = ParticleSystemSimulationSpace.Local;
+            sv.x = new ParticleSystem.MinMaxCurve(-0.1f, 0.1f);
+            sv.y = new ParticleSystem.MinMaxCurve(0.5f, 1.5f);
+            sv.z = new ParticleSystem.MinMaxCurve(-0.1f, 0.1f);
+            SizeOverLifetime(sparks, new AnimationCurve(new Keyframe(0f, 0.3f), new Keyframe(0.15f, 1f), new Keyframe(0.7f, 1f), new Keyframe(1f, 0f)));
+            ColorOverLifetime(sparks, Fade(1f, 1f, 0f));
+            sparks.transform.localPosition = Vector3.up * 0.6f;
+
+            // Мелкие плюсы: появляются вокруг куба с «пружинкой» и поднимаются.
+            var pluses = Child(go, "Pluses");
+            Setup(pluses, plus, loop: false, unscaled: false, maxParticles: 8);
+            Local(pluses);
+            main = pluses.main;
+            main.startLifetime = new ParticleSystem.MinMaxCurve(0.8f, 1.1f);
+            main.startSize = new ParticleSystem.MinMaxCurve(0.18f, 0.28f);
+            main.startSpeed = 0f;
+            main.startColor = green;
+            var pe = pluses.emission;
+            pe.enabled = true;
+            pe.rateOverTime = 0f;
+            pe.SetBursts(new[]
+            {
+                new ParticleSystem.Burst(0.02f, (short)1),
+                new ParticleSystem.Burst(0.15f, (short)1),
+                new ParticleSystem.Burst(0.3f, (short)1),
+                new ParticleSystem.Burst(0.42f, (short)1),
+            });
+            Shape(pluses, ParticleSystemShapeType.Sphere, 0.7f);
+            var pv = pluses.velocityOverLifetime;
+            pv.enabled = true;
+            pv.space = ParticleSystemSimulationSpace.Local;
+            pv.x = new ParticleSystem.MinMaxCurve(0f, 0f);
+            pv.y = new ParticleSystem.MinMaxCurve(0.8f, 1.3f);
+            pv.z = new ParticleSystem.MinMaxCurve(0f, 0f);
+            var pop = new AnimationCurve(new Keyframe(0f, 0f), new Keyframe(0.12f, 1.25f), new Keyframe(0.25f, 1f), new Keyframe(1f, 0.85f));
+            SizeOverLifetime(pluses, pop);
+            ColorOverLifetime(pluses, Fade(1f, 1f, 0f));
+            pluses.transform.localPosition = Vector3.up * 0.75f;
+
+            // Крупный плюс над головой: светлее, всплывает медленнее.
+            var big = Child(go, "BigPlus");
+            Setup(big, plus, loop: false, unscaled: false, maxParticles: 2);
+            Local(big);
+            main = big.main;
+            main.startLifetime = 1.1f;
+            main.startSize = 0.5f;
+            main.startSpeed = 0f;
+            main.startColor = light;
+            var be = big.emission;
+            be.enabled = true;
+            be.rateOverTime = 0f;
+            be.SetBursts(new[] { new ParticleSystem.Burst(0.08f, (short)1) });
+            var bv = big.velocityOverLifetime;
+            bv.enabled = true;
+            bv.space = ParticleSystemSimulationSpace.Local;
+            bv.x = bv.z = new ParticleSystem.MinMaxCurve(0f);
+            bv.y = new ParticleSystem.MinMaxCurve(0.75f);
+            SizeOverLifetime(big, pop);
+            ColorOverLifetime(big, Fade(1f, 1f, 0f));
+            big.transform.localPosition = Vector3.up * 1.35f;
+            return go;
+        }
+
+        private static void Local(ParticleSystem ps)
+        {
+            var main = ps.main;
+            main.simulationSpace = ParticleSystemSimulationSpace.Local;
         }
 
         // ------------------------------------------------------------------ след меча

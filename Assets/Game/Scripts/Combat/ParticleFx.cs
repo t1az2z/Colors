@@ -15,8 +15,13 @@ namespace ColorsAction.Unity
         public const string SwordTrail = "SwordTrail";
         /// <summary>Брызги при падении в воду: кубики-капли разлетаются в стороны. Цвет — цвет брызг воды (tint).</summary>
         public const string WaterSplash = "WaterSplash";
-        /// <summary>Тёплая белая вспышка: парирование, удар по цепи, дуло дробовика, лечение. Цвет — из префаба.</summary>
+        /// <summary>Тёплая белая вспышка: парирование, удар по цепи, дуло дробовика. Цвет — из префаба.</summary>
         public const string HitFlash = "HitFlash";
+        /// <summary>
+        /// Лечение: зелёные спиральные ленты вокруг куба, искры-квадратики и плюсы, поднимающиеся вверх.
+        /// Частицы в локальном пространстве — эффект идёт за игроком (<see cref="Follow"/>). Цвет — из префаба.
+        /// </summary>
+        public const string HealBurst = "HealBurst";
 
         private static readonly Dictionary<string, ComponentPool<ParticleFx>> pools = new Dictionary<string, ComponentPool<ParticleFx>>();
         private static readonly Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>();
@@ -24,6 +29,7 @@ namespace ColorsAction.Unity
         private ParticleSystem[] systems;
         private Color[] baseColors;
         private ComponentPool<ParticleFx> pool;
+        private Transform follow;
 
         /// <summary>Сыграть эффект в точке. <paramref name="scale"/> — масштаб всего эффекта.</summary>
         public static ParticleFx Play(string name, Vector3 position, Color tint, float scale = 1f) =>
@@ -41,6 +47,7 @@ namespace ColorsAction.Unity
             if (fx == null)
                 return null;
             fx.pool = pool;
+            fx.follow = null;
             var t = fx.transform;
             t.SetPositionAndRotation(position, rotation);
             t.localScale = Vector3.one * scale;
@@ -51,6 +58,13 @@ namespace ColorsAction.Unity
 
         /// <summary>Вспышка <see cref="HitFlash"/> размера <paramref name="size"/> (как у прежней ParryFlash).</summary>
         public static ParticleFx Flash(Vector3 position, float size = 1f) => Play(HitFlash, position, Color.white, size);
+
+        /// <summary>Держать эффект в точке <paramref name="target"/>, пока он играет (для систем в локальном пространстве).</summary>
+        public ParticleFx Follow(Transform target)
+        {
+            follow = target;
+            return this;
+        }
 
         /// <summary>Играет ли сейчас хоть один эффект с этим именем (для автопрогонов).</summary>
         public static bool AnyPlaying(string name)
@@ -118,8 +132,11 @@ namespace ColorsAction.Unity
 
         private void LateUpdate()
         {
+            if (follow != null)
+                transform.position = follow.position;
             if (systems[0].IsAlive(true))
                 return;
+            follow = null;
             if (pool != null)
                 pool.Release(this);
             else

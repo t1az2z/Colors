@@ -59,10 +59,12 @@ namespace ColorsAction.Unity
                     return;
                 HealCount++;
                 quickCooldown = item?.Config.Heal?.Cooldown ?? 0.5f;
-                // Лечение: куб вытягивается вверх и пружинит, вспышка у центра.
+                // Лечение: куб вытягивается вверх и пружинит, тело светится зелёным,
+                // вокруг — спиральные ленты, зелёные искры-квадратики и плюсы, поднимающиеся вверх.
                 controller.Deformer.SetSquash(0.2f, 2.5f);
                 controller.Deformer.Impulse(0.6f);
-                ParticleFx.Flash(transform.position + Vector3.up * (config.ColliderHeight * 0.5f), 0.4f);
+                healGlowStart = Time.time;
+                ParticleFx.Play(ParticleFx.HealBurst, transform.position, Color.white)?.Follow(transform);
                 return;
             }
         }
@@ -203,8 +205,14 @@ namespace ColorsAction.Unity
             SetVisible(!Dead);
             // Мигание во время неуязвимости после урона: тело пульсирует белым свечением.
             var invulnerable = session.Vitals.Invulnerable && !Dead;
-            ApplyBlink(invulnerable ? config.Health.BlinkAmount(Time.time) : 0f);
+            ApplyBlink(invulnerable ? config.Health.BlinkAmount(Time.time) : 0f,
+                Dead ? 0f : config.Health.HealGlowAmount(Time.time - healGlowStart));
         }
+
+        /// <summary>Цвет свечения тела при лечении.</summary>
+        private static readonly Color HealColor = new Color(0.45f, 1f, 0.3f, 1f);
+
+        private float healGlowStart = -100f;
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
@@ -214,12 +222,14 @@ namespace ColorsAction.Unity
         private Color bodyColor;
         private Color bodyEmission;
         private float blinkApplied;
+        private float healApplied;
 
         /// <summary>
         /// Белое свечение тела (подматериал 0, глаза не трогаем) и оружия в руках: цвет тянется к белому,
         /// emission даёт bloom. Материалам нужен _EMISSION — берём светящиеся копии (<see cref="GlowMaterials"/>).
+        /// <paramref name="heal"/> (0..1) — зелёное свечение тела после лечения, складывается с миганием.
         /// </summary>
-        private void ApplyBlink(float amount)
+        private void ApplyBlink(float amount, float heal)
         {
             var glow = config.Health.BlinkGlow;
             if (amount > 0f || blinkApplied > 0f)
@@ -241,12 +251,16 @@ namespace ColorsAction.Unity
                 blinkBlock = new MaterialPropertyBlock();
             }
 
-            if (Mathf.Approximately(amount, blinkApplied))
+            if (Mathf.Approximately(amount, blinkApplied) && Mathf.Approximately(heal, healApplied))
                 return;
             blinkApplied = amount;
+            healApplied = heal;
+            var health = config.Health;
+            var color = Color.Lerp(bodyColor, HealColor, heal * health.HealGlowStrength);
             bodyRenderer.GetPropertyBlock(blinkBlock, 0);
-            blinkBlock.SetColor(BaseColorId, Color.Lerp(bodyColor, Color.white, amount));
-            blinkBlock.SetColor(EmissionColorId, bodyEmission + Color.white * (amount * glow));
+            blinkBlock.SetColor(BaseColorId, Color.Lerp(color, Color.white, amount));
+            blinkBlock.SetColor(EmissionColorId,
+                bodyEmission + Color.white * (amount * glow) + HealColor * (heal * health.HealGlow));
             bodyRenderer.SetPropertyBlock(blinkBlock, 0);
         }
 
