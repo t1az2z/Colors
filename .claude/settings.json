@@ -10,7 +10,7 @@
 		"Bash(unity recompile:*)",
 		"Bash(unity test:*)",
 		"Bash(unity run:*)",
-		"Bash(unity job:*)",
+		"Bash(unity job:*)"
     ]
   }
 }
