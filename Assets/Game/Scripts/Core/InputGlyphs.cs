@@ -75,6 +75,15 @@ namespace ColorsAction.Unity
             foreach (var action in Input.ActionsFor(actionId))
                 foreach (var path in Input.ControlPaths(action, gamepad))
                     result.Add(Glyph(path, family));
+            // У действия нет кнопки на этом устройстве (F1 — только клавиатура): показать кнопку другого устройства.
+            if (result.Count == 0)
+            {
+                var other = gamepad ? null : Input.GamepadFamily;
+                foreach (var action in Input.ActionsFor(actionId))
+                    foreach (var path in Input.ControlPaths(action, !gamepad))
+                        result.Add(Glyph(path, other));
+            }
+
             if (result.Count == 0)
                 result.Add(new InputGlyph(actionId, null, GlyphShape.Key, null));
             return result;

@@ -72,7 +72,6 @@ namespace ColorsAction.Unity
                 PadTextColor = new Color(0.93f, 0.93f, 0.92f, 1f)
             };
             marker.line = PromptLine.Create(go.transform, "Text", rect.sizeDelta, style, glyphs);
-            UiFactory.Stretch((RectTransform)marker.line.transform);
             marker.line.Alpha = 0f;
             marker.Refresh();
             return marker;

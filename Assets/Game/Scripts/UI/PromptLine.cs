@@ -129,6 +129,11 @@ namespace ColorsAction.Unity
             layout.childForceExpandWidth = false;
             layout.childForceExpandHeight = false;
             layout.spacing = Mathf.Max(2f, style.FontSize * 0.25f);
+            // Строка растёт под содержимое вокруг своего pivot (у Text префаба рамка может быть меньше текста).
+            if (!TryGetComponent<ContentSizeFitter>(out var fitter))
+                fitter = gameObject.AddComponent<ContentSizeFitter>();
+            fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
             built = false;
             Rebuild();
         }
@@ -219,7 +224,7 @@ namespace ColorsAction.Unity
                 image.sprite = glyph.Icon;
                 image.preserveAspect = true;
                 var aspect = glyph.Icon.rect.height > 0 ? glyph.Icon.rect.width / glyph.Icon.rect.height : 1f;
-                element.preferredWidth = height * aspect;
+                element.preferredWidth = element.minWidth = height * aspect;
                 return go;
             }
 
@@ -234,7 +239,7 @@ namespace ColorsAction.Unity
             label.font = style.Font;
             label.fontStyle = FontStyle.Bold;
             UiFactory.Stretch(label.rectTransform);
-            element.preferredWidth = round ? height : Mathf.Max(height, label.preferredWidth + style.FontSize * 0.6f);
+            element.preferredWidth = element.minWidth = round ? height : Mathf.Max(height, label.preferredWidth + style.FontSize * 0.6f);
             return go;
         }
 
